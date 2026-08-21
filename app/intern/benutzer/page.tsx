@@ -4,6 +4,7 @@ import { serverClient } from "@/lib/supabase/server";
 import { formatDatum } from "@/lib/fuellstand";
 import type { Benutzerprofil } from "@/lib/typen";
 import { Einladungsformular } from "./Einladungsformular";
+import { PasswortSetzen } from "./PasswortSetzen";
 import { rolleAendern, zugangUmschalten } from "./aktionen";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function BenutzerSeite() {
               <th>E-Mail</th>
               <th>Rolle</th>
               <th>Angelegt</th>
+              <th className="text-right">Passwort</th>
               <th className="text-right">Zugang</th>
             </tr>
           </thead>
@@ -63,6 +65,9 @@ export default async function BenutzerSeite() {
                   </form>
                 </td>
                 <td className="text-ink-3">{formatDatum(p.angelegt_am)}</td>
+                <td className="text-right">
+                  <PasswortSetzen id={p.id} name={p.name || (p.email ?? "Konto")} />
+                </td>
                 <td className="text-right">
                   <form action={zugangUmschalten}>
                     <input type="hidden" name="id" value={p.id} />
