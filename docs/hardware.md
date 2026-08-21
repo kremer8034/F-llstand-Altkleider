@@ -14,13 +14,17 @@ Auslegung: **50–300 Container, vier Messungen pro Tag**, Betrieb ohne Wartung
 | IoT-SIM | **1NCE 10-Jahres-Tarif** (500 MB, NB-IoT/LTE-M über Telekom) | einmalig bezahlt, keine monatliche Rechnung je Container | ~10 € einmalig |
 | Antenne | LTE-Klebeantenne mit u.FL/IPEX → SMA, 1–2 m Kabel | **muss außerhalb des Metallcontainers sitzen** (siehe Abschnitt 4) | 8–12 € |
 | Batterie – Pilot | 1× 18650 Li-Ion 3400 mAh (z. B. Panasonic NCR18650B) | Halter ist auf der Platine, sofort startklar | 8–10 € |
-| Batterie – Dauerbetrieb | 2× **LiSOCl₂ ER34615** (D-Zelle, 3,6 V, 19 Ah) parallel + 1 F Stützkondensator | hält Jahre, verträgt Frost bis −40 °C, kein Nachladen nötig | 25–35 € |
+| Batterie – Dauerbetrieb | 2× **LiSOCl₂ ER34615** (D-Zelle, 3,6 V, 19 Ah) parallel + Schottky-Diode + 1 F Stützkondensator | hält Jahre, verträgt Frost bis −40 °C, kein Nachladen nötig – **Sicherheitshinweis unten beachten** | 25–35 € |
 | Gehäuse | IP67-ABS-Kasten ca. 115 × 90 × 55 mm, zwei Verschraubungen M12 | Feuchtigkeit und Textilstaub | 10–15 € |
 | Auslösekontakt | **Reed-Kontakt + Magnet** (bevorzugt) oder IP67-Drucktaster 12 mm | löst Sofortmessung beim Anlernen aus; der Reed-Kontakt braucht kein Loch im Gehäuse | 3–8 € |
 | Status-LED | 3 mm LED hinter transluzentem Gehäusedeckel, 1 kΩ Vorwiderstand | Rückmeldung beim Anlernen | < 1 € |
 | Kleinteile | N-Kanal-MOSFET (z. B. 2N7002) für die Sensorabschaltung, Widerstände, Butylband, Kabelbinder | | 3–5 € |
 
-**Summe je Container: rund 105–135 €** (Pilot mit 18650) bzw. **125–160 €** (Dauerbetrieb mit LiSOCl₂), zuzüglich SIM.
+**Summe je Container: rund 108–145 €** (Pilot mit 18650) bzw. **126–168 €**
+(Dauerbetrieb mit LiSOCl₂), zuzüglich SIM.
+
+> Konkrete Produkte, Bezugsquellen und eine Hochrechnung auf 5, 20, 50 und 300
+> Boxen stehen in der **[Einkaufsliste](einkaufsliste.md)**.
 
 Für den Anfang genügen **drei bis fünf Boxen** an gut erreichbaren Standorten mit
 unterschiedlichem Nutzungsverhalten – daraus ergibt sich, ob vier Messungen am
@@ -121,6 +125,25 @@ weiteres Argument für die Antenne außen.
 **Solarmodul**: Die Platine kann laden, aber im Containerinneren gibt es kein
 Licht, und ein außen angebrachtes Modul ist ein Ziel für Vandalismus. Wir
 empfehlen daher Primärzellen (LiSOCl₂) statt Solar.
+
+### Sicherheitshinweis zu Primärzellen
+
+LiSOCl₂-Zellen sind **nicht aufladbar**, die Platine hat aber eine
+Ladeschaltung für USB und Solar. Daraus folgen zwei Regeln, die keine
+Empfehlung sind, sondern eingehalten werden müssen:
+
+1. **Schottky-Diode in Reihe zum Pluspol** (SS14 oder 1N5819). Sie sperrt
+   jeden Rückstrom in die Zellen. Ihr Spannungsabfall von etwa 0,3 V ist
+   eingeplant – 3,6 V minus 0,3 V liegt weiterhin über der Mindestspannung
+   des Funkmoduls.
+2. **Vor jedem USB-Anschluss den Batteriepack abklemmen** – auch mit Diode.
+   Ein Aufkleber im Gehäusedeckel erinnert daran.
+
+Dazu die elektrische Eigenheit dieser Zellen: sie liefern nur rund 200 mA
+dauerhaft, das Funkmodul zieht beim Senden kurzzeitig bis zu 2 A. Deshalb zwei
+Zellen parallel **und** ein Stützkondensator (1 F Goldcap über 10 Ω), der die
+Spitzen abfängt. Das ist der Teil des Aufbaus, den man vor dem Bau größerer
+Stückzahlen einmal nachmessen sollte.
 
 ---
 

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdresseServer } from "./adresse";
 
 /**
  * Client fuer die oeffentlichen Seiten - ohne Cookies und ohne Sitzung.
@@ -10,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
  */
 export function oeffentlicherClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseAdresseServer(),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdresseServer } from "./adresse";
 
 /**
  * Client mit Service-Role. Umgeht RLS vollstaendig.
@@ -13,7 +14,7 @@ export function adminClient() {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ist nicht gesetzt.");
   }
 
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, schluessel, {
+  return createClient(supabaseAdresseServer(), schluessel, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

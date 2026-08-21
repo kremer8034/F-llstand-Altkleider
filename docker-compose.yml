@@ -1,0 +1,239 @@
+# ---------------------------------------------------------------------------
+# Füllstandsüberwachung Altkleidercontainer – Betrieb im eigenen Haus
+#
+#   docker compose up -d --build          Anwendung starten
+#   docker compose --profile admin up -d  zusätzlich Supabase Studio
+#   docker compose logs -f app            Protokoll mitlesen
+#
+# Ein einziger Einstiegspunkt: der Torwächter auf Port 8080 verteilt
+# /auth/v1 und /rest/v1 an Supabase, alles andere an die Web-Anwendung.
+# Dadurch liegen Web-Oberfläche und Schnittstelle auf derselben Adresse –
+# kein CORS, kein zweiter Port, kein zweites Zertifikat.
+# ---------------------------------------------------------------------------
+
+name: fuellstand
+
+services:
+  # ------------------------------------------------------------------ Daten
+  db:
+    image: supabase/postgres:15.14.1.165
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET fehlt}
+      JWT_EXP: 3600
+      AUTH_ADMIN_PASSWORT: ${AUTH_ADMIN_PASSWORT:?AUTH_ADMIN_PASSWORT fehlt}
+      AUTHENTICATOR_PASSWORT: ${AUTHENTICATOR_PASSWORT:?AUTHENTICATOR_PASSWORT fehlt}
+    volumes:
+      - db-daten:/var/lib/postgresql/data
+      - ./docker/db/10-rollen.sh:/docker-entrypoint-initdb.d/init-scripts/10-rollen.sh:ro
+      - ./docker/db/20-auth-funktionen.sql:/docker-entrypoint-initdb.d/init-scripts/20-auth-funktionen.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # -------------------------------------------------------- Schema einspielen
+  # Läuft einmalig durch und beendet sich. Wartet, bis die Anmeldeverwaltung
+  # ihre eigenen Tabellen angelegt hat, und überspringt sich selbst, wenn das
+  # Schema schon steht.
+  migrate:
+    image: postgres:15-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      BEISPIELDATEN: ${BEISPIELDATEN:-nein}
+    volumes:
+      - ./supabase/migrations:/migrations:ro
+      - ./docker/migrate/einspielen.sh:/einspielen.sh:ro
+    entrypoint: ["/bin/sh", "/einspielen.sh"]
+
+  # ------------------------------------------------------------- Anmeldung
+  auth:
+    image: supabase/auth:v2.196.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}/auth/v1
+
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_ADMIN_PASSWORT}@db:5432/postgres?search_path=auth&sslmode=disable
+
+      GOTRUE_SITE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+      GOTRUE_URI_ALLOW_LIST: ${OEFFENTLICHE_URL:-http://localhost:8080}/**
+
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+
+      # Keine offene Registrierung: Zugänge werden eingeladen.
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mail}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
+      GOTRUE_SMTP_USER: ${SMTP_BENUTZER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASSWORT:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ABSENDER:-noreply@brk-mill.de}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_ABSENDERNAME:-Füllstand Altkleidercontainer}
+      GOTRUE_SMTP_MAX_FREQUENCY: 5s
+
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+
+      GOTRUE_LOG_LEVEL: info
+
+  # -------------------------------------------------------- Datenschnittstelle
+  rest:
+    image: postgrest/postgrest:v16.2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORT}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+      PGRST_DB_POOL: 10
+
+  # ------------------------------------------------------------ Anwendung
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY:?ANON_KEY fehlt}
+        NEXT_PUBLIC_SITE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      NEXT_PUBLIC_SITE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+      # Innerhalb des Netzwerks führt der Weg über den Torwächter
+      SUPABASE_INTERNAL_URL: http://gateway
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?SERVICE_ROLE_KEY fehlt}
+      GERAETE_PROVISIONIERUNG_SCHLUESSEL: ${GERAETE_PROVISIONIERUNG_SCHLUESSEL:-}
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET fehlt}
+
+  # ------------------------------------------------------------ Torwächter
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+      - auth
+      - rest
+    ports:
+      - "${PORT_EXTERN:-8080}:80"
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------------- Stündliche Überwachung (Cron)
+  # Ersetzt den Vercel-Cron-Eintrag: ruft einmal pro Stunde denselben Endpunkt
+  # auf, der stille Sensoren meldet.
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    # busybox bringt wget mit - kein Nachinstallieren beim Start noetig.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          sleep 3600
+          if wget -q -O /dev/null \
+               --header="Authorization: Bearer $$CRON_SECRET" \
+               http://gateway/api/cron/pruefen; then
+            echo "$$(date -Iseconds) Prueflauf ok"
+          else
+            echo "$$(date -Iseconds) Prueflauf fehlgeschlagen"
+          fi
+        done
+
+  # ------------------------------------------------- E-Mail-Test (Profil dev)
+  # Fängt alle ausgehenden Mails ab und zeigt sie unter http://localhost:8025.
+  # Für den echten Betrieb stattdessen SMTP_* auf den Hausmailserver setzen
+  # und dieses Profil weglassen.
+  mail:
+    image: axllent/mailpit:v1.30
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "${PORT_MAIL:-8025}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  # ------------------------------------------- Datenbankoberfläche (Profil admin)
+  meta:
+    image: supabase/postgres-meta:v0.98.0
+    restart: unless-stopped
+    profiles: ["admin"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+  studio:
+    image: supabase/studio:2026.08.17-sha-0c1da8f
+    restart: unless-stopped
+    profiles: ["admin"]
+    depends_on:
+      - meta
+    ports:
+      - "${PORT_STUDIO:-8000}:3000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEFAULT_ORGANIZATION_NAME: BRK Miltenberg
+      DEFAULT_PROJECT_NAME: Füllstand Altkleidercontainer
+      SUPABASE_URL: http://gateway
+      SUPABASE_PUBLIC_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+
+volumes:
+  db-daten:

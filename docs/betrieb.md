@@ -1,4 +1,8 @@
-# Einrichtung und Betrieb
+# Einrichtung und Betrieb bei Supabase und Vercel
+
+> Wer alles auf einem eigenen Server betreiben möchte, findet den Weg über
+> Docker in **[docker.md](docker.md)** – dort läuft dieselbe Anwendung samt
+> Datenbank und Anmeldeverwaltung in Containern.
 
 ## 1. Supabase-Projekt anlegen
 

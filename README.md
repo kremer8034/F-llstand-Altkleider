@@ -54,13 +54,32 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 | `lib/` | Supabase-Clients, Rollen, Füllstandslogik, CSV-Leser |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
-| `docs/` | Hardware, Anlernprozess, Schnittstellen, Betrieb |
+| `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |
+| `docs/` | Hardware, Einkaufsliste, Anlernprozess, Schnittstellen, Betrieb |
 
 Technik: Next.js 14 · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
 Row Level Security) · Leaflet mit OpenStreetMap · PlatformIO/Arduino für die
 Firmware.
 
 ## Schnellstart
+
+Es gibt zwei Wege, und beide führen zum selben Ergebnis.
+
+### Alles im eigenen Haus, mit Docker
+
+Datenbank, Anmeldung, Schnittstelle und Web-Oberfläche laufen in Containern auf
+einem eigenen Server – ohne Abhängigkeit von einem Anbieter.
+
+```bash
+cp .env.docker.example .env
+node scripts/schluessel-erzeugen.mjs >> .env
+docker compose --profile dev up -d --build
+```
+
+Danach läuft alles unter http://localhost:8080, das Testpostfach unter
+http://localhost:8025. Einzelheiten in **[docs/docker.md](docs/docker.md)**.
+
+### Bei Supabase und Vercel
 
 ```bash
 npm install
@@ -77,9 +96,11 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 | | |
 |---|---|
 | [docs/hardware.md](docs/hardware.md) | Stückliste, Verdrahtung, Montage, Stromverbrauch |
+| [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
 | [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
-| [docs/betrieb.md](docs/betrieb.md) | Einrichtung, Rollen, Schwellwerte, Datenschutz |
+| [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
+| [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |
 | [docs/dienstleistungsdatenbank.md](docs/dienstleistungsdatenbank.md) | Import heute, Live-Anbindung später |
 | [firmware/altkleider-sensor/README.md](firmware/altkleider-sensor/README.md) | Firmware bauen und flashen |
 
