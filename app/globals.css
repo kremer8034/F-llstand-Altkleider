@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Farbrollen. Hell ist die Grundlage, Dunkel wird bewusst eigenstaendig
+   gesetzt (nicht einfach invertiert) - sowohl fuer die Systemeinstellung als
+   auch fuer einen spaeteren Umschalter per data-theme.
+   --------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --plane: #f9f9f7;
+  --flaeche: #fcfcfb;
+  --flaeche-2: #f2f1ed;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+  --linie: #e1e0d9;
+  --achse: #c3c2b7;
+  --rand: rgba(11, 11, 11, 0.1);
+
+  /* Datenreihe (Verlaufskurve): eine Reihe, ein Blau */
+  --serie: #2a78d6;
+  --serie-wash: rgba(42, 120, 214, 0.1);
+
+  /* Status: fest, niemals als Serienfarbe zweckentfremdet */
+  --gut: #0ca30c;
+  --warnung: #fab219;
+  --ernst: #ec835a;
+  --kritisch: #d03b3b;
+  --unbekannt: #898781;
+
+  --brk: #e2001a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --plane: #0d0d0d;
+    --flaeche: #1a1a19;
+    --flaeche-2: #232322;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --linie: #2c2c2a;
+    --achse: #383835;
+    --rand: rgba(255, 255, 255, 0.1);
+
+    --serie: #3987e5;
+    --serie-wash: rgba(57, 135, 229, 0.14);
+
+    --brk: #ff3b4f;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --plane: #0d0d0d;
+  --flaeche: #1a1a19;
+  --flaeche-2: #232322;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+  --linie: #2c2c2a;
+  --achse: #383835;
+  --rand: rgba(255, 255, 255, 0.1);
+
+  --serie: #3987e5;
+  --serie-wash: rgba(57, 135, 229, 0.14);
+
+  --brk: #ff3b4f;
+}
+
+html,
+body {
+  background: var(--plane);
+  color: var(--ink);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Karte -------------------------------------------------------------------- */
+.leaflet-container {
+  background: var(--flaeche-2);
+  font: inherit;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--flaeche);
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+  line-height: 1.45;
+}
+
+.leaflet-bar a,
+.leaflet-control-attribution {
+  background: var(--flaeche);
+  color: var(--ink-2);
+}
+
+.leaflet-bar a:hover {
+  background: var(--flaeche-2);
+}
+
+/* Im Dunkelmodus die Kachelgrafik etwas abdunkeln, damit die Marker fuehren */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .leaflet-tile-pane {
+    filter: brightness(0.72) saturate(0.75);
+  }
+}
+
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: brightness(0.72) saturate(0.75);
+}
+
+/* Marker ------------------------------------------------------------------- */
+.container-marker {
+  background: transparent;
+  border: 0;
+}
+
+/* Formularelemente --------------------------------------------------------- */
+.feld {
+  @apply w-full rounded-lg border bg-flaeche px-3 py-2 text-sm text-ink outline-none;
+}
+
+.feld:focus {
+  border-color: var(--serie);
+  box-shadow: 0 0 0 3px var(--serie-wash);
+}
+
+.knopf {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
+}
+
+.knopf-primaer {
+  @apply knopf text-white;
+  background: var(--serie);
+}
+
+.knopf-primaer:hover {
+  filter: brightness(1.08);
+}
+
+.knopf-sekundaer {
+  @apply knopf border bg-flaeche text-ink;
+}
+
+.knopf-sekundaer:hover {
+  background: var(--flaeche-2);
+}
+
+.knopf:disabled {
+  @apply cursor-not-allowed opacity-50;
+}
+
+.karte-flaeche {
+  @apply rounded-xl border bg-flaeche;
+}
+
+.tabelle {
+  @apply w-full border-collapse text-sm;
+}
+
+.tabelle th {
+  @apply border-b px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-3;
+}
+
+.tabelle td {
+  @apply border-b px-3 py-2 align-middle;
+}
+
+.zahl {
+  font-variant-numeric: tabular-nums;
+}

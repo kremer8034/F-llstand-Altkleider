@@ -1,0 +1,51 @@
+import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
+import type { OeffentlicherContainer } from "@/lib/typen";
+import { OeffentlicheAnsicht } from "./OeffentlicheAnsicht";
+
+// Die oeffentliche Karte soll aktuell sein, aber nicht bei jedem Aufruf die
+// Datenbank belasten: eine Minute Zwischenspeicher ist ein guter Kompromiss.
+export const revalidate = 60;
+
+export default async function Startseite() {
+  const supabase = oeffentlicherClient();
+
+  const { data, error } = await supabase
+    .from("oeffentliche_container")
+    .select("*")
+    .order("ort", { ascending: true })
+    .order("nummer", { ascending: true });
+
+  const container = (data ?? []) as OeffentlicherContainer[];
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-8">
+      <header className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+          BRK Kreisverband Miltenberg
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">Altkleidercontainer – Füllstände</h1>
+        <p className="mt-2 max-w-2xl text-sm text-ink-2">
+          Die Container melden ihren Füllstand selbst. So sehen Sie vor der Fahrt, welcher Container
+          noch Platz hat. Die Angaben sind Messwerte der letzten Übertragung – keine Garantie.
+        </p>
+      </header>
+
+      {error && (
+        <div className="karte-flaeche mb-6 p-4 text-sm text-ink-2">
+          Die Containerdaten sind gerade nicht abrufbar. Bitte versuchen Sie es später erneut.
+        </div>
+      )}
+
+      <OeffentlicheAnsicht container={container} />
+
+      <footer className="mt-10 border-t pt-4 text-xs text-ink-3">
+        <p>
+          Kartendaten © OpenStreetMap-Mitwirkende. Angaben ohne Gewähr.{" "}
+          <a href="/login" className="underline underline-offset-2 hover:text-ink-2">
+            Interner Bereich
+          </a>
+        </p>
+      </footer>
+    </main>
+  );
+}
