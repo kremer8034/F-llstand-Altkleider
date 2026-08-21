@@ -9,6 +9,14 @@
  * Bei Supabase Cloud ist die Variable nicht gesetzt - dann gilt schlicht die
  * oeffentliche Adresse.
  */
+/** Sind Adresse und Zugriffsschluessel gesetzt? */
+export function istKonfiguriert(): boolean {
+  return Boolean(
+    (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
 export function supabaseAdresseServer(): string {
   const adresse = process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!adresse) {

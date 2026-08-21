@@ -30,6 +30,16 @@ do $$ begin
     raise exception 'FEHLER: Rollenwechsel war moeglich';
   end if;
   raise notice 'korrekt: Rolle unveraendert (%)', (select rolle from public.benutzerprofil where id = auth.uid());
+exception when insufficient_privilege then
+  raise notice 'korrekt abgelehnt (RLS): %', sqlerrm;
+end $$;
+
+\echo '-- Funktionsrechte: darf keine Verwaltungsfunktion ohne Recht aufrufen:'
+do $$ declare n int; begin
+  select count(*) into n from public.pruefe_stille_sensoren();
+  raise exception 'FEHLER: pruefe_stille_sensoren war aufrufbar';
+exception when insufficient_privilege then
+  raise notice 'korrekt abgelehnt: %', sqlerrm;
 end $$;
 
 reset role;
@@ -49,12 +59,18 @@ do $$ declare n int; begin
   if n > 0 then raise exception 'FEHLER: anon sieht % Container in der Rohtabelle', n; end if;
   raise notice 'korrekt: Rohtabelle fuer anon leer';
 end $$;
+do $$ declare n int; begin
+  select count(*) into n from public.tourenliste(null);
+  raise exception 'FEHLER: anon konnte die Tourenliste abrufen (% Zeilen)', n;
+exception when insufficient_privilege then
+  raise notice 'korrekt abgelehnt: Tourenliste ohne Anmeldung nicht aufrufbar';
+end $$;
 reset role;
 
 \echo '=== D. Administration ==='
 set test.uid = '11111111-1111-1111-1111-111111111111';
 set role authenticated;
-insert into public.container (nummer, ort) values ('T-003', 'Miltenberg');
+insert into public.container (nummer, ort) values ('T-003', 'Miltenberg') on conflict (nummer) do nothing;
 select 'ok' as container_angelegt;
 select count(*) as sichtbare_profile from public.benutzerprofil;
 reset role;

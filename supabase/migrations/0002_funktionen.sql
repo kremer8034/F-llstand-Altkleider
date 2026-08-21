@@ -20,6 +20,7 @@ create or replace function public.fuellstand_stufe(p_prozent smallint)
 returns text
 language sql
 immutable
+set search_path = public
 as $$
   select case
     when p_prozent is null then 'unbekannt'
@@ -39,6 +40,7 @@ create or replace function public.berechne_fuellstand(
 returns smallint
 language plpgsql
 immutable
+set search_path = public
 as $$
 declare
   v_spanne integer;
@@ -65,6 +67,7 @@ comment on function public.berechne_fuellstand is
 create or replace function public.setze_geaendert_am()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.geaendert_am := now();
@@ -582,6 +585,11 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- Tourenliste: was als naechstes angefahren werden sollte
+--
+-- Bewusst SECURITY INVOKER: die Funktion liest ausschliesslich Tabellen, die
+-- schon eigene Zugriffsregeln haben. Damit greifen diese Regeln von selbst -
+-- ohne Anmeldung kommt schlicht nichts zurueck. Als SECURITY DEFINER waere sie
+-- ein zweiter, leicht zu uebersehender Weg an den Regeln vorbei.
 -- ---------------------------------------------------------------------------
 create or replace function public.tourenliste(p_schwelle smallint default null)
 returns table (
@@ -601,7 +609,7 @@ returns table (
 )
 language sql
 stable
-security definer
+security invoker
 set search_path = public
 as $$
   with schwelle as (

@@ -11,6 +11,13 @@ export const revalidate = 60;
 export async function GET() {
   const supabase = oeffentlicherClient();
 
+  if (!supabase) {
+    return NextResponse.json(
+      { fehler: "Diese Instanz ist noch nicht eingerichtet." },
+      { status: 503 },
+    );
+  }
+
   const { data, error } = await supabase
     .from("oeffentliche_container")
     .select("id, nummer, bezeichnung, strasse, plz, ort, lat, lng, fuellstand_prozent, stufe, gemessen_am, stunden_seit_messung")
