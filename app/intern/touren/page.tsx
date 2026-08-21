@@ -21,6 +21,17 @@ export interface Tourzeile {
   prioritaet: number;
 }
 
+/** Optionaler fester Ausgangspunkt der Tour (Einstellung "betriebshof"). */
+function betriebshofLesen(werte: Record<string, unknown>) {
+  const wert = werte["betriebshof"];
+  if (!wert || typeof wert !== "object") return null;
+
+  const { lat, lng, name } = wert as { lat?: unknown; lng?: unknown; name?: unknown };
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+
+  return { lat, lng, name: typeof name === "string" ? name : "Betriebshof" };
+}
+
 export default async function TourenSeite() {
   const supabase = serverClient();
   const [antwort, werte] = await Promise.all([
@@ -36,8 +47,8 @@ export default async function TourenSeite() {
       <div>
         <h1 className="text-2xl font-semibold">Nächste Tour</h1>
         <p className="mt-1 text-sm text-ink-2">
-          Container ab {schwelle} % Füllstand sowie alle mit offener Meldung – nach Dringlichkeit
-          sortiert.
+          Container ab {schwelle} % Füllstand sowie alle mit offener Meldung – in der Reihenfolge der
+          kürzesten Fahrtstrecke.
         </p>
       </div>
 
@@ -47,7 +58,7 @@ export default async function TourenSeite() {
         </p>
       )}
 
-      <Tourenansicht zeilen={zeilen} />
+      <Tourenansicht zeilen={zeilen} betriebshof={betriebshofLesen(werte)} />
     </div>
   );
 }

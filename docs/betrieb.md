@@ -19,6 +19,7 @@
    | `0004_beispieldaten.sql` | *optional*: zehn Beispielcontainer zum Ausprobieren |
    | `0005_funktionsrechte.sql` | schränkt die Ausführungsrechte der Funktionen ein |
    | `0006_stuendlicher_pruflauf.sql` | stündliche Überwachung stiller Sensoren (pg_cron) |
+   | `0007_betriebshof.sql` | optionaler fester Startpunkt der Tourenplanung |
 
    Mit der Supabase-CLI geht es in einem Rutsch:
    `supabase db push`
@@ -157,6 +158,23 @@ Tabelle `einstellung`, änderbar nur durch die Administration:
 | `leerung_erkennung_diff` | 40 | Sprung nach unten, der als Leerung zählt |
 | `karte_zentrum` | Miltenberg | Startausschnitt der Karte |
 | `oeffentliche_karte` | true | öffentliche Karte freigeschaltet |
+| `betriebshof` | null | fester Startpunkt der Tour, siehe unten |
+
+### Startpunkt der Tour
+
+Die Tourenliste rechnet die Reihenfolge auf die kürzeste Gesamtstrecke. Dafür
+braucht sie einen Ausgangspunkt. Unterwegs nimmt das Fahrpersonal den eigenen
+Standort; wer die Tour vom Schreibtisch aus plant, hinterlegt besser den
+Betriebshof:
+
+```sql
+update einstellung
+   set wert = '{"name": "Betriebshof Miltenberg", "lat": 49.7042, "lng": 9.2646}'::jsonb
+ where schluessel = 'betriebshof';
+```
+
+Die Koordinaten bekommt man in Google Maps per Rechtsklick auf den Ort. Wieder
+abschalten mit `set wert = 'null'::jsonb`.
 
 ---
 

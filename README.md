@@ -33,7 +33,8 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Karte und Containerliste mit Suche, Filtern und Sortierung
 - Containerdetail: Füllstandsverlauf der letzten 30 Tage, Leerungen, Meldungen,
   Kalibrierung
-- Tourenliste nach Dringlichkeit oder Entfernung, mit Sammelroute
+- Tourenliste: Auswahl nach Füllstand, **Reihenfolge nach kürzester Fahrtstrecke**
+  (Nächster-Nachbar + 2-opt), mit Sammelroute für die Navigation
 - Sensorverwaltung samt **Anlernprozess** und druckbarem QR-Etikett
 - Import von Containerstammdaten aus der DRK-Dienstleistungsdatenbank (CSV)
 - Benutzerverwaltung mit drei Rollen; Passwort-Zurücksetzen ohne Administration
