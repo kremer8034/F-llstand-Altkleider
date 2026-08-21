@@ -17,12 +17,42 @@ export function Anmeldeformular({ weiter }: { weiter: string }) {
     setFehler(null);
     setLaeuft(true);
 
+    // Ohne hinterlegte Zugangsdaten kaeme sonst dieselbe Meldung wie bei einem
+    // falschen Passwort - und man sucht den Fehler an der falschen Stelle.
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setFehler(
+        "Diese Instanz ist nicht mit einer Datenbank verbunden. Es fehlen die Umgebungsvariablen " +
+          "NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
+      setLaeuft(false);
+      return;
+    }
+
     const supabase = browserClient();
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: passwort });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password: passwort,
+    });
 
     if (error) {
-      // Bewusst unspezifisch: verrät nicht, ob die Adresse existiert.
-      setFehler("E-Mail-Adresse oder Passwort stimmt nicht.");
+      // Fuer die Fehlersuche in der Browserkonsole - im Text steht bewusst
+      // weniger.
+      console.error("Anmeldung fehlgeschlagen:", error.status, error.code, error.message);
+
+      if (error.status === 429 || error.code === "over_request_rate_limit") {
+        setFehler("Zu viele Anmeldeversuche. Bitte einige Minuten warten und es dann erneut versuchen.");
+      } else if (error.code === "email_not_confirmed") {
+        setFehler("Diese E-Mail-Adresse ist noch nicht bestätigt.");
+      } else if (error.status === 400 || error.code === "invalid_credentials") {
+        // Nur hier bewusst unspezifisch: verraet nicht, ob die Adresse existiert.
+        setFehler("E-Mail-Adresse oder Passwort stimmt nicht.");
+      } else {
+        setFehler(
+          "Die Anmeldung ist gerade nicht möglich – der Anmeldedienst antwortet nicht wie erwartet. " +
+            "Einzelheiten stehen in der Browserkonsole.",
+        );
+      }
+
       setLaeuft(false);
       return;
     }
