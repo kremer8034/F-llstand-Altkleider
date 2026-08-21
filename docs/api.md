@@ -138,7 +138,16 @@ Einstellung `oeffentliche_karte`.
 
 ## GET /api/cron/pruefen – Überwachung
 
-Stündlich von Vercel Cron aufgerufen (`vercel.json`), geschützt über
-`Authorization: Bearer $CRON_SECRET`. Legt Alarme für Sensoren an, die zu lange
-nichts gemeldet haben. Dieselbe Funktion (`pruefe_stille_sensoren()`) lässt sich
-alternativ in Supabase per `pg_cron` einplanen.
+Legt Alarme für Sensoren an, die zu lange nichts gemeldet haben. Geschützt über
+`Authorization: Bearer $CRON_SECRET`.
+
+Wer ruft ihn auf?
+
+| Betrieb | Auslöser |
+|---|---|
+| Supabase + Vercel | **niemand** – dort läuft `pruefe_stille_sensoren()` stündlich direkt in der Datenbank (pg_cron, Migration `0006`). Der Vercel-Hobby-Tarif erlaubt nur einen Cron-Lauf pro Tag und scheidet deshalb aus. |
+| Docker | der Dienst `cron` aus `docker-compose.yml`, stündlich |
+| von Hand | jederzeit mit `curl -H "Authorization: Bearer $CRON_SECRET" …` |
+
+Der Endpunkt bleibt also nützlich, ist im Vercel-Betrieb aber nicht der Weg,
+über den die Überwachung läuft.

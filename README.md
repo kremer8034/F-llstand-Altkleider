@@ -42,7 +42,8 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Füllstand aus Abstand und Kalibrierung, rückwirkend neu gerechnet, wenn sich
   die Kalibrierung ändert
 - Leerungserkennung aus dem Verlauf
-- Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst
+- Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst;
+  die stündliche Signalprüfung läuft als Datenbank-Job (pg_cron)
 - Sendeintervall der Geräte aus der Oberfläche steuerbar, ohne neu zu flashen
 
 ## Aufbau

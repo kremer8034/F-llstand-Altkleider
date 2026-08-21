@@ -17,6 +17,8 @@
    | `0002_funktionen.sql` | Füllstandsberechnung, Leerungserkennung, Alarme, Anlernen |
    | `0003_rls.sql` | Zugriffsschutz und öffentliche Kartenansicht |
    | `0004_beispieldaten.sql` | *optional*: zehn Beispielcontainer zum Ausprobieren |
+   | `0005_funktionsrechte.sql` | schränkt die Ausführungsrechte der Funktionen ein |
+   | `0006_stuendlicher_pruflauf.sql` | stündliche Überwachung stiller Sensoren (pg_cron) |
 
    Mit der Supabase-CLI geht es in einem Rutsch:
    `supabase db push`
@@ -62,8 +64,31 @@ eintragen:
 | `GERAETE_PROVISIONIERUNG_SCHLUESSEL` | `openssl rand -hex 32` |
 | `CRON_SECRET` | frei gewählt, schützt `/api/cron/pruefen` |
 
-Der stündliche Prüflauf ist in `vercel.json` bereits eingetragen und läuft nach
-dem ersten Deployment von selbst.
+Einen Cron-Eintrag braucht Vercel **nicht** – der stündliche Prüflauf läuft in
+der Datenbank (siehe nächster Abschnitt). `CRON_SECRET` wird trotzdem gesetzt:
+es schützt den Endpunkt `/api/cron/pruefen`, der weiterhin von Hand ausgelöst
+werden kann.
+
+---
+
+## 2a. Stündliche Überwachung
+
+Migration `0006` legt mit **pg_cron** einen Job in der Datenbank an, der
+stündlich prüft, welcher angelernte Sensor zu lange nichts gemeldet hat:
+
+```sql
+select jobname, schedule, active from cron.job;
+select * from cron.job_run_details order by start_time desc limit 10;
+```
+
+> **Warum nicht über Vercel Cron?** Der Hobby-Tarif erlaubt dort nur *einen*
+> Lauf pro Tag. Bei einer Schwelle von 30 Stunden fiele ein toter Sensor damit
+> erst bis zu 54 Stunden nach seiner letzten Meldung auf. pg_cron gehört zu
+> Supabase, kostet nichts und kann stündlich. Wer einen Pro-Tarif hat, kann
+> stattdessen eine `vercel.json` mit
+> `{"crons":[{"path":"/api/cron/pruefen","schedule":"17 * * * *"}]}` anlegen –
+> dann aber den Datenbank-Job abschalten:
+> `select cron.unschedule('stille-sensoren-pruefen');`
 
 ---
 
