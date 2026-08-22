@@ -139,7 +139,8 @@ Einstellung `oeffentliche_karte`.
 ## GET /api/cron/pruefen – Überwachung
 
 Legt Alarme für Sensoren an, die zu lange nichts gemeldet haben. Geschützt über
-`Authorization: Bearer $CRON_SECRET`.
+`Authorization: Bearer $CRON_SECRET`. Ist `CRON_SECRET` nicht gesetzt, antwortet
+der Endpunkt mit **503** – er ist dann abgeschaltet und nicht etwa offen.
 
 Wer ruft ihn auf?
 

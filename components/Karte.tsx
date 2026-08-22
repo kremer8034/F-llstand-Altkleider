@@ -23,6 +23,27 @@ export interface Kartenpunkt {
   detailPfad?: string | null;
 }
 
+/**
+ * Text fuer die Einbettung in HTML entschaerfen.
+ *
+ * Leaflet nimmt fuer Popups eine HTML-Zeichenkette entgegen und setzt sie per
+ * innerHTML. Containerbezeichnung und Adresse kommen aus der Datenbank und
+ * damit aus dem Stammdatenformular bzw. dem CSV-Import - beides sind Texte, die
+ * jemand eintippt. Ungefiltert landete daraus eingeschleustes Markup direkt in
+ * der oeffentlichen Karte, die ohne Anmeldung erreichbar ist. React nimmt uns
+ * das Maskieren hier nicht ab, weil die Zeichenkette an Leaflet geht und nicht
+ * in den JSX-Baum.
+ */
+function html(wert: string | number | null | undefined): string {
+  if (wert === null || wert === undefined) return "";
+  return String(wert)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** SVG-Nadel: Statusfarbe traegt den Zustand, die Form wiederholt ihn. */
 function nadelHtml(stufe: Fuellstandsstufe): string {
   const farbe = STUFEN[stufe].farbe;
@@ -52,26 +73,28 @@ function nadelHtml(stufe: Fuellstandsstufe): string {
 function popupHtml(p: Kartenpunkt): string {
   const stufe = stufeVon(p.fuellstand_prozent);
   const ort = adresse(p);
+  // Der Detailpfad wird hier selbst gebaut und ist nie eine fremde Adresse -
+  // maskiert wird er trotzdem, damit die Regel ohne Ausnahme gilt.
   const detail = p.detailPfad
-    ? `<a href="${p.detailPfad}" style="display:inline-block;margin-top:8px;font-weight:600;color:var(--serie)">Details ansehen</a>`
+    ? `<a href="${html(p.detailPfad)}" style="display:inline-block;margin-top:8px;font-weight:600;color:var(--serie)">Details ansehen</a>`
     : "";
   const standzeit =
     p.standtage !== null && p.standtage !== undefined
-      ? `<div style="color:var(--ink-3)">Standort seit ${standzeitText(p.standtage)}</div>`
+      ? `<div style="color:var(--ink-3)">Standort seit ${html(standzeitText(p.standtage))}</div>`
       : "";
 
   return `
     <div style="min-width:200px">
-      <div style="font-weight:600;font-size:14px">${p.bezeichnung ?? p.nummer}</div>
-      ${ort ? `<div style="color:var(--ink-2);font-size:13px">${ort}</div>` : ""}
+      <div style="font-weight:600;font-size:14px">${html(p.bezeichnung ?? p.nummer)}</div>
+      ${ort ? `<div style="color:var(--ink-2);font-size:13px">${html(ort)}</div>` : ""}
       <div style="margin:8px 0;display:flex;align-items:center;gap:8px">
         <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${STUFEN[stufe].farbe}"></span>
-        <strong style="font-size:13px">${STUFEN[stufe].text}</strong>
-        <span style="font-size:13px;color:var(--ink-2)">${prozentText(p.fuellstand_prozent)}</span>
+        <strong style="font-size:13px">${html(STUFEN[stufe].text)}</strong>
+        <span style="font-size:13px;color:var(--ink-2)">${html(prozentText(p.fuellstand_prozent))}</span>
       </div>
-      <div style="font-size:12px;color:var(--ink-3)">Stand: ${alterText(p.gemessen_am)}</div>
+      <div style="font-size:12px;color:var(--ink-3)">Stand: ${html(alterText(p.gemessen_am))}</div>
       <div style="font-size:12px">${standzeit}</div>
-      <div style="font-size:12px;color:var(--ink-3)">Nr. ${p.nummer}</div>
+      <div style="font-size:12px;color:var(--ink-3)">Nr. ${html(p.nummer)}</div>
       ${detail}
     </div>`;
 }

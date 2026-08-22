@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { angemeldeterBenutzer } from "@/lib/auth";
+import { sicheresZiel } from "@/lib/weiterleitung";
 import { Anmeldeformular } from "./Anmeldeformular";
 
 export const metadata = { title: "Anmelden" };
@@ -10,7 +11,11 @@ export default async function Anmeldeseite({
 }: {
   searchParams: { grund?: string; weiter?: string };
 }) {
-  if (await angemeldeterBenutzer()) redirect(searchParams.weiter ?? "/intern");
+  // Das Ziel steht in der Adresszeile und darf deshalb nicht ungeprueft in eine
+  // Weiterleitung wandern.
+  const weiter = sicheresZiel(searchParams.weiter);
+
+  if (await angemeldeterBenutzer()) redirect(weiter);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
@@ -31,7 +36,7 @@ export default async function Anmeldeseite({
       )}
 
       <div className="karte-flaeche p-5">
-        <Anmeldeformular weiter={searchParams.weiter ?? "/intern"} />
+        <Anmeldeformular weiter={weiter} />
       </div>
 
       <p className="mt-6 text-center text-sm text-ink-3">

@@ -1,0 +1,4 @@
+Next.js legt hier statische Dateien ab (Favicon, Bilder). Das Verzeichnis muss
+auch leer im Repository stehen bleiben: der Dockerfile kopiert es mit
+`COPY --from=bauen /app/public ./public`, und dieser Schritt bricht ab, wenn es
+fehlt - der Docker-Bau lief deshalb bisher nicht durch.

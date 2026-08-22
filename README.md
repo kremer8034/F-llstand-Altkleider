@@ -1,8 +1,9 @@
 # Füllstandsüberwachung Altkleidercontainer
 
-Sensoren melden, wie voll die Altkleidercontainer sind. Das Fahrpersonal sieht
-daraus eine nach Dringlichkeit sortierte Tourenliste, und die Öffentlichkeit
-sieht auf einer Karte ohne Anmeldung, welcher Container noch Platz hat.
+Sensoren melden, wie voll die Altkleidercontainer sind. Daraus entsteht für das
+Fahrpersonal eine Tourenliste – welche Container drankommen, entscheidet der
+Füllstand, die Reihenfolge die kürzeste Fahrtstrecke. Die Öffentlichkeit sieht
+auf einer Karte ohne Anmeldung, welcher Container noch Platz hat.
 
 Entstanden für den **BRK Kreisverband Miltenberg**.
 
@@ -114,7 +115,11 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 - Die Gerätegeheimnisse liegen in einer Tabelle **ohne jede Zugriffsregel** –
   auch angemeldete Konten kommen nicht heran, nur der Server.
 - Die Zugriffsrechte hängen an Row-Level-Security-Regeln in der Datenbank, nicht
-  an der Oberfläche.
+  an der Oberfläche. Die Rolle eines Kontos setzt ausschließlich die
+  Benutzerverwaltung – sie lässt sich nicht beim Anmelden mitgeben.
+- Die Selbstregistrierung gehört abgeschaltet: Zugänge legt die Administration
+  an. Im Docker-Betrieb ist das voreingestellt, bei Supabase Cloud ist es ein
+  Schalter (siehe [docs/betrieb.md](docs/betrieb.md)).
 - Die öffentliche Ansicht ist eine eigene, bewusst reduzierte Datenbankansicht:
   kein Sensorbezug, keine Batteriewerte, keine Rohabstände, Füllstand auf
   10er-Schritte gerundet.

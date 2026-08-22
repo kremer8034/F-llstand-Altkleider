@@ -5,8 +5,18 @@
 # Zwei Dinge sind zu beachten und werden hier abgefangen:
 #   1. Der Auslöser auf auth.users setzt voraus, dass die Anmeldeverwaltung
 #      ihre eigenen Tabellen bereits angelegt hat - darauf wird gewartet.
-#   2. Die Migrationen sind nicht mehrfach ausführbar (create type & Co.).
-#      Steht das Schema schon, wird übersprungen.
+#   2. Die Grundmigrationen sind nicht mehrfach ausführbar (create type & Co.).
+#      Steht das Schema schon, werden sie übersprungen.
+#
+# Die Nachträge ab 0005 bestehen nur aus "create or replace", "revoke/grant" und
+# "insert ... on conflict do nothing" - sie laufen deshalb bei JEDEM Start, auch
+# über ein bestehendes Schema. Vorher endete das Skript bei einer vorhandenen
+# Datenbank sofort, und ein neuer Nachtrag kam nie an; außerdem fehlte 0007 auch
+# bei einer frischen Installation, weshalb der feste Startpunkt der Tour
+# (Einstellung "betriebshof") dort schlicht nicht vorhanden war.
+#
+# 0006 bleibt bewusst außen vor: den stündlichen Prüflauf übernimmt hier der
+# Dienst "cron" aus docker-compose.yml, nicht pg_cron.
 # ---------------------------------------------------------------------------
 set -eu
 
@@ -30,21 +40,28 @@ if [ "${vorhanden:-f}" != "t" ]; then
 fi
 
 schon_da=$(psql -tAc "select to_regclass('public.container') is not null;")
+
 if [ "$schon_da" = "t" ]; then
-  echo "Schema besteht bereits - nichts zu tun."
-  psql -q -c "notify pgrst, 'reload schema';"
-  exit 0
+  echo "Grundschema besteht bereits - überspringe 0001 bis 0003."
+else
+  for datei in /migrations/0001_schema.sql /migrations/0002_funktionen.sql /migrations/0003_rls.sql; do
+    echo "Spiele ein: $(basename "$datei")"
+    psql -v ON_ERROR_STOP=1 -q -f "$datei"
+  done
+
+  if [ "${BEISPIELDATEN:-nein}" = "ja" ]; then
+    echo "Spiele ein: Beispieldaten"
+    psql -v ON_ERROR_STOP=1 -q -f /migrations/0004_beispieldaten.sql
+  fi
 fi
 
-for datei in /migrations/0001_schema.sql /migrations/0002_funktionen.sql /migrations/0003_rls.sql; do
+# Nachträge - wiederholbar, deshalb bei jedem Start.
+for datei in /migrations/0005_funktionsrechte.sql \
+             /migrations/0007_betriebshof.sql \
+             /migrations/0008_rollenschutz.sql; do
   echo "Spiele ein: $(basename "$datei")"
   psql -v ON_ERROR_STOP=1 -q -f "$datei"
 done
-
-if [ "${BEISPIELDATEN:-nein}" = "ja" ]; then
-  echo "Spiele ein: Beispieldaten"
-  psql -v ON_ERROR_STOP=1 -q -f /migrations/0004_beispieldaten.sql
-fi
 
 # Die Datenschnittstelle kennt die neuen Tabellen sonst noch nicht.
 psql -q -c "notify pgrst, 'reload schema';"

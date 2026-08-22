@@ -135,17 +135,17 @@ security definer
 set search_path = public
 as $$
 declare
-  v_rolle public.benutzerrolle;
+  v_rolle  public.benutzerrolle := 'fahrer';
   v_erster boolean;
 begin
   -- Der allererste Benutzer wird Administrator, alle weiteren Fahrpersonal.
+  --
+  -- Die Rolle kommt bewusst NICHT aus raw_user_meta_data: dieses Feld fuellt,
+  -- wer sich anmeldet. Waere die Selbstregistrierung offen (bei Supabase Cloud
+  -- ab Werk der Fall), liesse sich damit ueber /auth/v1/signup ein eigenes
+  -- Administrationskonto anlegen. Die gewuenschte Rolle setzt die
+  -- Benutzerverwaltung anschliessend mit der Service-Role nach.
   select not exists (select 1 from public.benutzerprofil) into v_erster;
-
-  begin
-    v_rolle := coalesce((new.raw_user_meta_data ->> 'rolle')::public.benutzerrolle, 'fahrer');
-  exception when others then
-    v_rolle := 'fahrer';
-  end;
 
   if v_erster then
     v_rolle := 'admin';
@@ -377,10 +377,20 @@ begin
   if v_code.gueltig_bis < now() then
     raise exception 'Anlerncode ist abgelaufen.' using errcode = 'P0002';
   end if;
+  -- Einmalcode: der Aufkleber am Gehaeuse bleibt lesbar, der Code gilt
+  -- trotzdem nur einmal. Fuer einen erneuten Anlernvorgang stellt die
+  -- Sensorverwaltung einen neuen aus.
+  if v_code.verbraucht_am is not null then
+    raise exception 'Anlerncode wurde bereits verwendet. Bitte in der Sensorverwaltung einen neuen ausstellen.'
+      using errcode = 'P0002';
+  end if;
 
   select * into v_sensor from public.sensor where id = v_code.sensor_id;
-  select * into v_container from public.container where id = p_container_id;
+  if not found then
+    raise exception 'Zum Anlerncode gibt es kein Geraet.' using errcode = 'P0002';
+  end if;
 
+  select * into v_container from public.container where id = p_container_id;
   if not found then
     raise exception 'Container nicht gefunden.' using errcode = 'P0002';
   end if;

@@ -203,13 +203,20 @@ git pull
 docker compose up -d --build
 ```
 
-Neue Datenbankmigrationen spielt der `migrate`-Dienst **nicht** automatisch ein:
-er erkennt am Vorhandensein der Tabelle `container`, dass schon ein Schema
-steht, und überspringt sich. Eine neue Migration wird von Hand eingespielt:
+Das Grundschema (`0001` bis `0003`) legt der `migrate`-Dienst nur einmal an – er
+erkennt am Vorhandensein der Tabelle `container`, dass es schon steht. Die
+**wiederholbaren Nachträge** (`0005`, `0007`, `0008`) spielt er dagegen bei jedem
+Start ein; sie bestehen ausschließlich aus `create or replace`, `revoke`/`grant`
+und `insert … on conflict do nothing`. Ein `docker compose up -d --build` genügt
+für diese also.
+
+Eine **neue** Migration, die das Schema verändert (neue Tabelle, neue Spalte),
+wird von Hand eingespielt und danach in `docker/migrate/einspielen.sh`
+nachgetragen, falls sie wiederholbar ist:
 
 ```bash
 docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 \
-  < supabase/migrations/0005_neue_migration.sql
+  < supabase/migrations/0009_neue_migration.sql
 docker compose exec db psql -U postgres -c "notify pgrst, 'reload schema';"
 ```
 

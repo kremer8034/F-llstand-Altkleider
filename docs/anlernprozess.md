@@ -77,7 +77,7 @@ sind entsprechend gekennzeichnet.
 ### ③ Koppeln
 Zusammenfassung, dann *Jetzt koppeln*. Das System prüft dabei:
 
-* Ist der Anlerncode bekannt und noch gültig?
+* Ist der Anlerncode bekannt, noch gültig und noch nicht verbraucht?
 * Hängt der Sensor schon an einem anderen Container?
 * Hat der Container schon einen anderen Sensor?
 
@@ -88,8 +88,10 @@ erhalten** – in `sensor_kopplung` steht dauerhaft, welcher Sensor wann an
 welchem Container hing, wer ihn angelernt hat und an welchen Koordinaten das
 Telefon dabei stand.
 
-Der Anlerncode ist damit verbraucht. Ist der Aufkleber verloren gegangen, stellt
-die Verwaltung in der Sensorliste einen neuen aus.
+Der Anlerncode ist damit verbraucht und wird nicht mehr angenommen – auch wenn
+er auf dem Aufkleber weiterhin zu lesen ist. Für einen erneuten Anlernvorgang
+(Gerätewechsel, verlorener Aufkleber) stellt die Verwaltung in der Sensorliste
+einen neuen aus.
 
 ### ④ Kalibrieren
 Jetzt lernt das System, welcher Abstand „leer“ bedeutet.

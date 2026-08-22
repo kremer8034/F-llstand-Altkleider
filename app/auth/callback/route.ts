@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverClient } from "@/lib/supabase/server";
+import { sicheresZiel } from "@/lib/weiterleitung";
 
 /**
  * Ziel aller Links aus Supabase-E-Mails (Einladung, Passwort zuruecksetzen,
@@ -32,6 +33,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Nur eigene Pfade zulassen - keine offene Weiterleitung.
-  const ziel = weiter.startsWith("/") ? weiter : "/intern";
-  return NextResponse.redirect(new URL(ziel, url.origin));
+  return NextResponse.redirect(new URL(sicheresZiel(weiter), url.origin));
 }

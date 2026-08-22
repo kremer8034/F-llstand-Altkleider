@@ -45,7 +45,8 @@ weil der Import schon sauber getrennt liegt:
    bereits die gesamte Abgleichlogik – die bleibt unverändert.
 2. Neu dazu käme ein Abrufmodul, das die Schnittstelle liest und dieselbe
    Struktur `Importzeile[]` zurückgibt.
-3. Ein Cron-Eintrag in `vercel.json` (analog zu `/api/cron/pruefen`) ruft das
+3. Ein Zeitgeber – pg_cron in der Datenbank oder ein Cron-Eintrag in einer
+   anzulegenden `vercel.json` (analog zu `/api/cron/pruefen`) – ruft das
    nächtlich auf.
 
 Für die Anfrage bei der DRK Service GmbH sind vor allem drei Dinge zu klären:

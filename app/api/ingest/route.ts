@@ -47,8 +47,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ fehler: "Zeitstempel außerhalb des Fensters" }, { status: 401 });
   }
 
+  // Erst die angekuendigte Groesse pruefen, dann lesen: sonst liegt ein
+  // uebergrosser Rumpf schon vollstaendig im Speicher, bevor er abgelehnt wird.
+  const angekuendigt = Number(request.headers.get("content-length"));
+  if (Number.isFinite(angekuendigt) && angekuendigt > 4096) {
+    return NextResponse.json({ fehler: "Rumpf zu groß" }, { status: 413 });
+  }
+
   const rumpf = await request.text();
-  if (rumpf.length > 4096) {
+  if (Buffer.byteLength(rumpf, "utf8") > 4096) {
     return NextResponse.json({ fehler: "Rumpf zu groß" }, { status: 413 });
   }
 
@@ -94,8 +101,17 @@ export async function POST(request: NextRequest) {
     return Number.isFinite(n) ? n : null;
   };
 
-  const gemessenAm =
-    typeof daten.gemessen_am === "string" ? daten.gemessen_am : new Date(gesendet * 1000).toISOString();
+  // Der Zeitpunkt kommt aus dem Geraet und wandert unveraendert in eine
+  // timestamptz-Spalte. Eine krumme Angabe (verstellte Uhr, Fehler in der
+  // Firmware) laesst das Einfuegen sonst mit einem Serverfehler auflaufen, und
+  // das Geraet sendet dieselbe Meldung endlos nach.
+  const gemessenAm = (() => {
+    if (typeof daten.gemessen_am === "string") {
+      const gelesen = new Date(daten.gemessen_am);
+      if (!Number.isNaN(gelesen.getTime())) return gelesen.toISOString();
+    }
+    return new Date(gesendet * 1000).toISOString();
+  })();
 
   const { error } = await admin.from("messung").insert({
     sensor_id: sensor.id,
