@@ -98,6 +98,7 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 
 | | |
 |---|---|
+| **[docs/Sensor-Bauanleitung.docx](docs/Sensor-Bauanleitung.docx)** | **Bauanleitung für Anfänger: vom Einkauf bis zum eingebauten Sensor** |
 | [docs/hardware.md](docs/hardware.md) | Stückliste, Verdrahtung, Montage, Stromverbrauch |
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |

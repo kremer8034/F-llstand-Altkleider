@@ -1,5 +1,11 @@
 # Hardware – Vorschlag und Stückliste
 
+> **Wer einen Sensor bauen will und noch nie gelötet hat**, nimmt die
+> **[Sensor-Bauanleitung.docx](Sensor-Bauanleitung.docx)** – dort steht jeder
+> Handgriff einzeln. Dieses Dokument hier ist die technische Begründung
+> dahinter: warum diese Bauteile, wie der Stromhaushalt aussieht, worauf es
+> bei der Montage ankommt.
+
 Auslegung: **50–300 Container, vier Messungen pro Tag**, Betrieb ohne Wartung
 über mindestens eine Saison, Montage unter dem Deckel eines Metallcontainers.
 
