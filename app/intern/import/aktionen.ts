@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
-import { angemeldeterBenutzer } from "@/lib/auth";
+import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 
 export interface Importzeile {
   nummer: string;
@@ -37,7 +37,7 @@ export interface Importergebnis {
 export async function containerImportieren(zeilen: Importzeile[]): Promise<Importergebnis> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/login");
-  if (benutzer.profil.rolle === "fahrer") return { ok: false, fehler: "Keine Berechtigung." };
+  if (!darfBearbeiten(benutzer.profil.rolle)) return { ok: false, fehler: "Keine Berechtigung." };
 
   const gueltige = zeilen.filter((z) => z.nummer && z.nummer.trim() !== "");
   if (gueltige.length === 0) return { ok: false, fehler: "Keine Zeile mit Containernummer gefunden." };

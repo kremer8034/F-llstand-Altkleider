@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminClient } from "@/lib/supabase/admin";
 import { serverClient } from "@/lib/supabase/server";
-import { angemeldeterBenutzer } from "@/lib/auth";
+import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 
 /** Zeichenvorrat ohne verwechselbare Zeichen (kein 0/O, kein 1/I). */
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -42,7 +42,10 @@ export interface AnlageErgebnis {
 export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: FormData): Promise<AnlageErgebnis> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/login");
-  if (benutzer.profil.rolle === "fahrer") return { ok: false, fehler: "Keine Berechtigung." };
+  // Erlaubte Rollen aufzaehlen statt die eine verbotene: kaeme eine vierte
+  // Rolle hinzu, waere sie sonst stillschweigend berechtigt - und diese Aktion
+  // schreibt mit der Service-Role, also an den Zugriffsregeln vorbei.
+  if (!darfBearbeiten(benutzer.profil.rolle)) return { ok: false, fehler: "Keine Berechtigung." };
 
   const geraeteId = feld(formular, "geraete_id");
   if (!geraeteId) return { ok: false, fehler: "Die Geräte-ID ist ein Pflichtfeld." };
@@ -177,7 +180,7 @@ export async function sensorEntkoppeln(formular: FormData) {
 export async function anlerncodeNeu(formular: FormData) {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/login");
-  if (benutzer.profil.rolle === "fahrer") return;
+  if (!darfBearbeiten(benutzer.profil.rolle)) return;
 
   const sensorId = feld(formular, "sensor_id");
   if (!sensorId) return;
