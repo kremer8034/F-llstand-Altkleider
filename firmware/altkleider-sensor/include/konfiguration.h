@@ -12,7 +12,7 @@
 
 // --- Server ---------------------------------------------------------------
 // Ohne "https://" und ohne Pfad.
-#define SERVER_HOST      "fuellstand.example.vercel.app"
+#define SERVER_HOST      "f-llstand-altkleider.vercel.app"
 #define SERVER_PORT      443
 #define SERVER_PFAD      "/api/ingest"
 #define SERVER_PFAD_REG  "/api/geraete/registrieren"
