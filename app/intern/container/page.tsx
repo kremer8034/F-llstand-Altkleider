@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Container" };
 
 export default async function ContainerSeite() {
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const [zeilen, benutzer] = await Promise.all([containerMitZustand(supabase), angemeldeterBenutzer()]);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 

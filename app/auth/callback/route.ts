@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const typ = url.searchParams.get("type");
   const weiter = url.searchParams.get("weiter") ?? url.searchParams.get("next") ?? "/intern";
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   let fehlgeschlagen = true;
 
   if (code) {

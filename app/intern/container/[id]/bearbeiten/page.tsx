@@ -7,11 +7,12 @@ import type { Container } from "@/lib/typen";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Container bearbeiten" };
 
-export default async function ContainerBearbeiten({ params }: { params: { id: string } }) {
+export default async function ContainerBearbeiten({ params }: { params: Promise<{ id: string }> }) {
   await rolleErzwingen(["admin", "dispo"]);
 
-  const supabase = serverClient();
-  const { data } = await supabase.from("container").select("*").eq("id", params.id).maybeSingle();
+  const { id } = await params;
+  const supabase = await serverClient();
+  const { data } = await supabase.from("container").select("*").eq("id", id).maybeSingle();
   if (!data) notFound();
 
   return (

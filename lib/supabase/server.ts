@@ -5,9 +5,12 @@ import { supabaseAdresseServer } from "./adresse";
 /**
  * Supabase-Client fuer Server Components, Server Actions und Route Handler.
  * Nutzt den Anon-Key, damit die RLS-Regeln greifen.
+ *
+ * Seit Next.js 15 liefert cookies() ein Promise - die Funktion ist deshalb
+ * asynchron und will mit await aufgerufen werden.
  */
-export function serverClient() {
-  const cookieStore = cookies();
+export async function serverClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     supabaseAdresseServer(),

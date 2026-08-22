@@ -9,11 +9,13 @@ export const metadata = { title: "Anmelden" };
 export default async function Anmeldeseite({
   searchParams,
 }: {
-  searchParams: { grund?: string; weiter?: string };
+  searchParams: Promise<{ grund?: string; weiter?: string }>;
 }) {
+  const { grund, weiter: weiterRoh } = await searchParams;
+
   // Das Ziel steht in der Adresszeile und darf deshalb nicht ungeprueft in eine
   // Weiterleitung wandern.
-  const weiter = sicheresZiel(searchParams.weiter);
+  const weiter = sicheresZiel(weiterRoh);
 
   if (await angemeldeterBenutzer()) redirect(weiter);
 
@@ -29,7 +31,7 @@ export default async function Anmeldeseite({
         </p>
       </div>
 
-      {searchParams.grund === "gesperrt" && (
+      {grund === "gesperrt" && (
         <p className="mb-4 rounded-lg border px-3 py-2 text-sm text-ink-2">
           Dieses Konto ist gesperrt. Bitte wenden Sie sich an die Administration.
         </p>

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Karte" };
 
 export default async function InterneKarte() {
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const zeilen = await containerMitZustand(supabase);
 
   const punkte = zeilen

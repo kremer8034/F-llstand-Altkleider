@@ -19,7 +19,7 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 export default async function SensorenSeite() {
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const benutzer = await angemeldeterBenutzer();
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 

@@ -43,7 +43,7 @@ export async function containerImportieren(zeilen: Importzeile[]): Promise<Impor
   if (gueltige.length === 0) return { ok: false, fehler: "Keine Zeile mit Containernummer gefunden." };
   if (gueltige.length > 2000) return { ok: false, fehler: "Bitte höchstens 2000 Zeilen auf einmal importieren." };
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
 
   const { data: vorhanden } = await supabase
     .from("container")

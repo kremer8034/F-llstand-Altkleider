@@ -7,7 +7,6 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:route": "node scripts/route-pruefen.mjs",
     "anleitung": "node scripts/anleitung-erzeugen.js"
@@ -16,17 +15,17 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "leaflet": "^1.9.4",
-    "next": "^14.2.35",
+    "next": "^16.3.2",
     "qrcode": "^1.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.12",
     "@types/node": "^20.14.10",
     "@types/qrcode": "^1.5.5",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "autoprefixer": "^10.4.20",
     "docx": "^9.7.1",
     "postcss": "^8.4.49",
