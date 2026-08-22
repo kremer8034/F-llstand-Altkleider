@@ -14,12 +14,31 @@ async function adminErzwingen() {
   return benutzer;
 }
 
+const ROLLEN: Benutzerrolle[] = ["admin", "dispo", "fahrer"];
+
+/**
+ * Rolle aus dem Formular prüfen.
+ *
+ * Die Auswahl steht im Browser und ist damit veränderbar. Ein unbekannter Wert
+ * würde als Aufzählungstyp in der Datenbank auflaufen - und weil das Ergebnis
+ * der Aktualisierung bisher nicht ausgewertet wurde, bliebe das Konto still
+ * auf seiner alten Rolle stehen.
+ */
+function rolleLesen(wert: FormDataEntryValue | null): Benutzerrolle | null {
+  const text = String(wert ?? "");
+  return (ROLLEN as string[]).includes(text) ? (text as Benutzerrolle) : null;
+}
+
 
 /** Zeichenvorrat ohne verwechselbare Zeichen - das Passwort wird oft vorgelesen. */
 const PASSWORT_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** Lesbares Startpasswort, z. B. "kR4m-7Ptq-9Wxz". */
 export async function passwortVorschlagen(): Promise<string> {
+  // Auch ein blosser Vorschlag ist von aussen aufrufbar, sobald er als
+  // Server-Aktion ausgefuehrt wird - deshalb dieselbe Huerde wie ueberall hier.
+  await adminErzwingen();
+
   const bytes = randomBytes(12);
   const zeichen = Array.from(bytes, (b) => PASSWORT_ALPHABET[b % PASSWORT_ALPHABET.length]).join("");
   return `${zeichen.slice(0, 4)}-${zeichen.slice(4, 8)}-${zeichen.slice(8, 12)}`;
@@ -49,10 +68,11 @@ export async function benutzerAnlegen(
 
   const email = String(formular.get("email") ?? "").trim().toLowerCase();
   const name = String(formular.get("name") ?? "").trim();
-  const rolle = String(formular.get("rolle") ?? "fahrer") as Benutzerrolle;
+  const rolle = rolleLesen(formular.get("rolle"));
   const passwort = String(formular.get("passwort") ?? "").trim();
 
   if (!email) return { ok: false, fehler: "Bitte eine E-Mail-Adresse angeben." };
+  if (!rolle) return { ok: false, fehler: "Bitte eine gültige Rolle auswählen." };
   if (passwort.length < 10) return { ok: false, fehler: "Das Startpasswort braucht mindestens zehn Zeichen." };
 
   const admin = adminClient();
@@ -63,7 +83,10 @@ export async function benutzerAnlegen(
     // Ohne Bestaetigung koennte sich die Person nicht anmelden, und eine
     // Bestaetigungsmail wollen wir hier ja gerade vermeiden.
     email_confirm: true,
-    user_metadata: { name, rolle },
+    // Nur der Anzeigename geht in die Anmeldedaten. Die Rolle wird gleich
+    // darunter gesetzt: der Datenbank-Trigger liest sie bewusst nicht mehr aus
+    // den Anmeldedaten, weil dieses Feld sonst jeder selbst bestimmen koennte.
+    user_metadata: { name },
   });
 
   if (error) {
@@ -75,10 +98,21 @@ export async function benutzerAnlegen(
   }
 
   if (data.user) {
-    await admin
+    const { error: profilFehler } = await admin
       .from("benutzerprofil")
       .update({ rolle, name: name || null, email })
       .eq("id", data.user.id);
+
+    // Der Zugang steht dann schon, traegt aber die Standardrolle - das muss
+    // sichtbar sein, sonst sucht man den Fehler spaeter in der Berechtigung.
+    if (profilFehler) {
+      return {
+        ok: false,
+        fehler:
+          `Der Zugang für ${email} wurde angelegt, die Rolle konnte aber nicht gesetzt werden ` +
+          `(${profilFehler.message}). Bitte sie in der Liste nachtragen.`,
+      };
+    }
   }
 
   revalidatePath("/intern/benutzer");
@@ -125,15 +159,18 @@ export async function benutzerEinladen(
 
   const email = String(formular.get("email") ?? "").trim().toLowerCase();
   const name = String(formular.get("name") ?? "").trim();
-  const rolle = String(formular.get("rolle") ?? "fahrer") as Benutzerrolle;
+  const rolle = rolleLesen(formular.get("rolle"));
 
   if (!email) return { ok: false, fehler: "Bitte eine E-Mail-Adresse angeben." };
+  if (!rolle) return { ok: false, fehler: "Bitte eine gültige Rolle auswählen." };
 
   const basis = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const admin = adminClient();
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { name, rolle },
+    // Wie beim direkten Anlegen: nur der Anzeigename, die Rolle setzt der
+    // naechste Schritt mit der Service-Role.
+    data: { name },
     redirectTo: `${basis}/auth/callback?weiter=/passwort-neu`,
   });
 
@@ -154,7 +191,19 @@ export async function benutzerEinladen(
   // Der Trigger legt das Profil mit Standardrolle an - hier die gewuenschte
   // Rolle nachziehen.
   if (data.user) {
-    await admin.from("benutzerprofil").update({ rolle, name: name || null, email }).eq("id", data.user.id);
+    const { error: profilFehler } = await admin
+      .from("benutzerprofil")
+      .update({ rolle, name: name || null, email })
+      .eq("id", data.user.id);
+
+    if (profilFehler) {
+      return {
+        ok: false,
+        fehler:
+          `Die Einladung an ${email} ist unterwegs, die Rolle konnte aber nicht gesetzt werden ` +
+          `(${profilFehler.message}). Bitte sie in der Liste nachtragen.`,
+      };
+    }
   }
 
   revalidatePath("/intern/benutzer");
@@ -165,8 +214,9 @@ export async function rolleAendern(formular: FormData) {
   const ich = await adminErzwingen();
 
   const id = String(formular.get("id") ?? "");
-  const rolle = String(formular.get("rolle") ?? "") as Benutzerrolle;
-  if (!id || !rolle) return;
+  const rolle = rolleLesen(formular.get("rolle"));
+  if (!id) return;
+  if (!rolle) throw new Error("Unbekannte Rolle.");
 
   // Sich selbst die Administratorrolle zu entziehen wuerde das System
   // moeglicherweise ohne Administration zuruecklassen.
@@ -175,7 +225,9 @@ export async function rolleAendern(formular: FormData) {
   }
 
   const admin = adminClient();
-  await admin.from("benutzerprofil").update({ rolle }).eq("id", id);
+  const { error } = await admin.from("benutzerprofil").update({ rolle }).eq("id", id);
+  if (error) throw new Error(`Die Rolle konnte nicht geändert werden: ${error.message}`);
+
   revalidatePath("/intern/benutzer");
 }
 
@@ -188,24 +240,16 @@ export async function zugangUmschalten(formular: FormData) {
   if (id === ich.id && !aktiv) throw new Error("Das eigene Konto kann nicht gesperrt werden.");
 
   const admin = adminClient();
-  await admin.from("benutzerprofil").update({ aktiv }).eq("id", id);
-  revalidatePath("/intern/benutzer");
-}
-
-export async function passwortLinkSenden(formular: FormData) {
-  await adminErzwingen();
-
-  const email = String(formular.get("email") ?? "").trim();
-  if (!email) return;
-
-  const basis = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const admin = adminClient();
-
-  await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo: `${basis}/auth/callback?weiter=/passwort-neu` },
-  });
+  const { error } = await admin.from("benutzerprofil").update({ aktiv }).eq("id", id);
+  if (error) throw new Error(`Der Zugang konnte nicht umgestellt werden: ${error.message}`);
 
   revalidatePath("/intern/benutzer");
 }
+
+// Frueher stand hier passwortLinkSenden(): eine Aktion, die per
+// admin.generateLink() einen Wiederherstellungslink erzeugte, ihn dann aber
+// wegwarf. generateLink verschickt nichts, es gibt den Link nur zurueck - es
+// wurde also nie eine Mail versendet, und aufgerufen wurde die Aktion von
+// keiner Oberflaeche. Wer sein Passwort vergessen hat, nimmt "Passwort
+// vergessen?" auf der Anmeldeseite; ohne erreichbares Postfach setzt die
+// Administration es oben mit passwortNeuSetzen() direkt.

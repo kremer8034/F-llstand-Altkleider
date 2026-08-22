@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
-import { angemeldeterBenutzer } from "@/lib/auth";
+import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 
 function text(formular: FormData, feld: string): string | null {
   const wert = formular.get(feld);
@@ -118,7 +118,7 @@ export async function alarmQuittieren(formular: FormData) {
 export async function containerSpeichern(formular: FormData) {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/login");
-  if (benutzer.profil.rolle === "fahrer") redirect("/intern?grund=keine-berechtigung");
+  if (!darfBearbeiten(benutzer.profil.rolle)) redirect("/intern?grund=keine-berechtigung");
 
   const id = text(formular, "id");
   const daten = {

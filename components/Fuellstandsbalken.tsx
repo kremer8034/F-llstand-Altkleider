@@ -32,7 +32,7 @@ export function Fuellstandsbalken({
         aria-valuenow={breite}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Fuellstand"
+        aria-label="Füllstand"
       >
         <div
           className="absolute left-0 top-0 h-full"

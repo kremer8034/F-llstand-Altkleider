@@ -20,12 +20,31 @@
    | `0005_funktionsrechte.sql` | schränkt die Ausführungsrechte der Funktionen ein |
    | `0006_stuendlicher_pruflauf.sql` | stündliche Überwachung stiller Sensoren (pg_cron) |
    | `0007_betriebshof.sql` | optionaler fester Startpunkt der Tourenplanung |
+   | `0008_rollenschutz.sql` | Rolle nicht mehr aus den Anmeldedaten, Anlerncode als Einmalcode |
 
    Mit der Supabase-CLI geht es in einem Rutsch:
    `supabase db push`
 
 3. Unter *Project Settings → API* die drei Werte abholen: Projekt-URL,
    `anon`-Schlüssel und `service_role`-Schlüssel.
+
+### Selbstregistrierung abschalten
+
+**Vor** dem ersten Konto und bevor die Adresse bekannt wird: unter
+*Authentication → Sign In / Providers → Email* den Schalter
+**„Allow new users to sign up“** ausschalten.
+
+Supabase lässt die Selbstregistrierung ab Werk zu. Sie ist über den
+`anon`-Schlüssel erreichbar, und der steht offen im Browser-Bundle – jede
+beliebige Person könnte sich also selbst einen Zugang anlegen. Zugänge legt hier
+aber die Administration an; einen anderen Weg braucht niemand.
+
+> Die Rolle des Kontos ist davon unabhängig geschützt: sie wird nur von der
+> Benutzerverwaltung gesetzt und nicht aus den mitgeschickten Anmeldedaten
+> gelesen (Migration `0008`). Ohne diesen Riegel hätte eine Selbstregistrierung
+> mit `"data": {"rolle": "admin"}` direkt ein Administrationskonto ergeben.
+>
+> Im Docker-Betrieb ist das bereits voreingestellt (`GOTRUE_DISABLE_SIGNUP`).
 
 ### E-Mail-Versand
 
@@ -68,7 +87,8 @@ eintragen:
 Einen Cron-Eintrag braucht Vercel **nicht** – der stündliche Prüflauf läuft in
 der Datenbank (siehe nächster Abschnitt). `CRON_SECRET` wird trotzdem gesetzt:
 es schützt den Endpunkt `/api/cron/pruefen`, der weiterhin von Hand ausgelöst
-werden kann.
+werden kann. Ohne gesetztes `CRON_SECRET` antwortet der Endpunkt mit **503** und
+ist damit abgeschaltet – er steht nie offen.
 
 ---
 
@@ -101,6 +121,10 @@ Das **erste** Konto, das angelegt wird, bekommt automatisch die Rolle
 Also: einmal über *Authentication → Users → Add user* in Supabase ein Konto mit
 der eigenen Adresse anlegen (oder sich selbst einladen), anmelden, und danach
 alle weiteren Zugänge bequem über **Intern → Benutzer** einladen.
+
+> Genau deshalb gehört die Selbstregistrierung schon vorher abgeschaltet (siehe
+> Abschnitt 1): wer sonst als Erster auf die frische Instanz stößt, bekommt die
+> Administrationsrolle.
 
 ### Rollen
 

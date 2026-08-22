@@ -11,7 +11,7 @@ export interface Verlaufspunkt {
 const RAND = { oben: 14, rechts: 18, unten: 30, links: 36 };
 
 /**
- * Fuellstandsverlauf eines Containers. Eine einzige Datenreihe - deshalb keine
+ * Füllstandsverlauf eines Containers. Eine einzige Datenreihe - deshalb keine
  * Legende (die Ueberschrift benennt sie), dafuer ein Fadenkreuz mit Tooltip und
  * eine umschaltbare Tabellenansicht.
  */
@@ -20,7 +20,7 @@ export function Verlaufskurve({
   leerungen = [],
   schwelleVoll = 90,
   hoehe = 240,
-  ueberschrift = "Fuellstandsverlauf",
+  ueberschrift = "Füllstandsverlauf",
 }: {
   punkte: Verlaufspunkt[];
   leerungen?: string[];
@@ -124,7 +124,7 @@ export function Verlaufskurve({
             <thead className="sticky top-0 bg-flaeche">
               <tr>
                 <th>Zeitpunkt</th>
-                <th className="text-right">Fuellstand</th>
+                <th className="text-right">Füllstand</th>
               </tr>
             </thead>
             <tbody>
@@ -218,7 +218,7 @@ export function Verlaufskurve({
               );
             })}
 
-            {/* Flaeche als leiser Hauch, dann die Linie */}
+            {/* Fläche als leiser Hauch, dann die Linie */}
             {flaeche && <path d={flaeche} fill="var(--serie-wash)" />}
             <path
               d={linie}

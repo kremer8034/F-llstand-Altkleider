@@ -21,10 +21,15 @@ export async function POST(request: NextRequest) {
   if (!werksschluessel || werksschluessel.length < 32) {
     return NextResponse.json({ fehler: "Provisionierung ist nicht eingerichtet" }, { status: 503 });
   }
-  if (!mitgesendet || mitgesendet.length !== werksschluessel.length) {
-    return NextResponse.json({ fehler: "Nicht berechtigt" }, { status: 401 });
-  }
-  if (!timingSafeEqual(Buffer.from(mitgesendet), Buffer.from(werksschluessel))) {
+
+  // Verglichen werden Bytes, nicht Zeichen: timingSafeEqual verlangt gleich
+  // lange Puffer und wirft sonst. Ein Kopfzeilenwert mit Umlaut hat dieselbe
+  // Zeichenzahl, aber mehr Bytes - die alte Laengenpruefung auf .length liess
+  // ihn durch und der Endpunkt antwortete mit 500 statt mit 401.
+  const erwartet = Buffer.from(werksschluessel, "utf8");
+  const gesendet = Buffer.from(mitgesendet ?? "", "utf8");
+
+  if (gesendet.length !== erwartet.length || !timingSafeEqual(gesendet, erwartet)) {
     return NextResponse.json({ fehler: "Nicht berechtigt" }, { status: 401 });
   }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { browserClient } from "@/lib/supabase/client";
+import { sicheresZiel } from "@/lib/weiterleitung";
 
 export function Anmeldeformular({ weiter }: { weiter: string }) {
   const router = useRouter();
@@ -57,7 +58,9 @@ export function Anmeldeformular({ weiter }: { weiter: string }) {
       return;
     }
 
-    router.replace(weiter);
+    // Die Seite prueft das Ziel bereits; hier noch einmal, damit auch ein von
+    // Hand veraendertes Feld nicht auf eine fremde Adresse fuehrt.
+    router.replace(sicheresZiel(weiter));
     router.refresh();
   }
 
