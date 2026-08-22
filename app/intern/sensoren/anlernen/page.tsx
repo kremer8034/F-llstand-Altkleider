@@ -9,11 +9,13 @@ export const metadata = { title: "Sensor anlernen" };
 export default async function AnlernenSeite({
   searchParams,
 }: {
-  searchParams: { code?: string; container?: string };
+  searchParams: Promise<{ code?: string; container?: string }>;
 }) {
   await rolleErzwingen();
 
-  const supabase = serverClient();
+  const { code, container: containerAusLink } = await searchParams;
+
+  const supabase = await serverClient();
   const { data } = await supabase
     .from("container")
     .select("id, nummer, bezeichnung, strasse, plz, ort, lat, lng, leer_abstand_mm")
@@ -41,8 +43,8 @@ export default async function AnlernenSeite({
           ...c,
           hatSensor: belegteContainer.has(c.id),
         }))}
-        codeAusLink={searchParams.code ?? null}
-        containerAusLink={searchParams.container ?? null}
+        codeAusLink={code ?? null}
+        containerAusLink={containerAusLink ?? null}
       />
     </div>
   );

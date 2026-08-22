@@ -11,17 +11,18 @@ export const metadata = { title: "Geräteetikett" };
  * Druckvorlage fuer den Aufkleber am Sensorgehaeuse. Der QR-Code enthaelt einen
  * Link direkt in den Anlernvorgang - Handykamera drauf, fertig.
  */
-export default async function Etikett({ params }: { params: { id: string } }) {
+export default async function Etikett({ params }: { params: Promise<{ id: string }> }) {
   await rolleErzwingen(["admin", "dispo"]);
 
-  const supabase = serverClient();
+  const { id } = await params;
+  const supabase = await serverClient();
 
   const [{ data: sensor }, { data: codes }] = await Promise.all([
-    supabase.from("sensor").select("*").eq("id", params.id).maybeSingle(),
+    supabase.from("sensor").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("anlerncode")
       .select("code, verbraucht_am, gueltig_bis")
-      .eq("sensor_id", params.id)
+      .eq("sensor_id", id)
       .is("verbraucht_am", null)
       .order("angelegt_am", { ascending: false })
       .limit(1),

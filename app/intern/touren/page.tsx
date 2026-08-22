@@ -33,7 +33,7 @@ function betriebshofLesen(werte: Record<string, unknown>) {
 }
 
 export default async function TourenSeite() {
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const [antwort, werte] = await Promise.all([
     supabase.rpc("tourenliste", { p_schwelle: null }),
     einstellungen(supabase),

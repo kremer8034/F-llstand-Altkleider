@@ -17,8 +17,9 @@ const ALARM_TEXT: Record<Alarmtyp, string> = {
   messfehler: "Messfehler",
 };
 
-export default async function Uebersicht({ searchParams }: { searchParams: { grund?: string } }) {
-  const supabase = serverClient();
+export default async function Uebersicht({ searchParams }: { searchParams: Promise<{ grund?: string }> }) {
+  const { grund } = await searchParams;
+  const supabase = await serverClient();
   const [zeilen, alarme, werte] = await Promise.all([
     containerMitZustand(supabase),
     offeneAlarme(supabase),
@@ -57,7 +58,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: { gru
         </Link>
       </div>
 
-      {searchParams.grund === "keine-berechtigung" && (
+      {grund === "keine-berechtigung" && (
         <p className="karte-flaeche p-3 text-sm text-ink-2">
           Für diesen Bereich fehlt Ihrem Konto die Berechtigung.
         </p>

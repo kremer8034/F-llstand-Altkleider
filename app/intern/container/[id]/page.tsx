@@ -21,14 +21,15 @@ const MELDUNG_TEXT: Record<string, string> = {
   sonstiges: "Sonstiges",
 };
 
-export default async function Containerdetail({ params }: { params: { id: string } }) {
-  const supabase = serverClient();
+export default async function Containerdetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await serverClient();
   const benutzer = await angemeldeterBenutzer();
 
   const { data: container } = await supabase
     .from("container")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (!container) notFound();

@@ -13,7 +13,7 @@ export const metadata = { title: "Benutzer" };
 export default async function BenutzerSeite() {
   const ich = await rolleErzwingen(["admin"]);
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { data } = await supabase.from("benutzerprofil").select("*").order("name");
   const profile = (data ?? []) as Benutzerprofil[];
 

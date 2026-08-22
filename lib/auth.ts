@@ -4,7 +4,7 @@ import type { Benutzerprofil, Benutzerrolle } from "./typen";
 
 /** Angemeldeten Benutzer samt Profil laden - oder null. */
 export async function angemeldeterBenutzer(): Promise<{ id: string; email: string | null; profil: Benutzerprofil } | null> {
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

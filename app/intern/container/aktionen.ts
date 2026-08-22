@@ -27,7 +27,7 @@ export async function leerungErfassen(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!containerId) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { error } = await supabase.from("leerung").insert({
     container_id: containerId,
     fuellstand_vorher: zahl(formular, "fuellstand_vorher"),
@@ -53,7 +53,7 @@ export async function meldungErfassen(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!containerId) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { error } = await supabase.from("meldung").insert({
     container_id: containerId,
     typ: text(formular, "typ") ?? "sonstiges",
@@ -72,7 +72,7 @@ export async function meldungErledigen(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!id) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   await supabase.from("meldung").update({ erledigt_am: new Date().toISOString() }).eq("id", id);
 
   if (containerId) revalidatePath(`/intern/container/${containerId}`);
@@ -84,7 +84,7 @@ export async function kalibrieren(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!containerId) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { error } = await supabase.rpc("container_kalibrieren", {
     p_container_id: containerId,
     p_leer_abstand_mm: zahl(formular, "leer_abstand_mm"),
@@ -104,7 +104,7 @@ export async function alarmQuittieren(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!id) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   await supabase
     .from("alarm")
     .update({ quittiert_am: new Date().toISOString(), quittiert_von: benutzer.id })
@@ -142,7 +142,7 @@ export async function containerSpeichern(formular: FormData) {
 
   if (!daten.nummer) throw new Error("Die Containernummer ist ein Pflichtfeld.");
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
 
   if (id) {
     const { error } = await supabase.from("container").update(daten).eq("id", id);

@@ -1,6 +1,10 @@
 # ---------------------------------------------------------------------------
 # Web-Anwendung als schlankes Laufzeit-Image (Next.js "standalone").
 #
+# Den standalone-Server schaltet next.config.mjs ein - allerdings nur, wenn die
+# Umgebungsvariable VERCEL nicht gesetzt ist. Hier ist sie das nicht, der Ordner
+# .next/standalone entsteht also wie erwartet.
+#
 # Achtung: NEXT_PUBLIC_*-Werte landen fest im Browser-Bundle und werden
 # deshalb beim Bauen gesetzt, nicht beim Starten. Wer die oeffentliche Adresse
 # aendert, baut neu:  docker compose up -d --build

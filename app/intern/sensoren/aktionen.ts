@@ -107,7 +107,7 @@ export async function sensorKoppeln(
   if (!code) return { ok: false, fehler: "Bitte den Anlerncode scannen oder eingeben." };
   if (!containerId) return { ok: false, fehler: "Bitte einen Container auswählen." };
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { data, error } = await supabase.rpc("sensor_koppeln", {
     p_anlerncode: code,
     p_container_id: containerId,
@@ -147,7 +147,7 @@ export async function kalibrierungSetzen(
   if (!containerId) return { ok: false, fehler: "Kein Container ausgewählt." };
 
   const leer = feld(formular, "leer_abstand_mm");
-  const supabase = serverClient();
+  const supabase = await serverClient();
 
   const { data, error } = await supabase.rpc("container_kalibrieren", {
     p_container_id: containerId,
@@ -166,7 +166,7 @@ export async function sensorEntkoppeln(formular: FormData) {
   const sensorId = feld(formular, "sensor_id");
   if (!sensorId) return;
 
-  const supabase = serverClient();
+  const supabase = await serverClient();
   const { error } = await supabase.rpc("sensor_entkoppeln", {
     p_sensor_id: sensorId,
     p_notiz: feld(formular, "notiz"),

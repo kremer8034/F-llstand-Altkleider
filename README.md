@@ -60,7 +60,7 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 | `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |
 | `docs/` | Hardware, Einkaufsliste, Anlernprozess, Schnittstellen, Betrieb |
 
-Technik: Next.js 14 · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
+Technik: Next.js 16 · React 19 · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
 Row Level Security) · Leaflet mit OpenStreetMap · PlatformIO/Arduino für die
 Firmware.
 
