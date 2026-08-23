@@ -80,12 +80,23 @@ export function Tourablauf({
 }) {
   const router = useRouter();
 
-  // Beim ersten Laden mit Netz ablegen; ohne Netz das Abgelegte nehmen.
-  const [daten] = useState<{ tour: Tour; stopps: Fahrstopp[] }>(() => {
+  /**
+   * Was angezeigt wird: die frischen Daten vom Server, und nur wenn die
+   * ausbleiben, die abgelegte Kopie aus dem Gerät.
+   *
+   * Hier stand einmal `useState` mit Initialisierer. Der läuft genau EINMAL.
+   * Damit fror der Bildschirm auf dem Stand des ersten Aufrufs ein: „Tour
+   * beginnen" schrieb brav in die Datenbank, router.refresh() holte den neuen
+   * Zustand, die Anzeige blieb trotzdem auf „Bereit?" stehen. Der Fahrer
+   * drückt dann noch einmal und noch einmal und kommt nie weiter.
+   *
+   * Abgeleitet statt gespeichert – dann folgt die Anzeige dem Server.
+   */
+  const daten = useMemo<{ tour: Tour; stopps: Fahrstopp[] }>(() => {
     if (stopps.length > 0) return { tour, stopps };
     const gemerkt = tourHolen<{ tour: Tour; stopps: Fahrstopp[] }>(tour.id);
     return gemerkt ?? { tour, stopps };
-  });
+  }, [tour, stopps]);
 
   useEffect(() => {
     if (stopps.length > 0) tourAblegen(tour.id, { tour, stopps });
@@ -101,6 +112,8 @@ export function Tourablauf({
   const [notiz, setNotiz] = useState("");
   const [vorOrt, setVorOrt] = useState(false);
   const [laeuftGerade, setLaeuftGerade] = useState(false);
+  /** Scheitert ein Aufruf, muss man das sehen - nicht ins Leere drücken. */
+  const [fehler, setFehler] = useState<string | null>(null);
 
   useEffect(() => {
     setLokalErledigt(new Set(warteschlange().map((a) => a.stopp_id)));
@@ -170,13 +183,23 @@ export function Tourablauf({
 
   async function tourStarten() {
     setLaeuftGerade(true);
+    setFehler(null);
     const { error } = await browserClient().rpc("tour_starten", { p_tour_id: tour.id });
     setLaeuftGerade(false);
-    if (!error) router.refresh();
+    if (error) {
+      setFehler(
+        error.message.includes("nicht zugewiesen")
+          ? "Diese Tour ist Ihnen nicht zugewiesen. Bitte bei der Disposition melden."
+          : "Die Tour ließ sich nicht starten. Bitte noch einmal versuchen.",
+      );
+      return;
+    }
+    router.refresh();
   }
 
   async function tourAbschliessen() {
     setLaeuftGerade(true);
+    setFehler(null);
     await schlangeLeeren();
     const { error } = await browserClient().rpc("tour_abschliessen", {
       p_tour_id: tour.id,
@@ -184,7 +207,11 @@ export function Tourablauf({
       p_bemerkung: null,
     });
     setLaeuftGerade(false);
-    if (!error) router.refresh();
+    if (error) {
+      setFehler("Die Tour ließ sich nicht abschließen. Bitte noch einmal versuchen.");
+      return;
+    }
+    router.refresh();
   }
 
   /** Stopp abschließen – erst in die Schlange, dann senden. */
@@ -264,6 +291,15 @@ export function Tourablauf({
           {daten.tour.bemerkung}
         </p>
       )}
+      {fehler && (
+        <p
+          className="mt-2 rounded px-2 py-1.5 text-sm font-medium text-white"
+          style={{ background: "var(--kritisch)" }}
+          role="alert"
+        >
+          {fehler}
+        </p>
+      )}
     </div>
   );
 
@@ -311,11 +347,16 @@ export function Tourablauf({
             ))}
           </ol>
 
-          {darfFahren ? (
+          {darfFahren && alleStopps.length === 0 ? (
+            <p className="mt-4 text-sm" style={{ color: "var(--ernst)" }}>
+              Auf dieser Tour steht noch kein Stopp. Die Disposition muss sie erst bestücken –
+              vorher gibt es nichts zu fahren.
+            </p>
+          ) : darfFahren ? (
             <button
               type="button"
               onClick={tourStarten}
-              disabled={laeuftGerade || alleStopps.length === 0}
+              disabled={laeuftGerade}
               className="knopf-primaer mt-5 w-full py-4 text-base"
             >
               {laeuftGerade ? "Einen Moment …" : "Tour beginnen"}
