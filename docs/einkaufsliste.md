@@ -12,6 +12,10 @@ Preisrahmen.
 
 ---
 
+> Diese Liste gilt für den **Eigenbau**. Es gibt auch fertige Geräte, bei
+> denen es nichts zu löten gibt – der Vergleich der Wege steht in der
+> **[Entscheidungsvorlage](sensor-entscheidung.md)**.
+
 ## Zwei Ausbaustufen
 
 **Variante A – Pilot.** Mit 18650-Zelle. Der Halter sitzt schon auf der

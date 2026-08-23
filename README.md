@@ -98,6 +98,7 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 
 | | |
 |---|---|
+| [docs/sensor-entscheidung.md](docs/sensor-entscheidung.md) | **Vorher lesen:** Eigenbau oder Fertiggerät kaufen? Marktübersicht, Kosten und Empfehlung |
 | **[docs/Sensor-Bauanleitung.docx](docs/Sensor-Bauanleitung.docx)** | **Bauanleitung für Anfänger: vom Einkauf bis zum eingebauten Sensor** |
 | [docs/hardware.md](docs/hardware.md) | Stückliste, Verdrahtung, Montage, Stromverbrauch |
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
