@@ -1,9 +1,11 @@
 # Füllstandsüberwachung Altkleidercontainer
 
 Sensoren melden, wie voll die Altkleidercontainer sind. Daraus entsteht für das
-Fahrpersonal eine Tourenliste – welche Container drankommen, entscheidet der
-Füllstand, die Reihenfolge die kürzeste Fahrtstrecke. Die Öffentlichkeit sieht
-auf einer Karte ohne Anmeldung, welcher Container noch Platz hat.
+Fahrpersonal eine Tourenliste – welche Stopps drankommen, entscheiden freie
+Restkapazität, Prognose, Regeltour und die Kosten des Umwegs; die Reihenfolge
+entscheidet die kürzeste Fahrtstrecke. Die Öffentlichkeit sieht auf einer Karte
+ohne Anmeldung, welcher Container noch Platz hat, und kann über einen QR-Code
+am Container melden, dass er voll ist.
 
 Entstanden für den **BRK Kreisverband Miltenberg**.
 
@@ -17,8 +19,9 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
         ┌───────────────┴────────────────┐
         ▼                                ▼
   Öffentliche Karte                Interner Bereich
-  (ohne Anmeldung)                 Übersicht · Karte · Tour · Container ·
-                                   Sensoren · Import · Benutzer
+  QR-Code am Container             Übersicht · Karte · Tour · Standorte ·
+  (ohne Anmeldung)                 Regeltouren · Container · Sensoren ·
+                                   Auswertung · Import · Benutzer
 ```
 
 ## Was drin ist
@@ -28,6 +31,10 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   und Standzeit; Filter „Noch Platz“; Routenlink ins Navigationsgerät
 - dieselben Daten als JSON unter `/api/oeffentlich/container` – zum Einbinden in
   brk-mill.de
+- **QR-Code am Container** (`/container/<Nummer>`): zeigt den Füllstand dieses
+  Containers, sortiert die nächstgelegenen mit Platz – die Position bleibt dabei
+  auf dem Gerät – und nimmt die Meldung „Container ist voll" entgegen. Das
+  druckbare Etikett dazu liegt unter `/intern/container/<id>/etikett`
 
 **Intern, mit Anmeldung**
 - Übersicht mit Kennzahlen und offenen Alarmen
@@ -36,9 +43,17 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
 - Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
   Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr
-- Tourenliste: Auswahl nach Füllstand **und Prognose** (was in den nächsten
-  Tagen fällig wird, kommt vorausschauend mit), **Reihenfolge nach kürzester
-  Fahrtstrecke** (Nächster-Nachbar + 2-opt), mit Sammelroute für die Navigation
+- **Standorte**: mehrere Container an einem Platz sind ein Stopp. Zuordnung von
+  Hand oder über den CSV-Import, Standorte zusammenführen, freie Restkapazität
+  in Litern statt Füllstand je Container
+- **Regeltouren**: „jeden zweiten Dienstag" als Wochentag, Wochenabstand und
+  Ankerdatum. Daraus der nächste Planbesuch je Standort und die Frage, ob ein
+  Stopp bis dahin gedeckt ist
+- Tourenliste auf Stopp-Ebene: **Pflicht** (muss heute mit), **Kann** (lohnt
+  sich nur bei kleinem Umweg) und **ruht**, jeweils mit Begründung; dazu
+  **Umwegkosten in Euro je 100 Liter** gegen den Tourdurchschnitt.
+  **Reihenfolge nach kürzester Fahrtstrecke** (Nächster-Nachbar + 2-opt), mit
+  Sammelroute für die Navigation
 - Sensorverwaltung samt **Anlernprozess** und druckbarem QR-Etikett
 - Import von Containerstammdaten aus der DRK-Dienstleistungsdatenbank (CSV)
 - Benutzerverwaltung mit drei Rollen; Passwort-Zurücksetzen ohne Administration
@@ -59,7 +74,7 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 |---|---|
 | `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Schnittstellen |
 | `components/` | Karte, Verlaufskurve, Füllstandsbalken, Statussymbole, QR-Scanner |
-| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, CSV-Leser |
+| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
 | `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |
@@ -109,7 +124,7 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
 | [docs/prognose.md](docs/prognose.md) | Prognose der nächsten Leerung und Leerungsrhythmus |
-| [docs/tourenplanung.md](docs/tourenplanung.md) | Konzept: Standorte, Kosten je Stopp, Regeltouren, QR-Code für Bürger |
+| [docs/tourenplanung.md](docs/tourenplanung.md) | Standorte, Kosten je Stopp, Regeltouren, QR-Code für Bürger – Rechenweg und Entscheidungslogik |
 | [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
 | [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
 | [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |

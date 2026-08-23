@@ -98,26 +98,31 @@ erfundene Genauigkeit.
 
 ---
 
-## Wirkung auf die Tourenliste
+## Wirkung auf die Tourenplanung
 
-Die Tourenliste nimmt seit dieser Änderung auch Container auf, die **noch unter
-der Schwelle liegen, laut Prognose aber in den nächsten Tagen fällig werden**.
-Wie weit vorausgeschaut wird, steht in `tour_vorlauf_tage` (Standard: 3).
+Die Prognose je Container ist die **Zulieferung**, nicht die Entscheidung. Die
+Planung entscheidet auf Standort-Ebene ([tourenplanung.md](tourenplanung.md)):
+die Rate `rate_prozent_pro_tag` geht dort, mit dem Volumen gewichtet, in den
+Zufluss des Standorts in Litern je Tag ein. Daraus wird der **Aufschub** – wie
+viele Tage der Stopp noch warten kann, bis die Reserve aufgebraucht ist.
 
-Solche Einträge tragen in der Liste die Kennzeichnung **„vorausschauend"** – das
-Fahrpersonal soll wissen, dass der Container noch nicht voll ist. Die Reihenfolge
-ändert sich dadurch nicht: sie folgt weiterhin der kürzesten Fahrtstrecke, und
-vorhergesagte Container sortieren sich wegen ihres niedrigeren Füllstands von
-selbst hinter die tatsächlich fälligen.
+Damit nimmt die Planung auch Standorte auf, die **noch Platz haben, laut
+Prognose aber demnächst dicht sind**. Wie früh, steht weiterhin in
+`tour_vorlauf_tage` (Standard: 3) – die Einstellung gilt jetzt nur für
+Standorte, die **keine Regeltour deckt**. Ist ein Standort gedeckt, zählt der
+Termin und nicht die Tagezahl.
 
-Wer das nicht möchte, setzt `tour_vorlauf_tage` auf `0` – dann verhält sich die
-Liste wie vorher.
+Solche Einträge tragen den Grund **`laeuft_voll`**; die Oberfläche schreibt
+dazu, wie viele Tage noch bleiben. Die Reihenfolge folgt weiterhin der
+kürzesten Fahrtstrecke.
 
-> **Weitergedacht:** [tourenplanung.md](tourenplanung.md) beschreibt als Konzept,
-> wie aus der Prognose je Container eine Prognose je *Standort* wird – mit
-> Restkapazität, Kosten je Stopp und Regeltouren. Der feste Vorlauf in Tagen
-> wird dort vom Begriff der **Deckung** abgelöst: es zählt nicht mehr eine
-> Tagezahl, sondern ob die nächste Regeltour rechtzeitig kommt.
+Wer die Vorausschau nicht möchte, setzt `tour_vorlauf_tage` auf `0` – dann
+kommt ein ungedeckter Standort erst mit, wenn die Reserve tatsächlich
+unterschritten ist.
+
+**Ohne Standortzuordnung passiert nichts davon.** Die Planung geht vom Standort
+aus; ein Container ohne Zuordnung hat keinen Stopp und taucht in keiner Tour
+auf, so gut die Prognose auch ist. `/intern/standorte` weist darauf hin.
 
 ---
 

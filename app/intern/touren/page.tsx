@@ -1,29 +1,37 @@
 import { serverClient } from "@/lib/supabase/server";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
+import { kostensaetzeAus, type Kostensaetze } from "@/lib/kosten";
 import { Tourenansicht } from "./Tourenansicht";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tour" };
 
+/** Ein Stopp der Tourenplanung - Einheit ist der Standort, nicht der Container. */
 export interface Tourzeile {
-  container_id: string;
-  nummer: string;
-  bezeichnung: string | null;
+  standort_id: string;
+  name: string;
   strasse: string | null;
   plz: string | null;
   ort: string | null;
+  zufahrt: string | null;
   lat: number | null;
   lng: number | null;
-  fuellstand_prozent: number | null;
-  gemessen_am: string | null;
-  stunden_seit_messung: number | null;
+  container_gesamt: number;
+  container_voll: number;
+  kapazitaet_liter: number | null;
+  /** Was hier eingesammelt wird - der gefüllte Anteil. */
+  ertrag_liter: number | null;
+  freie_liter: number | null;
+  freie_prozent: number | null;
+  tage_laengster_voll: number | null;
   offene_meldungen: number;
-  prioritaet: number;
-  /** Warum steht der Container auf der Liste? */
-  grund: "fuellstand" | "meldung" | "prognose";
-  tage_bis_tour: number | null;
-  prognose_tour_am: string | null;
-  prognose_voll_am: string | null;
+  tage_bis_reserve: number | null;
+  reserve_am: string | null;
+  naechster_planbesuch_am: string | null;
+  routenname: string | null;
+  gedeckt: boolean | null;
+  zustand: "pflicht" | "kann";
+  grund: "zu_lange_voll" | "meldung" | "ungedeckt" | "laeuft_voll" | "mitnahme";
 }
 
 /** Optionaler fester Ausgangspunkt der Tour (Einstellung "betriebshof"). */
@@ -39,33 +47,44 @@ function betriebshofLesen(werte: Record<string, unknown>) {
 
 export default async function TourenSeite() {
   const supabase = await serverClient();
-  const [antwort, werte] = await Promise.all([
-    supabase.rpc("tourenliste", { p_schwelle: null }),
-    einstellungen(supabase),
-  ]);
+  const [antwort, werte] = await Promise.all([supabase.rpc("tourenplanung"), einstellungen(supabase)]);
 
   const zeilen = (antwort.data ?? []) as Tourzeile[];
-  const schwelle = zahlAusEinstellung(werte, "schwelle_warnung", 75);
-  const vorlauf = zahlAusEinstellung(werte, "tour_vorlauf_tage", 3);
+  const reserve = zahlAusEinstellung(werte, "standort_reserve_prozent", 20);
+  const maxTageVoll = zahlAusEinstellung(werte, "max_tage_ueber_schwelle", 7);
+  const saetze: Kostensaetze = kostensaetzeAus(werte);
+
+  const pflicht = zeilen.filter((z) => z.zustand === "pflicht").length;
+  const kann = zeilen.length - pflicht;
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Nächste Tour</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-2">
-          Container ab {schwelle} % Füllstand, alle mit offener Meldung, und alles, was laut
-          Hochrechnung in den nächsten {vorlauf} Tagen fällig wird – in der Reihenfolge der kürzesten
-          Fahrtstrecke.
+          Geplant wird in Stopps, nicht in Containern: ein Standort wird als Ganzes angefahren und
+          geleert. <strong>{pflicht} Stopps müssen heute mit</strong>
+          {kann > 0 && (
+            <>
+              , {kann} weitere könnten mitgenommen werden – ob sich das lohnt, entscheidet der Umweg
+            </>
+          )}
+          .
+        </p>
+        <p className="mt-1 text-sm text-ink-3">
+          Ein Standort gilt als fällig, wenn weniger als {reserve} % Restkapazität frei sind, eine
+          Meldung offen ist, ein Container länger als {maxTageVoll} Tage voll steht – oder keine
+          Regeltour rechtzeitig vorbeikommt.
         </p>
       </div>
 
       {antwort.error && (
         <p className="karte-flaeche p-4 text-sm text-ink-2">
-          Die Tourenliste konnte nicht geladen werden: {antwort.error.message}
+          Die Tourenplanung konnte nicht geladen werden: {antwort.error.message}
         </p>
       )}
 
-      <Tourenansicht zeilen={zeilen} betriebshof={betriebshofLesen(werte)} />
+      <Tourenansicht zeilen={zeilen} betriebshof={betriebshofLesen(werte)} saetze={saetze} />
     </div>
   );
 }

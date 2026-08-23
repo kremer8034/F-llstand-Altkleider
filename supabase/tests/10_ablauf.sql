@@ -97,10 +97,20 @@ insert into public.messung (sensor_id, gemessen_am, abstand_mm, batterie_v)
 select id, now(), 1390, 3.2 from public.sensor where geraete_id='ALT-9001';
 select typ, wert, geschlossen_am is null as offen from public.alarm where typ='batterie_schwach';
 
-\echo '=== 11. Tourenliste ==='
+\echo '=== 11. Tourenplanung ==='
 insert into public.messung (sensor_id, gemessen_am, abstand_mm, batterie_v)
 select id, now() + interval '1 minute', 260, 3.8 from public.sensor where geraete_id='ALT-9001';
-select nummer, fuellstand_prozent, offene_meldungen, round(prioritaet) as prio from public.tourenliste(null);
+-- Seit 0012 plant die Software auf Standort-Ebene: tourenplanung() loest
+-- tourenliste() ab. Der Testcontainer braucht dafuer einen Standort - ohne
+-- Zuordnung haengt er an keinem Stopp und taucht in keiner Tour auf.
+with s as (
+  insert into public.standort (name, ort, lat, lng)
+  values ('Testplatz Ablauf', 'Miltenberg', 49.7040, 9.2530)
+  returning id
+)
+update public.container c set standort_id = s.id from s where c.nummer = 'T-001';
+select name, container_gesamt, container_voll, freie_prozent, zustand, grund
+from public.tourenplanung() where name = 'Testplatz Ablauf';
 
 \echo '=== 12. Stille Sensoren ==='
 update public.sensor set letzte_meldung_am = now() - interval '3 days' where geraete_id='ALT-9001';

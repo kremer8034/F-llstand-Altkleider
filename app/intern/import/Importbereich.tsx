@@ -18,6 +18,10 @@ const SPALTEN: Record<keyof Importzeile, string[]> = {
   volumen_liter: ["volumen", "volumenliter", "groesse", "fassungsvermoegen"],
   aufstelldatum: ["aufstelldatum", "aufstellung", "seit", "aufgestelltam", "datum"],
   bemerkung: ["bemerkung", "hinweis", "notiz", "kommentar"],
+  // Nicht "standort" - das ist oben schon die Bezeichnung des einzelnen
+  // Containers, so heisst die Spalte im Export der Dienstleistungsdatenbank.
+  // Der Cluster braucht deshalb einen eigenen Namen.
+  standort: ["standortname", "cluster", "platz", "containerstandort", "sammelstelle"],
 };
 
 function spalteFinden(kopf: string[], feld: keyof Importzeile): number {
@@ -71,12 +75,21 @@ export function Importbereich() {
       volumen_liter: zahlLesen(werte(zeile, "volumen_liter")),
       aufstelldatum: datumLesen(werte(zeile, "aufstelldatum")),
       bemerkung: werte(zeile, "bemerkung") || null,
+      standort: werte(zeile, "standort") || null,
     }));
 
     const gueltig = daten.filter((d) => d.nummer !== "");
     const ohneKoordinaten = gueltig.filter((d) => d.lat === null || d.lng === null).length;
+    const mitStandort = gueltig.filter((d) => d.standort).length;
 
-    return { kopf, zuordnung, daten: gueltig, verworfen: daten.length - gueltig.length, ohneKoordinaten };
+    return {
+      kopf,
+      zuordnung,
+      daten: gueltig,
+      verworfen: daten.length - gueltig.length,
+      ohneKoordinaten,
+      mitStandort,
+    };
   }, [text]);
 
   async function dateiLesen(ereignis: React.ChangeEvent<HTMLInputElement>) {
@@ -111,7 +124,7 @@ export function Importbereich() {
             setErgebnis(null);
           }}
           rows={6}
-          placeholder="Nummer;Bezeichnung;Strasse;PLZ;Ort;Breitengrad;Längengrad;Volumen;Aufstelldatum"
+          placeholder="Nummer;Bezeichnung;Strasse;PLZ;Ort;Breitengrad;Längengrad;Volumen;Aufstelldatum;Standortname"
           className="feld zahl mt-2 text-xs"
         />
       </div>
@@ -136,6 +149,9 @@ export function Importbereich() {
               {analyse.ohneKoordinaten > 0 && (
                 <span className="text-ink-3"> · {analyse.ohneKoordinaten} ohne Koordinaten</span>
               )}
+              {analyse.mitStandort > 0 && (
+                <span className="text-ink-3"> · {analyse.mitStandort} mit Standortangabe</span>
+              )}
             </div>
             <button type="button" onClick={importieren} disabled={laeuft} className="knopf-primaer">
               {laeuft ? "Wird importiert …" : "Import starten"}
@@ -150,6 +166,7 @@ export function Importbereich() {
                   <th>Bezeichnung</th>
                   <th>Adresse</th>
                   <th>Koordinaten</th>
+                  <th>Standort</th>
                   <th>Aufgestellt</th>
                 </tr>
               </thead>
@@ -164,6 +181,7 @@ export function Importbereich() {
                     <td className="zahl text-ink-2">
                       {d.lat !== null && d.lng !== null ? `${d.lat}, ${d.lng}` : "–"}
                     </td>
+                    <td className="text-ink-2">{d.standort ?? "–"}</td>
                     <td className="zahl text-ink-2">{d.aufstelldatum ?? "–"}</td>
                   </tr>
                 ))}
@@ -184,6 +202,17 @@ export function Importbereich() {
             <p>
               Import abgeschlossen: <strong>{ergebnis.neu}</strong> neu angelegt,{" "}
               <strong>{ergebnis.aktualisiert}</strong> aktualisiert.
+              {(ergebnis.standorte_zugeordnet ?? 0) > 0 && (
+                <>
+                  {" "}
+                  <strong>{ergebnis.standorte_zugeordnet}</strong> Container einem Standort
+                  zugeordnet
+                  {(ergebnis.standorte_neu ?? 0) > 0 && (
+                    <> , davon <strong>{ergebnis.standorte_neu}</strong> Standorte neu angelegt</>
+                  )}
+                  .
+                </>
+              )}
             </p>
           ) : (
             <p style={{ color: "var(--kritisch)" }}>{ergebnis.fehler}</p>

@@ -28,6 +28,7 @@ export interface Container {
   lng: number | null;
   typ: string;
   volumen_liter: number | null;
+  standort_id: string | null;
   betreiber: string;
   leer_abstand_mm: number | null;
   voll_abstand_mm: number | null;
@@ -160,4 +161,81 @@ export interface ContainerRhythmus {
   kuerzester_abstand_tage: number | null;
   laengster_abstand_tage: number | null;
   leerungen_pro_jahr: number | null;
+}
+
+/** Platz, an dem ein oder mehrere Container stehen - Einheit der Tourenplanung. */
+export interface Standort {
+  id: string;
+  name: string;
+  strasse: string | null;
+  plz: string | null;
+  ort: string | null;
+  lat: number | null;
+  lng: number | null;
+  zufahrt: string | null;
+  bemerkung: string | null;
+  aktiv: boolean;
+  angelegt_am: string;
+}
+
+/** Ansicht public.standort_zustand - Restkapazitaet statt Fuellstand. */
+export interface StandortZustand {
+  standort_id: string;
+  name: string;
+  ort: string | null;
+  aktiv: boolean;
+  lat: number | null;
+  lng: number | null;
+  container_gesamt: number;
+  container_mit_sensor: number;
+  container_ohne_wert: number;
+  kapazitaet_liter: number | null;
+  gefuellt_liter: number | null;
+  freie_liter: number | null;
+  freie_prozent: number | null;
+  zufluss_liter_je_tag: number | null;
+  container_voll: number;
+  tage_laengster_voll: number | null;
+  offene_meldungen: number;
+}
+
+/** Regeltour mit festem Rhythmus: Wochentag, Wochenabstand, Ankerdatum. */
+export interface Route {
+  id: string;
+  name: string;
+  farbe: string | null;
+  /** ISO-Wochentag: 1 = Montag ... 7 = Sonntag. */
+  wochentag: number;
+  intervall_wochen: number;
+  anker_datum: string;
+  aktiv: boolean;
+  bemerkung: string | null;
+  angelegt_am: string;
+}
+
+export type Planungszustand = "pflicht" | "kann" | "ruht";
+
+/** Ansicht public.standort_planung - Deckung, Aufschub und Einstufung. */
+export interface StandortPlanung {
+  standort_id: string;
+  name: string;
+  ort: string | null;
+  lat: number | null;
+  lng: number | null;
+  container_gesamt: number;
+  container_voll: number;
+  kapazitaet_liter: number | null;
+  gefuellt_liter: number | null;
+  freie_liter: number | null;
+  freie_prozent: number | null;
+  zufluss_liter_je_tag: number | null;
+  tage_laengster_voll: number | null;
+  offene_meldungen: number;
+  naechster_planbesuch_am: string | null;
+  routenname: string | null;
+  tage_bis_reserve: number | null;
+  reserve_am: string | null;
+  gedeckt: boolean | null;
+  zustand: Planungszustand;
+  grund: string;
 }

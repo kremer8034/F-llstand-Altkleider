@@ -1,0 +1,55 @@
+import Link from "next/link";
+import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
+import type { OeffentlicherContainer } from "@/lib/typen";
+import { Containeransicht } from "./Containeransicht";
+
+// Wie die öffentliche Karte: aktuell, aber nicht bei jedem Aufruf frisch.
+export const revalidate = 60;
+
+export async function generateMetadata({ params }: { params: Promise<{ nummer: string }> }) {
+  const { nummer } = await params;
+  return { title: `Altkleidercontainer ${decodeURIComponent(nummer)}` };
+}
+
+export default async function Containerseite({ params }: { params: Promise<{ nummer: string }> }) {
+  const { nummer } = await params;
+  const gesucht = decodeURIComponent(nummer);
+  const supabase = oeffentlicherClient();
+
+  // Die ganze öffentliche Liste - der Standortfinder sortiert sie im Browser,
+  // damit die Position des Bürgers das Gerät nicht verlässt.
+  const antwort = supabase
+    ? await supabase.from("oeffentliche_container").select("*").order("nummer")
+    : null;
+
+  const alle = (antwort?.data ?? []) as OeffentlicherContainer[];
+  const dieser = alle.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
+
+  return (
+    <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
+      <header className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+          BRK Kreisverband Miltenberg
+        </p>
+        <p className="mt-1 text-sm text-ink-2">Altkleidercontainer</p>
+      </header>
+
+      {!supabase ? (
+        <div className="karte-flaeche p-6">
+          <h1 className="font-semibold">Noch nicht eingerichtet</h1>
+          <p className="mt-2 text-sm text-ink-2">
+            Diese Instanz ist noch nicht mit einer Datenbank verbunden.
+          </p>
+        </div>
+      ) : (
+        <Containeransicht dieser={dieser} alle={alle} />
+      )}
+
+      <footer className="mt-8 border-t pt-4 text-sm">
+        <Link href="/" className="underline underline-offset-2">
+          Alle Container auf der Karte
+        </Link>
+      </footer>
+    </main>
+  );
+}

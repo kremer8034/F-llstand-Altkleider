@@ -130,32 +130,75 @@ begin
   raise notice 'korrekt: Rate 5,0 %%/Tag, in 5 Tagen Tour, in 8 Tagen voll';
 end $$;
 
-\echo '=== 4. Tourenliste nimmt auf, was demnaechst faellig wird ==='
-select nummer, fuellstand_prozent, grund, tage_bis_tour, round(prioritaet) as prio
-from public.tourenliste(null) where nummer like 'P-00%' order by prio desc;
+\echo '=== 4. Die Planung nimmt auf, was demnaechst faellig wird ==='
+-- Seit 0012 plant die Software auf Standort-Ebene. Je Container ein eigener
+-- Standort - dann entspricht das Ergebnis eins zu eins der frueheren
+-- Containerliste, und die Rechnung bleibt im Kopf nachvollziehbar:
+--
+--   Volumen 2500 l (Ersatzwert), Reserve 20 % = 500 l
+--   P-001 bei 50 %: 1250 l frei, Zufluss 5 %/Tag = 125 l/Tag
+--                   -> (1250 - 500) / 125 = 6 Tage bis zur Reserve
+--   P-003 bei 70 %:  750 l frei, gleicher Zufluss
+--                   -> ( 750 - 500) / 125 = 2 Tage bis zur Reserve
+--
+-- Bei einem Vorlauf von drei Tagen muss P-003 auf die Tour und P-001 nicht.
+insert into public.standort (name, ort, lat, lng)
+select 'Platz ' || c.nummer, c.ort, c.lat, c.lng
+from public.container c where c.nummer like 'P-00%';
+
+update public.container c
+   set standort_id = s.id
+  from public.standort s
+ where s.name = 'Platz ' || c.nummer;
+
+select name, freie_prozent, round(tage_bis_reserve, 1) as tage_bis_reserve, gedeckt, zustand, grund
+from public.standort_planung where name like 'Platz P-00%' order by name;
 
 do $$
-declare v_grund text; v_dabei integer;
+declare v_grund text; v_dabei integer; v_tage numeric;
 begin
-  -- P-003 liegt bei 70 %, also unter der Schwelle von 75 - ohne Prognose waere
-  -- er nicht dabei. Mit Vorlauf von drei Tagen muss er auftauchen.
-  select count(*) into v_dabei from public.tourenliste(null) where nummer='P-003';
-  if v_dabei <> 1 then raise exception 'FEHLER: P-003 fehlt in der Tourenliste'; end if;
+  select round(tage_bis_reserve) into v_tage from public.standort_planung where name='Platz P-003';
+  if v_tage <> 2 then raise exception 'FEHLER: P-003 % Tage bis zur Reserve statt 2', v_tage; end if;
 
-  select grund into v_grund from public.tourenliste(null) where nummer='P-003';
-  if v_grund <> 'prognose' then raise exception 'FEHLER: P-003 steht mit Grund % statt prognose', v_grund; end if;
+  select round(tage_bis_reserve) into v_tage from public.standort_planung where name='Platz P-001';
+  if v_tage <> 6 then raise exception 'FEHLER: P-001 % Tage bis zur Reserve statt 6', v_tage; end if;
 
-  -- P-001 liegt bei 50 % und ist erst in fuenf Tagen dran - noch nicht auf der Tour
-  select count(*) into v_dabei from public.tourenliste(null) where nummer='P-001';
-  if v_dabei <> 0 then raise exception 'FEHLER: P-001 ist erst in 5 Tagen faellig, steht aber schon auf der Tour'; end if;
+  -- P-003 liegt bei 70 %, hat also noch 30 % Platz und damit mehr als die
+  -- Reserve - ohne Vorausschau waere er nicht dabei.
+  select count(*) into v_dabei from public.tourenplanung() where name='Platz P-003';
+  if v_dabei <> 1 then raise exception 'FEHLER: Platz P-003 fehlt in der Tourenplanung'; end if;
+
+  select grund into v_grund from public.standort_planung where name='Platz P-003';
+  if v_grund <> 'laeuft_voll' then raise exception 'FEHLER: Platz P-003 steht mit Grund % statt laeuft_voll', v_grund; end if;
+
+  -- P-001 ist erst in sechs Tagen dran - noch nicht auf der Tour
+  select count(*) into v_dabei from public.tourenplanung() where name='Platz P-001';
+  if v_dabei <> 0 then raise exception 'FEHLER: Platz P-001 ist erst in 6 Tagen faellig, steht aber schon auf der Tour'; end if;
 
   raise notice 'korrekt: vorausschauend aufgenommen, aber nicht zu frueh';
 end $$;
 
 \echo '=== 5. Vorlauf laesst sich steuern ==='
-select 'Vorlauf 0 Tage' as fall, count(*) as p003_dabei from public.tourenliste(null, 0) where nummer='P-003'
-union all
-select 'Vorlauf 7 Tage', count(*) from public.tourenliste(null, 7) where nummer='P-001';
+update public.einstellung set wert = '0' where schluessel = 'tour_vorlauf_tage';
+do $$
+declare v integer;
+begin
+  select count(*) into v from public.tourenplanung() where name='Platz P-003';
+  if v <> 0 then raise exception 'FEHLER: Vorlauf 0 - Platz P-003 darf nicht auf der Tour stehen'; end if;
+  raise notice 'korrekt: Vorlauf 0 laesst P-003 stehen';
+end $$;
+
+update public.einstellung set wert = '7' where schluessel = 'tour_vorlauf_tage';
+do $$
+declare v integer; v_grund text;
+begin
+  select count(*) into v from public.tourenplanung() where name='Platz P-001';
+  if v <> 1 then raise exception 'FEHLER: Vorlauf 7 - Platz P-001 muesste auf der Tour stehen'; end if;
+  select grund into v_grund from public.standort_planung where name='Platz P-001';
+  if v_grund <> 'laeuft_voll' then raise exception 'FEHLER: Platz P-001 steht mit Grund % statt laeuft_voll', v_grund; end if;
+  raise notice 'korrekt: Vorlauf 7 zieht P-001 vor';
+end $$;
+update public.einstellung set wert = '3' where schluessel = 'tour_vorlauf_tage';
 
 \echo '=== 6. Ohne Anmeldung gibt es keine Auswertung ==='
 -- Was hier wirklich schuetzt, ist nicht das Recht auf der Ansicht: Supabase

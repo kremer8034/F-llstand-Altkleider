@@ -1,3 +1,8 @@
+// Der Zahlenleser steht in lib/einstellungen.ts - ohne Datenbankabhaengigkeit,
+// damit reine Rechenmodule ihn nutzen koennen. Hier weitergereicht, damit die
+// vorhandenen Importe aus lib/daten unveraendert weiterlaufen.
+export { zahlAusEinstellung } from "./einstellungen";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Alarm,
@@ -70,10 +75,4 @@ export async function einstellungen(supabase: SupabaseClient): Promise<Record<st
   const werte: Record<string, unknown> = {};
   (data ?? []).forEach((e) => (werte[e.schluessel] = e.wert));
   return werte;
-}
-
-export function zahlAusEinstellung(werte: Record<string, unknown>, schluessel: string, standard: number): number {
-  const wert = werte[schluessel];
-  const zahl = typeof wert === "number" ? wert : Number(wert);
-  return Number.isFinite(zahl) ? zahl : standard;
 }

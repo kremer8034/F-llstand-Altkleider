@@ -1,22 +1,31 @@
 # Tourenplanung: Standorte, Kosten und Regeltouren
 
-Ein Konzeptpapier. Es beschreibt, wie die Tourenplanung von „welcher Container
-ist voll" auf „welcher Stopp lohnt sich heute" umgestellt werden könnte – und
-was das an Datenmodell, Rechenweg und Oberfläche bedeutet.
+Ursprünglich ein Konzeptpapier: wie die Tourenplanung von „welcher Container
+ist voll" auf „welcher Stopp lohnt sich heute" umgestellt wird – und was das
+an Datenmodell, Rechenweg und Oberfläche bedeutet.
 
-**Hier wird nichts gebaut.** Am Ende steht ein Vorschlag für die Reihenfolge
-und eine Liste dessen, was der Kreisverband beisteuern muss.
+> **Stand: umgesetzt.** Alle vier Stufen aus Abschnitt 8 sind gebaut. Das
+> Papier beschreibt seitdem nicht mehr einen Vorschlag, sondern die Software,
+> und die Verweise zeigen auf den Code, der es tut. Die Rechenbeispiele in den
+> Abschnitten 2 und 3 sind Testfälle geworden
+> ([`supabase/tests/40_standorte.sql`](../supabase/tests/40_standorte.sql),
+> [`scripts/kosten-pruefen.mjs`](../scripts/kosten-pruefen.mjs)) – weicht die
+> Software von einer Zahl in diesem Papier ab, schlägt ein Test fehl.
+>
+> Was **nicht** aus dem Code kommt, steht unverändert in Abschnitt 9: die
+> echten Kostensätze, die tatsächlichen Regeltouren, die Volumina und die
+> Standortzuordnung. Ohne sie rechnet die Software mit Vorschlagswerten.
 
 ---
 
 ## Die Frage, die sich ändert
 
-Heute wählt [`tourenliste()`](../supabase/migrations/0010_prognose.sql) nach
-drei Kriterien aus: Füllstand über der Schwelle, offene Meldung, oder laut
-[Prognose](prognose.md) demnächst fällig. Sortiert wird nach kürzester
-Fahrtstrecke ([`lib/route.ts`](../lib/route.ts)).
+Bis Migration 0012 wählte `tourenliste()` nach drei Kriterien aus: Füllstand
+über der Schwelle, offene Meldung, oder laut [Prognose](prognose.md) demnächst
+fällig. Sortiert wurde nach kürzester Fahrtstrecke
+([`lib/route.ts`](../lib/route.ts)).
 
-Das beantwortet: **welcher Container ist voll?**
+Das beantwortete: **welcher Container ist voll?**
 
 Gefragt ist aber: **welcher Stopp lohnt sich heute?** In einem Flächenlandkreis
 ist ein einzelner voller Container dreißig Kilometer abseits der Route teurer,
@@ -69,9 +78,16 @@ Damit das bei mehreren hundert Containern trotzdem zu schaffen ist:
 DRK-Dienstleistungsdatenbank ([`lib/csv.ts`](../lib/csv.ts),
 [`app/intern/import/aktionen.ts`](../app/intern/import/aktionen.ts)) gleicht
 schon heute über die Containernummer ab und macht ein Upsert. Eine zusätzliche
-Spalte `standort` in der Datei genügt: unbekannte Namen legen einen Standort
-an, bekannte ordnen zu. Die Datei pflegt weiterhin ein Mensch in der
-Tabellenkalkulation – nur eben tausend Zeilen auf einmal statt tausend Klicks.
+Spalte genügt: unbekannte Namen legen einen Standort an, bekannte ordnen zu.
+Die Datei pflegt weiterhin ein Mensch in der Tabellenkalkulation – nur eben
+tausend Zeilen auf einmal statt tausend Klicks.
+
+Die Spalte heißt `standortname`; erkannt werden ebenso `cluster`, `platz`,
+`containerstandort` und `sammelstelle` (Spaltenzuordnung in
+[`app/intern/import/Importbereich.tsx`](../app/intern/import/Importbereich.tsx)). **Nicht** `standort` – so heißt im
+Export der Dienstleistungsdatenbank bereits die Bezeichnung des einzelnen
+Containers, und der Import ordnet sie dorthin zu. Der Cluster braucht deshalb
+einen eigenen Spaltennamen.
 
 In der Oberfläche kommt dazu: Standort anlegen, Container zuordnen, Container
 verschieben, Standort zusammenführen.
@@ -320,10 +336,14 @@ Container sortiert, der ja bekannt ist.
 
 ### „Container ist voll" melden
 
-Ein Knopf, der eine `meldung` vom Typ `voll` anlegt. Tabelle und Typ existieren
-bereits, und die Tourenliste zieht offene Meldungen schon heute heran – es
-fehlt nur ein Feld `quelle` (`intern` / `oeffentlich`), um beides
-auseinanderzuhalten.
+Ein Knopf, der eine `meldung` vom Typ `voll` anlegt. Tabelle und Typ gab es
+schon, und die Planung zog offene Meldungen ohnehin heran; dazugekommen sind
+die Felder `quelle` (`intern` / `oeffentlich`) und `anzahl`.
+
+Geschrieben wird nicht direkt. `anon` hat auf `meldung` weder Lese- noch
+Schreibrecht; der einzige Weg von außen ist die Funktion
+`meldung_oeffentlich(container_id)` – `security definer`, und sie kann genau
+eines: „dieser Container ist voll".
 
 ### Missbrauchsschutz und Datenschutz
 
@@ -333,11 +353,18 @@ Ein öffentlicher Schreibzugriff braucht Regeln:
   nicht. Die Meldung kennt den Container – der steht ohnehin fest.
 * **Keine Cookies, keine Anmeldung, kein Freitext.** Nur der Knopf. Damit gibt
   es nichts zu moderieren und nichts zu speichern, das Rückschlüsse zulässt.
-* **Mehrfachmeldungen je Container zusammenfassen.** Innerhalb eines
-  Zeitfensters (Vorschlag: 6 Stunden) wird eine bestehende offene Meldung
-  hochgezählt statt eine neue angelegt.
-* **Obergrenze offener Bürgermeldungen je Container**, damit sich die Liste
-  nicht fluten lässt.
+* **Mehrfachmeldungen je Container zusammenfassen.** Innerhalb von
+  `meldung_zusammenfassen_stunden` (6) wird eine bestehende offene Meldung
+  hochgezählt statt eine neue angelegt. Der Zeitstempel bleibt dabei stehen –
+  sonst ließe sich das Fenster durch Dauerdrücken endlos verlängern.
+* **Obergrenze `meldung_hoechstzahl` (25)** für den Zähler, damit sich die
+  Liste nicht fluten lässt. Fünfzig Knopfdrücke ergeben eine Meldung mit dem
+  Zähler 25 – nachgeprüft in
+  [`supabase/tests/40_standorte.sql`](../supabase/tests/40_standorte.sql).
+* **Das ist kein Ersatz für eine echte Ratenbegrenzung.** Die gehört davor, an
+  den Webserver; eine Datenbankfunktion kann sie nicht leisten, ohne ein
+  Erkennungsmerkmal der meldenden Person zu speichern – und genau das soll sie
+  nicht.
 * **Eine Bürgermeldung löst keine Fahrt aus.** Sie erhöht die Dringlichkeit
   und wird der Disposition angezeigt – die Entscheidung bleibt dort.
 
@@ -361,31 +388,36 @@ Brauchbar ist sie trotzdem, für zwei Dinge:
 ## 7. Was das für die vorhandene Prognose bedeutet
 
 Die Ansichten `container_prognose` und `container_rhythmus` aus
-[prognose.md](prognose.md) bleiben, bekommen aber eine Standort-Ebene darüber:
-Restkapazität, `tage_bis_voll`, `naechster_planbesuch_am`, Deckung.
+[prognose.md](prognose.md) sind unverändert geblieben. Über ihnen liegen jetzt
+`standort_zustand` (Restkapazität, Zufluss je Tag) und `standort_planung`
+(Aufschub, Deckung, Zustand); die Containerrate geht dort mit dem Volumen
+gewichtet in den Zufluss des Standorts ein.
 
-Die Tourenliste sortiert dann nicht mehr nach Füllstand, sondern nach
-**ungedeckt und knappstem Aufschub**. Die Einstellung `tour_vorlauf_tage`, die
-heute den Blick nach vorn steuert, wird davon abgelöst – der Vorlauf ergibt
-sich dann aus der Deckung statt aus einer festen Tagezahl.
+Sortiert wird nicht mehr nach Füllstand, sondern nach **Pflicht vor Kann** und
+darin nach dem knappsten Aufschub.
+
+`tour_vorlauf_tage` ist **geblieben**, in veränderter Rolle: die Einstellung
+entscheidet nicht mehr, welcher Container vorausschauend mitkommt, sondern wie
+früh ein **ungedeckter** Standort zur Pflicht wird. Ist ein Standort durch eine
+Regeltour gedeckt, spielt der Vorlauf keine Rolle – dann zählt der Termin.
 
 ---
 
-## 8. Vorschlag für die Reihenfolge
+## 8. Die vier Stufen und wo sie stehen
 
-Jede Stufe ist für sich nutzbar; keine setzt die nächste voraus, außer der
-angegebenen.
+Jede Stufe war für sich nutzbar; gebaut wurden sie in dieser Reihenfolge.
 
-| Stufe | Inhalt | Aufwand (grob) | Bringt für sich allein |
+| Stufe | Inhalt | Migration | Oberfläche |
 |---|---|---|---|
-| **1** | Standorte, Zuordnung, Restkapazität, Tourenliste auf Stopps | 2–3 Tage | Cluster werden gemeinsam angefahren, „noch Platz" wird sichtbar |
-| **2** | Kostenmodell, Umwegkosten, Euro je 100 Liter | 1–2 Tage | Die teuren Ausreißer werden benannt (braucht Stufe 1) |
-| **3** | Regeltouren, Deckung, drei Zustände | 2–3 Tage | Die eigentliche Antwort: „darf zwei Tage warten" (braucht 1 und 2) |
-| **4** | Öffentlicher QR-Code | 1–2 Tage | Bürgernutzen und Gegenprobe (braucht nur Stufe 1) |
+| **1** | Standorte, Zuordnung, Restkapazität | [`0011_standorte.sql`](../supabase/migrations/0011_standorte.sql) | `/intern/standorte` |
+| **2** | Kostenmodell, Umwegkosten, Euro je 100 Liter | – ([`lib/kosten.ts`](../lib/kosten.ts), [`lib/route.ts`](../lib/route.ts)) | `/intern/touren` |
+| **3** | Regeltouren, Deckung, drei Zustände | [`0012_regeltouren.sql`](../supabase/migrations/0012_regeltouren.sql) | `/intern/routen` |
+| **4** | Öffentlicher QR-Code | [`0013_buergermeldung.sql`](../supabase/migrations/0013_buergermeldung.sql) | `/container/<Nummer>`, Etikett unter `/intern/container/<id>/etikett` |
 
-Die Schätzungen sind Größenordnungen, keine Zusagen – die Oberfläche für
-Standortverwaltung und Routenpflege ist der Teil, der erfahrungsgemäß länger
-dauert als die Rechnung dahinter.
+Stufe 2 braucht keine Migration: die Kostensätze sind Einstellungen, gerechnet
+wird im Browser aus Daten, die ohnehin schon geladen sind. Damit ändert sich
+die Rechnung sofort, wenn die Disposition an einem Satz dreht – ohne Rundreise
+zum Server.
 
 ---
 
@@ -408,8 +440,23 @@ Wirklichkeit vorbei.
 
 ## Der nächste Schritt
 
-Die Kostensätze und ein bis zwei echte Regeltouren zusammentragen und die
-Rechnung aus Abschnitt 3 an einer Tour der letzten Wochen gegenprüfen: Was
-hätte die Logik ausgewählt, was ist tatsächlich gefahren worden, und wo liegt
-der Unterschied? Erst wenn diese Gegenprobe plausibel aussieht, lohnt es sich,
-Stufe 1 zu bauen.
+Die Software steht; die Wirklichkeit fehlt ihr noch. Vier Dinge in dieser
+Reihenfolge:
+
+1. **Die echten Kostensätze eintragen** (Abschnitt 3). Bis dahin rechnet die
+   Software mit den Vorschlagswerten – 0,80 €/km und 45 €/Stunde sind
+   plausibel, aber nicht die Zahlen des Kreisverbands.
+2. **Cluster zusammenführen.** Der Ausgangszustand ist ein Standort je
+   Container. Solange nichts zusammengeführt ist, verhält sich die Planung
+   genau wie vorher – der Nutzen entsteht erst mit den Clustern.
+3. **Ein bis zwei echte Regeltouren anlegen** und Standorte zuordnen. Erst
+   damit gibt es überhaupt eine Deckung, und erst dann kann ein Stopp „warten
+   bis Dienstag".
+4. **Gegenprobe an einer gefahrenen Tour.** Was hätte die Logik ausgewählt,
+   was ist tatsächlich gefahren worden, wo liegt der Unterschied? Weicht sie
+   ab, ist zuerst zu prüfen, ob die Standortzuordnung stimmt – sie ist die
+   Voraussetzung, an der alles Weitere hängt.
+
+Ein Hinweis zum Betrieb: solange nicht alle Container einem Standort zugeordnet
+sind, fallen die übrigen aus der Planung heraus. `/intern/standorte` weist
+darauf hin und legt auf Knopfdruck je Container einen eigenen Standort an.

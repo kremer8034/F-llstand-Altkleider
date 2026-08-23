@@ -90,6 +90,16 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
       einstellungen(supabase),
     ]);
 
+  // Standort samt Geschwisterzahl - zeigt sofort, ob der Container allein steht
+  // oder Teil eines Clusters ist, der gemeinsam angefahren wird.
+  const { data: standort } = c.standort_id
+    ? await supabase
+        .from("standort_zustand")
+        .select("standort_id, name, container_gesamt, freie_prozent")
+        .eq("standort_id", c.standort_id)
+        .maybeSingle()
+    : { data: null };
+
   const zustand = zustandAntwort.data as ContainerZustand | null;
   const sensor = sensorAntwort.data as Sensor | null;
   const messungen = (messungAntwort.data ?? []) as Messung[];
@@ -118,6 +128,21 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             {adresse(c) && ` · ${adresse(c)}`}
             {c.aufstelldatum && ` · Standort seit ${formatDatum(c.aufstelldatum)}`}
           </p>
+          {standort && (
+            <p className="mt-1 text-sm">
+              <Link
+                href={`/intern/standorte/${standort.standort_id}`}
+                className="underline underline-offset-2"
+              >
+                {standort.name}
+              </Link>
+              <span className="text-ink-3">
+                {standort.container_gesamt > 1
+                  ? ` · Cluster aus ${standort.container_gesamt} Containern, ${standort.freie_prozent ?? "–"} % frei`
+                  : " · steht allein an diesem Standort"}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -132,9 +157,14 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             </a>
           )}
           {bearbeiten && (
-            <Link href={`/intern/container/${c.id}/bearbeiten`} className="knopf-sekundaer">
-              Bearbeiten
-            </Link>
+            <>
+              <Link href={`/intern/container/${c.id}/etikett`} className="knopf-sekundaer">
+                Etikett
+              </Link>
+              <Link href={`/intern/container/${c.id}/bearbeiten`} className="knopf-sekundaer">
+                Bearbeiten
+              </Link>
+            </>
           )}
         </div>
       </div>
