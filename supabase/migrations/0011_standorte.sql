@@ -67,8 +67,8 @@ comment on column public.standort.zufahrt is
 -- Bewusst KEINE Gruppierung nach Koordinaten. Zwei Container in Sichtweite
 -- koennen an verschiedenen Zufahrten liegen, zwei an derselben Adresse durch
 -- eine Bahnlinie getrennt sein - das sieht keine Rechnung. Wer zusammengehoert,
--- entscheidet ein Mensch in der Oberflaeche oder ueber die Spalte "standort"
--- im CSV-Import.
+-- entscheidet ein Mensch in der Oberflaeche oder ueber die Spalte
+-- "standortname" im CSV-Import.
 --
 -- Dieser Schritt stellt nur sicher, dass die Planung vom ersten Tag an eine
 -- durchgaengige Einheit hat und kein Container ohne Stopp dasteht.

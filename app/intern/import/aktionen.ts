@@ -38,7 +38,7 @@ export interface Importergebnis {
  * aktualisiert, unbekannte neu angelegt. Kalibrierung, Status und die
  * Sensorzuordnung bleiben dabei unangetastet - die pflegen wir selbst.
  *
- * Die optionale Spalte "standort" traegt die Clusterzuordnung mit. Sie nimmt
+ * Die optionale Spalte "standortname" traegt die Clusterzuordnung mit. Sie nimmt
  * der Zuordnung von Hand nichts ab - es entscheidet weiterhin ein Mensch,
  * welche Container zusammengehoeren - erspart bei mehreren hundert Containern
  * aber die Klickarbeit. Ohne die Spalte aendert sich am Import nichts.
@@ -101,7 +101,13 @@ export async function containerImportieren(zeilen: Importzeile[]): Promise<Impor
 }
 
 /**
- * Standorte aus der Spalte "standort" anlegen und die Container zuordnen.
+ * Standorte aus der Standortspalte anlegen und die Container zuordnen.
+ *
+ * In der Importdatei heisst die Spalte "standortname" (oder "cluster",
+ * "platz", "containerstandort", "sammelstelle") - NICHT "standort": so heisst
+ * im Export der Dienstleistungsdatenbank die Bezeichnung des einzelnen
+ * Containers. Die Zuordnung der Spaltennamen steht in Importbereich.tsx; hier
+ * kommt sie als Feld `standort` der Importzeile an.
  *
  * Verglichen wird ueber den Namen, ohne Gross- und Kleinschreibung und ohne
  * fuehrende Leerzeichen - sonst legt eine Tabelle mit "Netto Parkplatz" und
