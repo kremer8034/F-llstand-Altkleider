@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
-import { rhythmusText } from "@/lib/wochentage";
+import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
+import { Mehrfachauswahl } from "@/components/Mehrfachauswahl";
 import { Routenformular } from "@/components/Routenformular";
 import type { Route, StandortPlanung } from "@/lib/typen";
 import { routeLoeschen, standortEntfernen, standorteZuordnen } from "../aktionen";
@@ -47,13 +48,10 @@ export default async function Routendetail({ params }: { params: Promise<{ id: s
 
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 
-  // Nächster Termin - dieselbe Rechnung wie in der Datenbank.
-  const heute = new Date();
-  heute.setHours(0, 0, 0, 0);
-  const anker = new Date(`${r.anker_datum}T00:00:00`);
+  // Die nächsten drei Termine, gerechnet wie in der Datenbank (lib/wochentage).
   const periode = Math.max(1, r.intervall_wochen) * 7 * 86400_000;
-  const schritte = Math.max(0, Math.ceil((heute.getTime() - anker.getTime()) / periode));
-  const termine = [0, 1, 2].map((n) => new Date(anker.getTime() + (schritte + n) * periode));
+  const erster = naechsterTermin(r.anker_datum, r.intervall_wochen);
+  const termine = [0, 1, 2].map((n) => new Date(erster.getTime() + n * periode));
 
   const meine = alle.filter((s) => zugeordnet.has(s.id));
   const offen = alle.filter((s) => !zugeordnet.has(s.id));
@@ -154,25 +152,26 @@ export default async function Routendetail({ params }: { params: Promise<{ id: s
         <section className="karte-flaeche p-4">
           <h2 className="font-semibold">Standorte hinzufügen</h2>
           <p className="mt-1 text-sm text-ink-2">
-            Mehrfachauswahl mit Strg bzw. Befehlstaste. Ein Standort darf auf mehreren Routen
-            liegen – dann zählt der früheste Termin.
+            Suchen, ankreuzen, hinzufügen. Ein Standort darf auf mehreren Routen liegen – dann
+            zählt der früheste Termin.
           </p>
-          <form action={standorteZuordnen} className="mt-3 space-y-2">
+          <form action={standorteZuordnen} className="mt-3 space-y-3">
             <input type="hidden" name="route_id" value={r.id} />
-            <select
+            <Mehrfachauswahl
               name="standort_id"
-              multiple
-              size={Math.min(12, Math.max(4, offen.length))}
-              className="feld"
-              aria-label="Standorte"
-            >
-              {offen.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.ort ? ` · ${s.ort}` : ""}
-                </option>
-              ))}
-            </select>
+              beschriftung="Standorte"
+              leerText="Alle Standorte liegen bereits auf dieser Route."
+              eintraege={offen.map((s) => {
+                const p = planung.get(s.id);
+                return {
+                  id: s.id,
+                  titel: s.name,
+                  unterzeile: s.ort,
+                  hinweis:
+                    p?.freie_prozent != null ? `${p.freie_prozent} % frei` : null,
+                };
+              })}
+            />
             <button type="submit" className="knopf-primaer">
               Hinzufügen
             </button>

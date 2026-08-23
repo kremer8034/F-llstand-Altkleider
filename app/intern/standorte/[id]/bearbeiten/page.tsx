@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Standortformular } from "@/components/Standortformular";
 import { rolleErzwingen } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/server";
-import type { Standort } from "@/lib/typen";
+import type { Entsorger, Standort } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Standort bearbeiten" };
@@ -13,7 +13,12 @@ export default async function StandortBearbeiten({ params }: { params: Promise<{
   const { id } = await params;
 
   const supabase = await serverClient();
-  const { data } = await supabase.from("standort").select("*").eq("id", id).maybeSingle();
+  const [standortAntwort, entsorgerAntwort] = await Promise.all([
+    supabase.from("standort").select("*").eq("id", id).maybeSingle(),
+    supabase.from("entsorger").select("*").eq("aktiv", true).order("gemeinde").order("name"),
+  ]);
+
+  const data = standortAntwort.data;
   if (!data) notFound();
 
   return (
@@ -25,7 +30,10 @@ export default async function StandortBearbeiten({ params }: { params: Promise<{
         <h1 className="mt-1 text-2xl font-semibold">Standort bearbeiten</h1>
       </div>
 
-      <Standortformular standort={data as Standort} />
+      <Standortformular
+        standort={data as Standort}
+        entsorger={(entsorgerAntwort.data ?? []) as Entsorger[]}
+      />
     </div>
   );
 }

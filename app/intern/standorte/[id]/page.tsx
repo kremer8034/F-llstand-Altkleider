@@ -2,17 +2,39 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
+import { Mehrfachauswahl } from "@/components/Mehrfachauswahl";
+import { Entsorgerhinweis } from "@/components/Entsorgerhinweis";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { adresse, alterText, prozentText, stufeVon } from "@/lib/fuellstand";
 import { tageText } from "@/lib/prognose";
-import type { Container, ContainerZustand, Standort, StandortZustand } from "@/lib/typen";
-import { containerLoesen, containerZuordnen, standorteZusammenfuehren } from "../aktionen";
+import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
+import type {
+  Container,
+  ContainerZustand,
+  Entsorger,
+  Route,
+  Standort,
+  StandortEntsorgung,
+  StandortZustand,
+} from "@/lib/typen";
+import {
+  containerLoesen,
+  containerZuordnen,
+  entsorgerZuordnen,
+  regeltourenSetzen,
+  standorteZusammenfuehren,
+} from "../aktionen";
 
 export const dynamic = "force-dynamic";
 
 const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+const DATUM = new Intl.DateTimeFormat("de-DE", {
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+});
 
 export default async function Standortdetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,46 +45,88 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
   if (!roh) notFound();
   const s = roh as Standort;
 
-  const [zustandAntwort, eigeneAntwort, freieAntwort, werteAntwort, andereAntwort] = await Promise.all([
+  const [
+    zustandAntwort,
+    eigeneAntwort,
+    kandidatenAntwort,
+    werteAntwort,
+    andereAntwort,
+    routenAntwort,
+    meineRoutenAntwort,
+    entsorgungAntwort,
+    entsorgerAntwort,
+  ] = await Promise.all([
     supabase.from("standort_zustand").select("*").eq("standort_id", id).maybeSingle(),
     supabase.from("container").select("*").eq("standort_id", id).order("nummer"),
-    // Kandidaten zum Zuordnen: Container, die allein an ihrem Standort stehen
+    // Kandidaten zum Zuordnen.
+    //
+    // `.neq("standort_id", id)` allein reicht NICHT: in SQL ist NULL <> 'x'
+    // nicht wahr, sondern unbekannt - Container ganz ohne Standort fielen
+    // damit aus der Liste und liessen sich hier nie zuordnen. Gerade die
+    // brauchen es aber am dringendsten, weil sie in keiner Tour auftauchen.
     supabase
       .from("container")
-      .select("id, nummer, bezeichnung, strasse, plz, ort, standort_id")
-      .neq("standort_id", id)
+      .select("id, nummer, bezeichnung, strasse, plz, ort, standort_id, volumen_liter")
+      .or(`standort_id.is.null,standort_id.neq.${id}`)
       .eq("status", "aktiv")
       .order("nummer")
-      .limit(500),
+      .limit(1000),
     einstellungen(supabase),
-    supabase.from("standort").select("id, name, ort").neq("id", id).order("name").limit(500),
+    supabase.from("standort").select("id, name, ort").neq("id", id).order("name").limit(1000),
+    supabase.from("route").select("*").eq("aktiv", true).order("name"),
+    supabase.from("route_standort").select("route_id").eq("standort_id", id),
+    supabase.from("standort_entsorgung").select("*").eq("standort_id", id).maybeSingle(),
+    supabase.from("entsorger").select("*").eq("aktiv", true).order("gemeinde").order("name"),
   ]);
 
   const z = zustandAntwort.data as StandortZustand | null;
   const eigene = (eigeneAntwort.data ?? []) as Container[];
-  const kandidaten = (freieAntwort.data ?? []) as Pick<
+  const kandidaten = (kandidatenAntwort.data ?? []) as (Pick<
     Container,
-    "id" | "nummer" | "bezeichnung" | "strasse" | "plz" | "ort"
-  >[];
+    "id" | "nummer" | "bezeichnung" | "strasse" | "plz" | "ort" | "volumen_liter"
+  > & { standort_id: string | null })[];
   const andere = (andereAntwort.data ?? []) as { id: string; name: string; ort: string | null }[];
+  const routen = (routenAntwort.data ?? []) as Route[];
+  const meineRouten = new Set(
+    ((meineRoutenAntwort.data ?? []) as { route_id: string }[]).map((r) => r.route_id),
+  );
+  const entsorgung = entsorgungAntwort.data as StandortEntsorgung | null;
+  const entsorger = (entsorgerAntwort.data ?? []) as Entsorger[];
 
   const reserve = zahlAusEinstellung(werteAntwort, "standort_reserve_prozent", 20);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 
   // Zustände der eigenen Container für die Liste unten
-  const { data: zustaendeRoh } = await supabase
-    .from("container_zustand")
-    .select("*")
-    .in("container_id", eigene.length ? eigene.map((c) => c.id) : ["00000000-0000-0000-0000-000000000000"]);
+  const { data: zustaendeRoh } = eigene.length
+    ? await supabase
+        .from("container_zustand")
+        .select("*")
+        .in("container_id", eigene.map((c) => c.id))
+    : { data: [] };
+
   const zustaende = new Map<string, ContainerZustand>();
   ((zustaendeRoh ?? []) as ContainerZustand[]).forEach((cz) => zustaende.set(cz.container_id, cz));
 
-  const gefuellt = z?.freie_prozent === null || z === null ? null : Math.round(100 - z.freie_prozent);
+  const gefuellt = z?.freie_prozent == null ? null : Math.round(100 - z.freie_prozent);
   const knapp = z?.freie_prozent != null && z.freie_prozent < reserve;
   const tageBisVoll =
     z?.freie_liter != null && z.zufluss_liter_je_tag
       ? (z.freie_liter - (z.kapazitaet_liter ?? 0) * (reserve / 100)) / z.zufluss_liter_je_tag
       : null;
+
+  // Die Regeltouren dieses Standorts, nach dem nächsten Termin sortiert.
+  const zugeordneteRouten = routen
+    .filter((r) => meineRouten.has(r.id))
+    .map((r) => ({ route: r, termin: naechsterTermin(r.anker_datum, r.intervall_wochen) }))
+    .sort((a, b) => a.termin.getTime() - b.termin.getTime());
+
+  // Vorschlag für den Bauhof: gleicher Ort wie der Standort.
+  const vorschlag = entsorger.find(
+    (e) =>
+      s.ort &&
+      e.gemeinde &&
+      e.gemeinde.trim().toLowerCase() === s.ort.trim().toLowerCase(),
+  );
 
   return (
     <div className="space-y-6">
@@ -118,7 +182,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
             <Fuellstandsbalken prozent={gefuellt} hoehe={12} />
           </div>
 
-          <p className={`mt-2 text-lg font-semibold ${knapp ? "" : "text-ink"}`}>
+          <p className="mt-2 text-lg font-semibold">
             {z?.freie_liter == null
               ? "Kein Messwert"
               : `${L.format(z.freie_liter)} Liter frei (${z.freie_prozent} %)`}
@@ -162,31 +226,106 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
           ) : null}
         </section>
 
-        {/* Zusammenführen */}
-        {bearbeiten && andere.length > 0 && (
-          <section className="karte-flaeche p-4">
-            <h2 className="font-semibold">Zusammenführen</h2>
-            <p className="mt-1 text-sm text-ink-2">
-              Alle Container eines anderen Standorts hierher übernehmen. Der andere Standort wird
-              danach gelöscht.
-            </p>
-            <form action={standorteZusammenfuehren} className="mt-3 space-y-2">
-              <input type="hidden" name="ziel_id" value={s.id} />
-              <select name="quelle_id" className="feld" aria-label="Standort, der hierher wandert">
-                {andere.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.ort ? ` · ${a.ort}` : ""}
+        {/* Fremdmüll: wen ruft das Fahrpersonal an? */}
+        <section className="karte-flaeche p-4">
+          <h2 className="font-semibold">Fremdmüll</h2>
+          <div className="mt-3">
+            <Entsorgerhinweis entsorgung={entsorgung} />
+          </div>
+
+          {bearbeiten && (
+            <form action={entsorgerZuordnen} className="mt-4 space-y-2 border-t pt-3">
+              <input type="hidden" name="standort_id" value={s.id} />
+              <label htmlFor="entsorger_id" className="block text-xs font-medium text-ink-2">
+                Zuständiger Bauhof
+              </label>
+              <select
+                id="entsorger_id"
+                name="entsorger_id"
+                defaultValue={s.entsorger_id ?? ""}
+                className="feld"
+              >
+                <option value="">– keiner, Müll wird mitgenommen –</option>
+                {entsorger.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                    {e.gemeinde ? ` · ${e.gemeinde}` : ""}
                   </option>
                 ))}
               </select>
+              {!s.entsorger_id && vorschlag && (
+                <p className="text-xs text-ink-3">
+                  Vorschlag anhand des Orts: <strong>{vorschlag.name}</strong>
+                </p>
+              )}
               <button type="submit" className="knopf-sekundaer w-full">
-                Hierher übernehmen
+                Übernehmen
               </button>
+              <p className="text-xs text-ink-3">
+                Gepflegt werden die Bauhöfe unter{" "}
+                <Link href="/intern/entsorger" className="underline underline-offset-2">
+                  Bauhöfe
+                </Link>
+                .
+              </p>
             </form>
-          </section>
-        )}
+          )}
+        </section>
       </div>
+
+      {/* Regeltouren */}
+      <section className="karte-flaeche p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Regeltouren</h2>
+          <span className="text-sm text-ink-3">
+            {zugeordneteRouten.length === 0
+              ? "keiner zugeordnet"
+              : `${zugeordneteRouten.length} zugeordnet`}
+          </span>
+        </div>
+
+        {zugeordneteRouten.length === 0 ? (
+          <p className="mt-2 max-w-3xl text-sm text-ink-2">
+            Dieser Standort ist keiner Regeltour zugeordnet und gilt damit als{" "}
+            <strong>ungedeckt</strong>: die Planung nimmt ihn auf, sobald er unter die Reserve
+            fällt. Das ist sicher, führt aber zu mehr Extrafahrten als nötig.
+          </p>
+        ) : (
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {zugeordneteRouten.map(({ route, termin }, i) => (
+              <li key={route.id}>
+                <Link
+                  href={`/intern/routen/${route.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border bg-flaeche px-3 py-1.5 text-sm transition hover:bg-flaeche-2"
+                >
+                  <span className="font-medium">{route.name}</span>
+                  <span className="text-xs text-ink-3">
+                    {rhythmusText(route.wochentag, route.intervall_wochen)}
+                  </span>
+                  <span className={`zahl text-xs ${i === 0 ? "font-medium" : "text-ink-3"}`}>
+                    {DATUM.format(termin)}
+                    {i === 0 && zugeordneteRouten.length > 1 && " · zuerst"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {bearbeiten && routen.length > 0 && (
+          <form action={regeltourenSetzen} className="mt-4 space-y-3 border-t pt-4">
+            <input type="hidden" name="standort_id" value={s.id} />
+            <p className="text-sm text-ink-2">
+              Ein Standort darf auf mehreren Regeltouren liegen – das ist bei stark frequentierten
+              Plätzen der Normalfall. Für die Deckung zählt dann der früheste Termin.
+            </p>
+            <Regeltourenauswahl routen={routen} zugeordnet={meineRouten} />
+            <button type="submit" className="knopf-primaer">
+              Zuordnung speichern
+            </button>
+          </form>
+        )}
+      </section>
 
       {/* Container an diesem Standort */}
       <section className="karte-flaeche">
@@ -234,36 +373,99 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
         )}
       </section>
 
-      {/* Zuordnen */}
+      {/* Zuordnen und Zusammenführen */}
       {bearbeiten && (
-        <section className="karte-flaeche p-4">
-          <h2 className="font-semibold">Container hierher zuordnen</h2>
-          <p className="mt-1 text-sm text-ink-2">
-            Mehrfachauswahl mit Strg bzw. Befehlstaste. Der Container verlässt damit seinen
-            bisherigen Standort.
-          </p>
-          <form action={containerZuordnen} className="mt-3 space-y-2">
-            <input type="hidden" name="standort_id" value={s.id} />
-            <select
-              name="container_id"
-              multiple
-              size={Math.min(10, Math.max(4, kandidaten.length))}
-              className="feld"
-              aria-label="Container"
-            >
-              {kandidaten.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.nummer} · {k.bezeichnung ?? "ohne Bezeichnung"}
-                  {k.ort ? ` · ${k.ort}` : ""}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="knopf-primaer">
-              Zuordnen
-            </button>
-          </form>
-        </section>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="karte-flaeche p-4">
+            <h2 className="font-semibold">Container hierher holen</h2>
+            <p className="mt-1 text-sm text-ink-2">
+              Suchen, ankreuzen, zuordnen. Ein Container verlässt damit seinen bisherigen Standort.
+            </p>
+            <form action={containerZuordnen} className="mt-3 space-y-3">
+              <input type="hidden" name="standort_id" value={s.id} />
+              <Mehrfachauswahl
+                name="container_id"
+                beschriftung="Container"
+                leerText="Alle aktiven Container stehen bereits hier."
+                eintraege={kandidaten.map((k) => ({
+                  id: k.id,
+                  titel: `${k.nummer}${k.bezeichnung ? ` · ${k.bezeichnung}` : ""}`,
+                  unterzeile: adresse(k) || null,
+                  hinweis: k.standort_id ? null : "ohne Standort",
+                  suchtext: k.standort_id ? null : "ohne standort frei",
+                }))}
+              />
+              <button type="submit" className="knopf-primaer">
+                Zuordnen
+              </button>
+            </form>
+          </section>
+
+          <section className="karte-flaeche p-4">
+            <h2 className="font-semibold">Anderen Standort hierher übernehmen</h2>
+            <p className="mt-1 text-sm text-ink-2">
+              Alle Container der ausgewählten Standorte wandern hierher, die leeren Standorte
+              werden gelöscht. Der häufigste Handgriff beim Zusammenführen des Ausgangszustands, in
+              dem jeder Container noch seinen eigenen Standort hat.
+            </p>
+            <form action={standorteZusammenfuehren} className="mt-3 space-y-3">
+              <input type="hidden" name="ziel_id" value={s.id} />
+              <Mehrfachauswahl
+                name="quelle_id"
+                beschriftung="Standorte"
+                leerText="Es gibt keinen weiteren Standort."
+                eintraege={andere.map((a) => ({
+                  id: a.id,
+                  titel: a.name,
+                  unterzeile: a.ort,
+                }))}
+              />
+              <button type="submit" className="knopf-sekundaer">
+                Hierher übernehmen
+              </button>
+            </form>
+          </section>
+        </div>
       )}
+    </div>
+  );
+}
+
+/** Eigene kleine Hülle, damit die Client-Komponente die Vorauswahl bekommt. */
+function Regeltourenauswahl({
+  routen,
+  zugeordnet,
+}: {
+  routen: Route[];
+  zugeordnet: Set<string>;
+}) {
+  return (
+    <div className="space-y-2">
+      <ul className="divide-y rounded-lg border">
+        {routen.map((r) => {
+          const termin = naechsterTermin(r.anker_datum, r.intervall_wochen);
+          return (
+            <li key={r.id}>
+              <label className="flex cursor-pointer items-start gap-3 px-3 py-2.5 transition hover:bg-flaeche-2">
+                <input
+                  type="checkbox"
+                  name="route_id"
+                  value={r.id}
+                  defaultChecked={zugeordnet.has(r.id)}
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{r.name}</span>
+                  <span className="block text-xs text-ink-3">
+                    {rhythmusText(r.wochentag, r.intervall_wochen)}
+                  </span>
+                </span>
+                <span className="zahl shrink-0 text-xs text-ink-3">{DATUM.format(termin)}</span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

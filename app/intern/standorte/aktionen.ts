@@ -29,6 +29,7 @@ function alleSeitenNeu(id?: string) {
   revalidatePath("/intern/standorte");
   revalidatePath("/intern/container");
   revalidatePath("/intern/touren");
+  revalidatePath("/intern/routen");
   if (id) revalidatePath(`/intern/standorte/${id}`);
 }
 
@@ -46,6 +47,7 @@ export async function standortSpeichern(formular: FormData) {
     lng: zahl(formular, "lng"),
     zufahrt: text(formular, "zufahrt"),
     bemerkung: text(formular, "bemerkung"),
+    entsorger_id: text(formular, "entsorger_id"),
     aktiv: formular.get("aktiv") === "on",
   };
 
@@ -134,27 +136,38 @@ export async function containerLoesen(formular: FormData) {
 }
 
 /**
- * Zwei Standorte zusammenfuehren: alle Container wandern, der leere wird
- * geloescht. Der haeufigste Handgriff beim Aufraeumen des Ausgangszustands,
- * in dem jeder Container noch seinen eigenen Standort hat.
+ * Standorte zusammenfuehren: alle Container wandern zum Ziel, die leeren
+ * Standorte werden geloescht. Der haeufigste Handgriff beim Aufraeumen des
+ * Ausgangszustands, in dem jeder Container noch seinen eigenen Standort hat.
+ *
+ * Nimmt mehrere Quellen auf einmal. Ein Wertstoffhof mit sieben Containern
+ * bedeutete sonst sechs Durchgaenge durch dasselbe Formular, jeder mit
+ * Neuladen der Seite.
  */
 export async function standorteZusammenfuehren(formular: FormData) {
   await berechtigt();
 
   const zielId = text(formular, "ziel_id");
-  const quelleId = text(formular, "quelle_id");
-  if (!zielId || !quelleId || zielId === quelleId) return;
+  const quellen = formular
+    .getAll("quelle_id")
+    .filter((w): w is string => typeof w === "string" && w !== "" && w !== zielId);
+
+  if (!zielId || quellen.length === 0) return;
 
   const supabase = await serverClient();
 
   const { error: fehlerUmzug } = await supabase
     .from("container")
     .update({ standort_id: zielId })
-    .eq("standort_id", quelleId);
+    .in("standort_id", quellen);
 
   if (fehlerUmzug) throw new Error(fehlerUmzug.message);
 
-  const { error } = await supabase.from("standort").delete().eq("id", quelleId);
+  // Die Zuordnungen zu Regeltouren wandern nicht mit: welche Touren den
+  // zusammengefuehrten Platz anfahren sollen, ist eine Planungsentscheidung
+  // und keine Folge des Zusammenlegens. Sie verschwinden mit dem Standort
+  // (on delete cascade), und der Zielstandort behaelt seine eigenen.
+  const { error } = await supabase.from("standort").delete().in("id", quellen);
   if (error) throw new Error(error.message);
 
   alleSeitenNeu(zielId);
@@ -215,4 +228,120 @@ export async function standorteNachziehen() {
   }
 
   alleSeitenNeu();
+}
+
+/**
+ * Regeltouren dieses Standorts festlegen.
+ *
+ * Bisher ging die Zuordnung nur von der Routenseite aus: wer wissen wollte,
+ * auf welchen Touren ein Standort liegt, musste jede Route einzeln oeffnen.
+ * Hier geht es andersherum - und weil ein Standort ausdruecklich auf mehreren
+ * Regeltouren liegen darf (haeufig angefahrene Plaetze brauchen das), ist es
+ * eine Mehrfachauswahl.
+ *
+ * Gesetzt wird der Zustand als Ganzes, nicht als Folge von Einzelschritten:
+ * das Formular schickt alle angehakten Routen, alles andere wird entfernt.
+ * Damit gibt es keinen Zwischenstand, in dem eine Zuordnung doppelt oder gar
+ * nicht existiert.
+ */
+export async function regeltourenSetzen(formular: FormData) {
+  await berechtigt();
+
+  const standortId = text(formular, "standort_id");
+  if (!standortId) return;
+
+  const gewuenscht = formular
+    .getAll("route_id")
+    .filter((w): w is string => typeof w === "string" && w !== "");
+
+  const supabase = await serverClient();
+
+  const { data: bisherRoh, error: leseFehler } = await supabase
+    .from("route_standort")
+    .select("route_id")
+    .eq("standort_id", standortId);
+
+  if (leseFehler) throw new Error(leseFehler.message);
+
+  const bisher = new Set((bisherRoh ?? []).map((z) => z.route_id as string));
+  const soll = new Set(gewuenscht);
+
+  const hinzu = gewuenscht.filter((id) => !bisher.has(id));
+  const weg = [...bisher].filter((id) => !soll.has(id));
+
+  if (hinzu.length > 0) {
+    const { error } = await supabase
+      .from("route_standort")
+      .upsert(
+        hinzu.map((route_id) => ({ route_id, standort_id: standortId })),
+        { onConflict: "route_id,standort_id", ignoreDuplicates: true },
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  if (weg.length > 0) {
+    const { error } = await supabase
+      .from("route_standort")
+      .delete()
+      .eq("standort_id", standortId)
+      .in("route_id", weg);
+    if (error) throw new Error(error.message);
+  }
+
+  alleSeitenNeu(standortId);
+}
+
+/**
+ * Zustaendigen Bauhof am Standort hinterlegen.
+ *
+ * Leerer Wert bedeutet ausdruecklich "keine Absprache" - dann nimmt das
+ * Fahrpersonal den Fremdmuell mit. Das ist kein fehlender Wert, sondern eine
+ * Aussage, und die Fahreransicht sagt sie auch so.
+ */
+export async function entsorgerZuordnen(formular: FormData) {
+  await berechtigt();
+
+  const standortId = text(formular, "standort_id");
+  if (!standortId) return;
+
+  const supabase = await serverClient();
+  const { error } = await supabase
+    .from("standort")
+    .update({ entsorger_id: text(formular, "entsorger_id") })
+    .eq("id", standortId);
+
+  if (error) throw new Error(error.message);
+  alleSeitenNeu(standortId);
+}
+
+/**
+ * Denselben Bauhof allen Standorten einer Gemeinde zuordnen.
+ *
+ * Der eigentliche Grund fuer die getrennte Entsorgertabelle: die Absprache
+ * gilt fuer das Gemeindegebiet, nicht fuer den einzelnen Platz. Wer sie
+ * dreissig Mal einzeln eintragen muesste, traegt sie irgendwann nicht mehr
+ * ein - und das Fahrpersonal steht vor dem Container und weiss nicht, wen es
+ * anrufen soll.
+ *
+ * Ueberschrieben wird nur, was noch leer ist. Eine bewusst abweichende
+ * Zuordnung an einem einzelnen Standort bleibt bestehen.
+ */
+export async function entsorgerAufGemeindeAnwenden(formular: FormData) {
+  await berechtigt();
+
+  const entsorgerId = text(formular, "entsorger_id");
+  const gemeinde = text(formular, "gemeinde");
+  if (!entsorgerId || !gemeinde) return;
+
+  const supabase = await serverClient();
+  const { error } = await supabase
+    .from("standort")
+    .update({ entsorger_id: entsorgerId })
+    .eq("ort", gemeinde)
+    .is("entsorger_id", null);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/intern/standorte");
+  revalidatePath("/intern/entsorger");
 }

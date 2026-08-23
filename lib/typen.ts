@@ -174,6 +174,8 @@ export interface Standort {
   lng: number | null;
   zufahrt: string | null;
   bemerkung: string | null;
+  /** Zustaendiger Bauhof. Nicht gesetzt heisst: der Muell wird mitgenommen. */
+  entsorger_id: string | null;
   aktiv: boolean;
   angelegt_am: string;
 }
@@ -238,4 +240,131 @@ export interface StandortPlanung {
   gedeckt: boolean | null;
   zustand: Planungszustand;
   grund: string;
+}
+
+// ---------------------------------------------------------------------------
+// Entsorgung (0014_entsorger.sql)
+// ---------------------------------------------------------------------------
+
+/** Bauhof oder Entsorgungsbetrieb, der Fremdmuell aus den Containern abholt. */
+export interface Entsorger {
+  id: string;
+  name: string;
+  gemeinde: string | null;
+  telefon: string | null;
+  email: string | null;
+  ansprechpartner: string | null;
+  erreichbar: string | null;
+  bemerkung: string | null;
+  aktiv: boolean;
+  angelegt_am: string;
+}
+
+/**
+ * Ansicht public.standort_entsorgung - was das Fahrpersonal am Stopp braucht.
+ * `abholung_vereinbart = false` heisst: der Muell muss mit.
+ */
+export interface StandortEntsorgung {
+  standort_id: string;
+  standort_name: string;
+  ort: string | null;
+  entsorger_id: string | null;
+  entsorger_name: string | null;
+  telefon: string | null;
+  email: string | null;
+  ansprechpartner: string | null;
+  erreichbar: string | null;
+  entsorger_bemerkung: string | null;
+  abholung_vereinbart: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Tagestouren (0015_touren.sql)
+// ---------------------------------------------------------------------------
+
+export type Tourstatus = "geplant" | "laeuft" | "abgeschlossen" | "abgebrochen";
+export type Stoppstatus = "offen" | "erledigt" | "uebersprungen";
+
+/** Ein Fahrauftrag: ein Tag, ein Fahrer, eine Folge von Stopps. */
+export interface Tour {
+  id: string;
+  name: string | null;
+  datum: string;
+  route_id: string | null;
+  fahrer_id: string | null;
+  status: Tourstatus;
+  begonnen_am: string | null;
+  abgeschlossen_am: string | null;
+  bemerkung: string | null;
+  angelegt_von: string | null;
+  angelegt_am: string;
+}
+
+export interface TourStopp {
+  id: string;
+  tour_id: string;
+  standort_id: string;
+  position: number;
+  status: Stoppstatus;
+  angekommen_am: string | null;
+  erledigt_am: string | null;
+  erledigt_von: string | null;
+  notiz: string | null;
+}
+
+export interface TourContainer {
+  id: string;
+  stopp_id: string;
+  container_id: string;
+  geleert: boolean;
+  grund: string | null;
+  menge_kg: number | null;
+  leerung_id: string | null;
+  erfasst_am: string;
+}
+
+/** Ansicht public.tour_fortschritt - Zustand einer Tour ohne Fahrzeugposition. */
+export interface TourFortschritt {
+  tour_id: string;
+  name: string | null;
+  datum: string;
+  status: Tourstatus;
+  route_id: string | null;
+  routenname: string | null;
+  fahrer_id: string | null;
+  fahrername: string | null;
+  begonnen_am: string | null;
+  abgeschlossen_am: string | null;
+  stopps_gesamt: number;
+  stopps_erledigt: number;
+  stopps_uebersprungen: number;
+  stopps_offen: number;
+  naechster_standort_id: string | null;
+  naechster_standort: string | null;
+  container_geleert: number;
+  container_stehen_geblieben: number;
+}
+
+// ---------------------------------------------------------------------------
+// Oeffentliche Platzliste (0016_adresse_am_standort.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ein Platz auf der oeffentlichen Karte. Fuer den Buerger ist ein Parkplatz
+ * mit drei Containern eine Antwort, nicht drei.
+ */
+export interface OeffentlicherStandort {
+  standort_id: string;
+  name: string;
+  strasse: string | null;
+  plz: string | null;
+  ort: string | null;
+  lat: number;
+  lng: number;
+  container_gesamt: number;
+  container_mit_platz: number;
+  freie_prozent: number | null;
+  stufe: Fuellstandsstufe;
+  gemessen_am: string | null;
+  stunden_seit_messung: number | null;
 }

@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { standortSpeichern } from "@/app/intern/standorte/aktionen";
-import type { Standort } from "@/lib/typen";
+import type { Entsorger, Standort } from "@/lib/typen";
 
 /** Ein Formular für Anlegen und Bearbeiten - Unterschied ist nur die id. */
-export function Standortformular({ standort }: { standort?: Standort }) {
+export function Standortformular({
+  standort,
+  entsorger = [],
+}: {
+  standort?: Standort;
+  entsorger?: Entsorger[];
+}) {
   const s = standort;
 
   return (
@@ -102,6 +108,30 @@ export function Standortformular({ standort }: { standort?: Standort }) {
             />
             <p className="mt-1 text-xs text-ink-3">
               Steht in der Tourenliste beim Stopp – alles, was das Fahrpersonal vor Ort wissen muss.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="entsorger_id" className="mb-1 block text-sm font-medium">
+              Zuständiger Bauhof bei Fremdmüll
+            </label>
+            <select
+              id="entsorger_id"
+              name="entsorger_id"
+              defaultValue={s?.entsorger_id ?? ""}
+              className="feld"
+            >
+              <option value="">– keiner, Müll wird mitgenommen –</option>
+              {entsorger.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                  {e.gemeinde ? ` · ${e.gemeinde}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-3">
+              Ist ein Bauhof hinterlegt, lässt das Fahrpersonal den Müll stehen und ruft an. Ohne
+              Eintrag nimmt es ihn mit.
             </p>
           </div>
 

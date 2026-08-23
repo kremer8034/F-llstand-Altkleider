@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
-import { rhythmusText } from "@/lib/wochentage";
+import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
 import type { Route } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
@@ -28,21 +28,12 @@ export default async function RoutenSeite() {
     anzahl.set(r.route_id, (anzahl.get(r.route_id) ?? 0) + 1),
   );
 
-  // Nächster Termin: dieselbe Rechnung wie route_naechster_termin() in der
-  // Datenbank - Anker plus volle Perioden bis heute, aufgerundet.
-  const heute = new Date();
-  heute.setHours(0, 0, 0, 0);
-  function naechsterTermin(r: Route): Date {
-    const anker = new Date(`${r.anker_datum}T00:00:00`);
-    const periode = Math.max(1, r.intervall_wochen) * 7 * 86400_000;
-    const schritte = Math.max(0, Math.ceil((heute.getTime() - anker.getTime()) / periode));
-    return new Date(anker.getTime() + schritte * periode);
-  }
-
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
-  const sortiert = [...routen].sort(
-    (a, b) => naechsterTermin(a).getTime() - naechsterTermin(b).getTime(),
-  );
+
+  // Nach dem nächsten Termin sortiert - was zuerst fährt, steht oben.
+  const sortiert = [...routen]
+    .map((r) => ({ route: r, termin: naechsterTermin(r.anker_datum, r.intervall_wochen) }))
+    .sort((a, b) => a.termin.getTime() - b.termin.getTime());
 
   return (
     <div className="space-y-4">
@@ -72,7 +63,7 @@ export default async function RoutenSeite() {
         </div>
       ) : (
         <div className="karte-flaeche divide-y overflow-hidden">
-          {sortiert.map((r) => (
+          {sortiert.map(({ route: r, termin }) => (
             <Link
               key={r.id}
               href={`/intern/routen/${r.id}`}
@@ -96,7 +87,7 @@ export default async function RoutenSeite() {
 
               <div className="w-full text-sm sm:w-52">
                 <span className="text-ink-3">Nächster Termin</span>
-                <div className="zahl font-medium">{DATUM.format(naechsterTermin(r))}</div>
+                <div className="zahl font-medium">{DATUM.format(termin)}</div>
               </div>
 
               <div className="w-full text-sm text-ink-3 sm:w-32 sm:text-right">

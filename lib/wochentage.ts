@@ -28,3 +28,30 @@ export function isoWochentag(datum: Date): number {
   const tag = datum.getDay();
   return tag === 0 ? 7 : tag;
 }
+
+/**
+ * Naechster Termin einer Regeltour ab einem Stichtag.
+ *
+ * Dieselbe Rechnung wie public.route_naechster_termin() in der Datenbank:
+ * Ankerdatum plus volle Perioden bis zum Stichtag, aufgerundet, damit der
+ * Stichtag selbst noch als Termin gilt.
+ *
+ * Sie stand wortgleich in /intern/routen/page.tsx und in
+ * /intern/routen/[id]/page.tsx. Zwei Kopien derselben Formel laufen
+ * auseinander, sobald jemand eine davon anfasst - und ein Terminfehler faellt
+ * nicht auf, er verschiebt nur lautlos die Deckungsrechnung.
+ */
+export function naechsterTermin(
+  ankerDatum: string,
+  intervallWochen: number,
+  ab: Date = new Date(),
+): Date {
+  const stichtag = new Date(ab);
+  stichtag.setHours(0, 0, 0, 0);
+
+  const anker = new Date(`${ankerDatum}T00:00:00`);
+  const periode = Math.max(1, intervallWochen) * 7 * 86400_000;
+  const schritte = Math.max(0, Math.ceil((stichtag.getTime() - anker.getTime()) / periode));
+
+  return new Date(anker.getTime() + schritte * periode);
+}

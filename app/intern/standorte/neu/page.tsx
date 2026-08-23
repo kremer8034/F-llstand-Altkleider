@@ -1,12 +1,22 @@
 import Link from "next/link";
 import { Standortformular } from "@/components/Standortformular";
 import { rolleErzwingen } from "@/lib/auth";
+import { serverClient } from "@/lib/supabase/server";
+import type { Entsorger } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Neuer Standort" };
 
 export default async function NeuerStandort() {
   await rolleErzwingen(["admin", "dispo"]);
+
+  const supabase = await serverClient();
+  const { data } = await supabase
+    .from("entsorger")
+    .select("*")
+    .eq("aktiv", true)
+    .order("gemeinde")
+    .order("name");
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -20,7 +30,7 @@ export default async function NeuerStandort() {
         </p>
       </div>
 
-      <Standortformular />
+      <Standortformular entsorger={(data ?? []) as Entsorger[]} />
     </div>
   );
 }
