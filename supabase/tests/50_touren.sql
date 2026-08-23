@@ -18,6 +18,7 @@
 --   9. Entsorger: hinterlegt -> anrufen, nicht hinterlegt -> mitnehmen
 --  10. Ein Container ohne eigene Koordinaten bleibt oeffentlich sichtbar
 --  11. Ein Benutzer ohne E-Mail laesst sich anlegen (0017)
+--  12. Keine oeffentliche Ansicht ruft eine fuer anon gesperrte Funktion (0018)
 --
 -- Punkt 5 traegt die Offlinefaehigkeit der Fahreransicht. Sendet sie eine
 -- Bestaetigung nach, von der sie nicht weiss, ob der erste Versuch ankam,
@@ -413,6 +414,80 @@ begin
   end if;
 
   raise notice 'OK: ohne E-Mail leerer Name statt Fehler, mit E-Mail unveraendert';
+end $$;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 12. Oeffentliche Ansichten rufen keine gesperrten Funktionen ==='
+--
+-- Der Fehler, der das hier ausgeloest hat: oeffentliche_standorte rief intern
+-- einstellung_zahl() auf. Migration 0005 hatte die Ausfuehrungsrechte dieser
+-- Funktion fuer anon entzogen.
+--
+-- Bei einer Ansicht mit security_invoker = false werden TABELLENrechte gegen
+-- den Eigentuemer geprueft, AUSFUEHRUNGSrechte von Funktionen aber gegen die
+-- aufrufende Rolle. Fuer anon scheiterte die Abfrage mit 42501, und die Seite
+-- hinter dem QR-Code blieb leer.
+--
+-- Besonders tueckisch: "select count(*)" und "select standort_id" gingen
+-- durch, weil Postgres die Spalte mit dem Funktionsaufruf aus dem Plan
+-- streichen kann. Nur "select *" faellt herein. Ein Test, der zaehlt statt
+-- zu lesen, haette den Fehler nicht gefunden - dieser hier prueft deshalb
+-- die Definition der Ansicht, nicht ihr Ergebnis.
+-- ---------------------------------------------------------------------------
+-- Die uebrigen Testdateien vergeben anon pauschal Rechte. Fuer diese Pruefung
+-- wird der Produktionszustand wiederhergestellt: einstellung_zahl ist fuer
+-- anon gesperrt (Migration 0005).
+revoke execute on function public.einstellung_zahl(text, numeric) from anon;
+
+-- Geprueft wird die benannte Liste der Ansichten, die ohne Anmeldung
+-- erreichbar sind - nicht, was anon gerade an Rechten hat: die uebrigen
+-- Testdateien vergeben grosszuegig Rechte, um Zugriffsregeln statt Rechte zu
+-- pruefen, und damit waere ein Filter ueber has_table_privilege wertlos.
+-- Diese beiden Ansichten sind der oeffentliche Vertrag (0003, 0016).
+do $$
+declare
+  v_ansicht  text;
+  v_funktion text;
+  v_treffer  text := '';
+begin
+  foreach v_ansicht in array array['oeffentliche_container', 'oeffentliche_standorte']
+  loop
+    for v_funktion in
+      select p.proname
+        from pg_proc p
+        join pg_namespace pn on pn.oid = p.pronamespace
+       where pn.nspname = 'public'
+         and not has_function_privilege('anon', p.oid, 'execute')
+         and pg_get_viewdef(('public.' || quote_ident(v_ansicht))::regclass, true)
+             like '%' || p.proname || '(%'
+    loop
+      v_treffer := v_treffer || format('%s ruft %s(); ', v_ansicht, v_funktion);
+    end loop;
+  end loop;
+
+  if v_treffer <> '' then
+    raise exception 'Oeffentliche Ansicht ruft eine fuer anon gesperrte Funktion: %', v_treffer;
+  end if;
+
+  raise notice 'OK: keine oeffentliche Ansicht haengt an einer gesperrten Funktion';
+end $$;
+
+-- Und die Gegenprobe am lebenden Objekt: alle Spalten lesen, nicht zaehlen.
+do $$
+declare v_zeilen integer; v_mit_wert integer;
+begin
+  select count(*), count(freie_prozent)
+    into v_zeilen, v_mit_wert
+    from (select * from public.oeffentliche_standorte order by name) t;
+
+  if v_zeilen = 0 then
+    raise exception 'oeffentliche_standorte liefert keine Zeile';
+  end if;
+  if v_mit_wert = 0 then
+    raise exception 'freie_prozent bleibt leer - die Volumenrechnung greift nicht';
+  end if;
+
+  raise notice 'OK: % Plaetze, davon % mit gerechneter Restkapazitaet', v_zeilen, v_mit_wert;
 end $$;
 
 \echo '=== Alle Pruefungen bestanden ==='

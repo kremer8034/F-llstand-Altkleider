@@ -44,9 +44,12 @@ function anschrift(p: { strasse: string | null; plz: string | null; ort: string 
 export function Containeransicht({
   dieser,
   plaetze,
+  listeGestoert = false,
 }: {
   dieser: OeffentlicherContainer | null;
   plaetze: OeffentlicherStandort[];
+  /** Die Platzliste kam nicht durch - dann darf hier nicht "nichts da" stehen. */
+  listeGestoert?: boolean;
 }) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [ortung, setOrtung] = useState<Ortung>("laeuft");
@@ -187,6 +190,11 @@ export function Containeransicht({
               Route dorthin
             </a>
           </div>
+        ) : listeGestoert ? (
+          <p className="px-5 py-6 text-sm text-ink-2">
+            Die Standortliste ist gerade nicht abrufbar. Bitte versuchen Sie es später noch
+            einmal – <strong>nicht</strong>, dass hier keine Container in der Nähe wären.
+          </p>
         ) : (
           <p className="px-5 py-6 text-sm text-ink-2">
             In der Nähe ist gerade kein Platz mit freier Kapazität bekannt.

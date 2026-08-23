@@ -30,6 +30,18 @@ export default async function Containerseite({ params }: { params: Promise<{ num
   const plaetze = (standortAntwort?.data ?? []) as OeffentlicherStandort[];
   const dieser = alleContainer.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
 
+  // Einen Fehler nicht als leere Liste durchreichen.
+  //
+  // Genau das ist einmal passiert: die Platzansicht lieferte einen
+  // Rechtefehler, die Seite machte daraus "In der Nähe ist gerade kein Platz
+  // mit freier Kapazität bekannt" - eine Aussage über die Welt, wo in
+  // Wahrheit die Abfrage kaputt war. Wer davorsteht, fährt dann heim statt
+  // zum nächsten Platz. Ein Fehler muss als Fehler zu sehen sein.
+  const listeGestoert = Boolean(standortAntwort?.error);
+  if (standortAntwort?.error) {
+    console.error("oeffentliche_standorte nicht abrufbar:", standortAntwort.error);
+  }
+
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
       <header className="mb-5">
@@ -47,7 +59,7 @@ export default async function Containerseite({ params }: { params: Promise<{ num
           </p>
         </div>
       ) : (
-        <Containeransicht dieser={dieser} plaetze={plaetze} />
+        <Containeransicht dieser={dieser} plaetze={plaetze} listeGestoert={listeGestoert} />
       )}
 
       <footer className="mt-8 border-t pt-4 text-sm">
