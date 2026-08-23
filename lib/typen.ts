@@ -110,6 +110,8 @@ export interface Alarm {
 export interface OeffentlicherContainer {
   id: string;
   nummer: string;
+  /** Der Platz, zu dem dieser Container gehoert. */
+  standort_id: string | null;
   bezeichnung: string | null;
   strasse: string | null;
   plz: string | null;

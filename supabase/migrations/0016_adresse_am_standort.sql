@@ -64,17 +64,27 @@ comment on column public.container.lng is
 -- ---------------------------------------------------------------------------
 -- b) Oeffentliche Containerliste mit Rueckfall auf den Standort
 --
--- Spaltennamen und -typen bleiben unveraendert: /api/oeffentlich/container ist
+-- Die vorhandenen Spalten bleiben unveraendert: /api/oeffentlich/container ist
 -- in docs/api.md beschrieben und wird ausserhalb eingebunden. Was sich aendert,
 -- ist die Herkunft der Werte - und dass Container mit Standortkoordinaten
--- nicht mehr aus der Karte fallen.
+-- nicht mehr aus der Karte fallen. Dazu kommt standort_id; eine zusaetzliche
+-- Spalte bricht keinen Abnehmer, eine geaenderte schon.
 -- ---------------------------------------------------------------------------
-create or replace view public.oeffentliche_container
+-- Neu anlegen statt ersetzen: create or replace view kann keine Spalte
+-- hinzufuegen, und die Rechte werden unten wieder gesetzt.
+drop view if exists public.oeffentliche_container;
+
+create view public.oeffentliche_container
 with (security_invoker = false)
 as
 select
   c.id,
   c.nummer,
+  -- Der Platz, zu dem dieser Container gehoert. Zusaetzliche Spalte, keine
+  -- geaenderte: die Seite hinter dem QR-Code muss den eigenen Platz aus der
+  -- Umgebungsliste herausnehmen koennen, und ein Namensvergleich waere dafuer
+  -- zu wacklig. Die Kennung ist ueber oeffentliche_standorte ohnehin sichtbar.
+  c.standort_id,
   -- Der Platzname sagt dem Buerger mehr als die Containerbezeichnung.
   coalesce(st.name, c.bezeichnung)   as bezeichnung,
   coalesce(st.strasse, c.strasse)    as strasse,
@@ -109,6 +119,9 @@ where c.oeffentlich
 
 comment on view public.oeffentliche_container is
   'Reduzierte Containerliste fuer die oeffentliche Karte. Anschrift und Koordinaten fallen auf den Standort zurueck.';
+
+-- Die Ansicht wurde neu angelegt, also sind die Rechte von 0003 weg.
+grant select on public.oeffentliche_container to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- c) Der Platz als Einheit

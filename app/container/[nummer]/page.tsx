@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
-import type { OeffentlicherContainer } from "@/lib/typen";
+import type { OeffentlicherContainer, OeffentlicherStandort } from "@/lib/typen";
 import { Containeransicht } from "./Containeransicht";
 
 // Wie die öffentliche Karte: aktuell, aber nicht bei jedem Aufruf frisch.
@@ -16,14 +16,19 @@ export default async function Containerseite({ params }: { params: Promise<{ num
   const gesucht = decodeURIComponent(nummer);
   const supabase = oeffentlicherClient();
 
-  // Die ganze öffentliche Liste - der Standortfinder sortiert sie im Browser,
-  // damit die Position des Bürgers das Gerät nicht verlässt.
-  const antwort = supabase
-    ? await supabase.from("oeffentliche_container").select("*").order("nummer")
-    : null;
+  // Beide Listen kommen vollständig vom Server, und sortiert wird erst im
+  // Browser. Das ist der Grund, warum die Position des Bürgers das Gerät nie
+  // verlässt: es gibt keinen Endpunkt, an den sie zu schicken wäre.
+  const [containerAntwort, standortAntwort] = supabase
+    ? await Promise.all([
+        supabase.from("oeffentliche_container").select("*").order("nummer"),
+        supabase.from("oeffentliche_standorte").select("*").order("name"),
+      ])
+    : [null, null];
 
-  const alle = (antwort?.data ?? []) as OeffentlicherContainer[];
-  const dieser = alle.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
+  const alleContainer = (containerAntwort?.data ?? []) as OeffentlicherContainer[];
+  const plaetze = (standortAntwort?.data ?? []) as OeffentlicherStandort[];
+  const dieser = alleContainer.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
@@ -42,7 +47,7 @@ export default async function Containerseite({ params }: { params: Promise<{ num
           </p>
         </div>
       ) : (
-        <Containeransicht dieser={dieser} alle={alle} />
+        <Containeransicht dieser={dieser} plaetze={plaetze} />
       )}
 
       <footer className="mt-8 border-t pt-4 text-sm">
