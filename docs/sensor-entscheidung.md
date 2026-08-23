@@ -397,6 +397,14 @@ der Oberfläche des jeweiligen Anbieters ablesen – beim Dragino auch direkt im
 Datenbank (Abschnitt 5) ist erst nach der Entscheidung dran, und dann nur für
 das Gerät, das gewonnen hat.
 
+Vorbereitet ist die Software allerdings schon auf beide Ausgänge: der
+Messbereich hängt am einzelnen Gerät statt an einer festen Grenze, die
+Kalibrierung braucht keinen Taster mehr, und die Annahmelogik steht getrennt
+von der Signaturprüfung in `lib/messung.ts`, sodass ein zweiter Datenweg eine
+Ergänzung wäre und keine Kopie. Womit sich das gegenprüfen lässt, ohne dass ein
+Sensor angeschlossen ist, steht in
+[api.md, „Ohne Hardware testen"](api.md#ohne-hardware-testen).
+
 ### Abbruchkriterien
 
 Ein Gerät scheidet aus, wenn

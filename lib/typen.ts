@@ -56,7 +56,10 @@ export interface Sensor {
   firmware: string | null;
   container_id: string | null;
   status: SensorStatus;
+  bauart: string;
   montage_offset_mm: number;
+  mess_min_mm: number;
+  mess_max_mm: number;
   intervall_minuten: number;
   letzte_meldung_am: string | null;
   batterie_v: number | null;

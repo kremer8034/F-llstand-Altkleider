@@ -115,3 +115,99 @@ from public.oeffentliche_container order by nummer;
 select public.sensor_entkoppeln((select id from public.sensor where geraete_id='ALT-9001'), 'Test');
 select status, container_id is null as entkoppelt from public.sensor where geraete_id='ALT-9001';
 select count(*) as geschlossene_kopplungen from public.sensor_kopplung where getrennt_am is not null;
+
+-- ---------------------------------------------------------------------------
+-- Ab hier: die Aenderungen aus 0009_geraetevielfalt.sql
+-- ---------------------------------------------------------------------------
+
+\echo '=== 15. Messbereich haengt am Geraet, nicht an einer festen Grenze ==='
+insert into public.container (nummer, bezeichnung, ort, lat, lng, aufstelldatum)
+values ('T-900', 'Zweiter Testplatz', 'Grossheubach', 49.7400, 9.2200, current_date - 10);
+
+-- Ein Geraet mit kleinerem Messbereich, wie ihn ein gekauftes haette
+insert into public.sensor (geraete_id, montage_offset_mm, mess_max_mm)
+values ('ALT-9002', 200, 4500);
+insert into public.anlerncode (sensor_id, code)
+select id, 'ZWEI-9002' from public.sensor where geraete_id='ALT-9002';
+
+-- 4000 mm liegt im Bereich, 5000 mm nicht. Unter der frueheren festen Grenze
+-- von 6000 mm waeren beide durchgegangen.
+insert into public.messung (sensor_id, gemessen_am, abstand_mm)
+select id, now() - interval '5 hours', 4000 from public.sensor where geraete_id='ALT-9002';
+insert into public.messung (sensor_id, gemessen_am, abstand_mm)
+select id, now() - interval '4 hours', 5000 from public.sensor where geraete_id='ALT-9002';
+
+select m.abstand_mm, m.gueltig, m.container_id is null as noch_ohne_container
+from public.messung m join public.sensor s on s.id = m.sensor_id
+where s.geraete_id='ALT-9002' order by m.gemessen_am;
+
+\echo '=== 16. Geprueft wird auch, solange der Sensor an keinem Container haengt ==='
+-- Diese Messungen ordnet sensor_koppeln beim Anlernen nachtraeglich zu, und
+-- container_kalibrieren zieht sie fuer den Leerwert heran. Gingen sie
+-- ungeprueft als gueltig durch, koennte ein Ausreisser aus der Werkstatt die
+-- Kalibrierung verderben.
+do $$
+declare v_ungueltig integer;
+begin
+  select count(*) into v_ungueltig
+    from public.messung m join public.sensor s on s.id = m.sensor_id
+   where s.geraete_id='ALT-9002' and not m.gueltig;
+
+  if v_ungueltig <> 1 then
+    raise exception 'FEHLER: erwartet genau eine ungueltige Messung, gezaehlt %', v_ungueltig;
+  end if;
+  raise notice 'korrekt: ausserhalb des Messbereichs ist ungueltig, auch ohne Kopplung';
+end $$;
+
+\echo '=== 17. Kalibrieren gelingt ohne frische Taster-Messung ==='
+-- Die einzige gueltige Messung ist fuenf Stunden alt. Mit dem frueheren festen
+-- Fenster von einer Stunde kam hier "Bitte Taster am Sensor druecken" - ein
+-- gekauftes Geraet ohne Taster liesse sich so nie kalibrieren.
+select public.sensor_koppeln('ZWEI-9002', (select id from public.container where nummer='T-900'),
+                             49.7400, 9.2200, false, 'Zweite Testkopplung');
+select public.container_kalibrieren((select id from public.container where nummer='T-900'));
+select nummer, leer_abstand_mm, voll_abstand_mm from public.container where nummer='T-900';
+
+\echo '=== 18. Nachrechnen beruecksichtigt den Montageversatz ==='
+-- In messung.abstand_mm steht der rohe Messwert, bezogen auf die
+-- Sensorunterkante. Erst der Montageversatz macht daraus einen Wert ab
+-- Deckelinnenseite. Beim Einfuegen wurde er immer mitgerechnet, beim
+-- Nachrechnen bis 0008 nicht - eine Nachkalibrierung verschob damit saemtliche
+-- historischen Werte um genau diesen Versatz.
+insert into public.messung (sensor_id, gemessen_am, abstand_mm)
+select id, now() - interval '10 minutes', 2000 from public.sensor where geraete_id='ALT-9002';
+
+do $$
+declare
+  v_beim_einfuegen smallint;
+  v_nach_rechnung  smallint;
+  v_container      uuid := (select id from public.container where nummer='T-900');
+begin
+  select m.fuellstand_prozent into v_beim_einfuegen
+    from public.messung m join public.sensor s on s.id = m.sensor_id
+   where s.geraete_id='ALT-9002' and m.abstand_mm = 2000;
+
+  -- Erneut mit demselben Leerwert kalibrieren: der Prozentwert darf sich
+  -- dadurch nicht veraendern.
+  perform public.container_kalibrieren(v_container, 4000, 600);
+
+  select m.fuellstand_prozent into v_nach_rechnung
+    from public.messung m join public.sensor s on s.id = m.sensor_id
+   where s.geraete_id='ALT-9002' and m.abstand_mm = 2000;
+
+  if v_beim_einfuegen is distinct from v_nach_rechnung then
+    raise exception 'FEHLER: Fuellstand durch das Nachrechnen von % auf % verschoben',
+      v_beim_einfuegen, v_nach_rechnung;
+  end if;
+  raise notice 'korrekt: Nachrechnen laesst den Fuellstand bei % Prozent stehen', v_nach_rechnung;
+end $$;
+
+\echo '=== 19. ICCID ist eindeutig ==='
+update public.sensor set iccid = '8988000000000000001' where geraete_id='ALT-9002';
+do $$
+begin
+  update public.sensor set iccid = '8988000000000000001' where geraete_id='ALT-9001';
+  raise exception 'FEHLER: doppelte ICCID wurde angenommen';
+exception when unique_violation then
+  raise notice 'korrekt abgelehnt: ICCID ist bereits vergeben';
+end $$;

@@ -179,6 +179,7 @@ Tabelle `einstellung`, änderbar nur durch die Administration:
 | `max_stille_stunden` | 30 | danach „kein Signal“ |
 | `batterie_min_v` | 3.4 | darunter Batteriealarm |
 | `voll_abstand_anteil` | 0.15 | Vollwert = Leerwert × dieser Anteil |
+| `kalibrier_fenster_stunden` | 6 | aus diesem Zeitraum wird der Leerwert gemittelt |
 | `leerung_erkennung_diff` | 40 | Sprung nach unten, der als Leerung zählt |
 | `karte_zentrum` | Miltenberg | Startausschnitt der Karte |
 | `oeffentliche_karte` | true | öffentliche Karte freigeschaltet |

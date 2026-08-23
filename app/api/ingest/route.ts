@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { adminClient } from "@/lib/supabase/admin";
+import { messungSpeichern, sensorZuKennung, type Messmeldung } from "@/lib/messung";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Messwertannahme fuer die Sensoren.
+ * Messwertannahme fuer die eigene Firmware.
  *
  * Authentifizierung ohne Zertifikate und ohne Passwoerter im Geraet: jede Box
  * hat ein eigenes 32-Byte-Geheimnis und signiert damit ihre Meldung.
@@ -21,6 +22,10 @@ export const dynamic = "force-dynamic";
  *
  * Der Zeitstempel verhindert, dass jemand eine mitgeschnittene Meldung
  * spaeter erneut einspielt.
+ *
+ * Diese Route macht nur den Ausweis: was danach mit der Meldung geschieht,
+ * steht in lib/messung.ts - dieselbe Stelle wuerde ein zweiter Annahmeweg
+ * nutzen (docs/sensor-entscheidung.md, Abschnitt 5).
  */
 
 const MAX_ABWEICHUNG_SEKUNDEN = 15 * 60;
@@ -59,19 +64,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ fehler: "Rumpf zu groß" }, { status: 413 });
   }
 
-  const admin = adminClient();
-
-  const { data: sensor } = await admin
-    .from("sensor")
-    .select("id, container_id, status, intervall_minuten, firmware")
-    .eq("geraete_id", geraeteId)
-    .maybeSingle();
-
+  const sensor = await sensorZuKennung({ geraete_id: geraeteId });
   if (!sensor) {
     return NextResponse.json({ fehler: "Gerät unbekannt" }, { status: 404 });
   }
 
-  const { data: geheimnis } = await admin
+  const { data: geheimnis } = await adminClient()
     .from("sensor_geheimnis")
     .select("geheimnis")
     .eq("sensor_id", sensor.id)
@@ -89,53 +87,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ fehler: "Signatur ungültig" }, { status: 401 });
   }
 
-  let daten: Record<string, unknown>;
+  let daten: Messmeldung;
   try {
-    daten = JSON.parse(rumpf);
+    daten = JSON.parse(rumpf) as Messmeldung;
   } catch {
     return NextResponse.json({ fehler: "Rumpf ist kein gültiges JSON" }, { status: 400 });
   }
 
-  const zahl = (wert: unknown): number | null => {
-    const n = Number(wert);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // Der Zeitpunkt kommt aus dem Geraet und wandert unveraendert in eine
-  // timestamptz-Spalte. Eine krumme Angabe (verstellte Uhr, Fehler in der
-  // Firmware) laesst das Einfuegen sonst mit einem Serverfehler auflaufen, und
-  // das Geraet sendet dieselbe Meldung endlos nach.
-  const gemessenAm = (() => {
-    if (typeof daten.gemessen_am === "string") {
-      const gelesen = new Date(daten.gemessen_am);
-      if (!Number.isNaN(gelesen.getTime())) return gelesen.toISOString();
-    }
-    return new Date(gesendet * 1000).toISOString();
-  })();
-
-  const { error } = await admin.from("messung").insert({
-    sensor_id: sensor.id,
-    container_id: sensor.container_id,
-    gemessen_am: gemessenAm,
-    abstand_mm: zahl(daten.abstand_mm),
-    batterie_v: zahl(daten.batterie_v),
-    temperatur_c: zahl(daten.temperatur_c),
-    rssi: zahl(daten.rssi),
-    anlass: ["intervall", "test", "taster", "schwellwert", "neustart"].includes(String(daten.anlass))
-      ? String(daten.anlass)
-      : "intervall",
-    roh: daten,
-  });
-
-  // Eine doppelt gesendete Messung (Wiederholung nach Funkabbruch) ist kein
-  // Fehler - das Geraet soll seine Warteschlange trotzdem leeren duerfen.
-  if (error && error.code !== "23505") {
-    return NextResponse.json({ fehler: "Messwert konnte nicht gespeichert werden" }, { status: 500 });
-  }
-
-  const firmware = typeof daten.firmware === "string" ? daten.firmware : null;
-  if (firmware && firmware !== sensor.firmware) {
-    await admin.from("sensor").update({ firmware }).eq("id", sensor.id);
+  const ergebnis = await messungSpeichern(sensor, daten, new Date(gesendet * 1000));
+  if (!ergebnis.ok) {
+    return NextResponse.json({ fehler: ergebnis.fehler }, { status: 500 });
   }
 
   return NextResponse.json({
