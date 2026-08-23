@@ -25,12 +25,17 @@ export default async function FahrerTour({ params }: { params: Promise<{ id: str
   if (!tourRoh) notFound();
   const tour = tourRoh as Tour;
 
-  const { data: stoppRoh } = await supabase
+  const stoppAntwort = await supabase
     .from("tour_stopp")
     .select("*")
     .eq("tour_id", id)
     .order("position");
-  const stopps = (stoppRoh ?? []) as TourStopp[];
+  const stopps = (stoppAntwort.data ?? []) as TourStopp[];
+
+  // Eine leere Stoppliste heißt "Tour fertig" oder "noch nichts geplant".
+  // Kommt sie aus einem Abfragefehler, sagt die Ansicht dem Fahrpersonal
+  // beides fälschlich. Der Unterschied muss sichtbar bleiben.
+  if (stoppAntwort.error) console.error("Tourstopps nicht abrufbar:", stoppAntwort.error);
 
   const standortIds = stopps.map((s) => s.standort_id);
   const leerId = "00000000-0000-0000-0000-000000000000";
@@ -148,6 +153,7 @@ export default async function FahrerTour({ params }: { params: Promise<{ id: str
         stopps={fahrstopps}
         darfFahren={meine}
         darfPlanen={plant}
+        stoppsGestoert={Boolean(stoppAntwort.error)}
       />
     </div>
   );

@@ -48,6 +48,13 @@ export default async function FahrerSeite() {
   const meine = (eigene.data ?? []) as TourFortschritt[];
   const andere = (fremde.data ?? []) as TourFortschritt[];
 
+  // "Für Sie ist gerade keine Tour eingeplant" ist eine Aussage über die
+  // Welt. Kommt sie in Wahrheit von einem Abfragefehler, geht das
+  // Fahrpersonal nach Hause, obwohl eine Tour ansteht. Ein Fehler muss als
+  // Fehler zu sehen sein.
+  const gestoert = Boolean(eigene.error);
+  if (eigene.error) console.error("Eigene Touren nicht abrufbar:", eigene.error);
+
   const offen = meine.filter((t) => t.status === "geplant" || t.status === "laeuft");
   const fertig = meine.filter((t) => t.status !== "geplant" && t.status !== "laeuft");
 
@@ -55,7 +62,18 @@ export default async function FahrerSeite() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Meine Touren</h1>
 
-      {offen.length === 0 ? (
+      {gestoert ? (
+        <div
+          className="karte-flaeche border-l-4 p-6 text-center"
+          style={{ borderLeftColor: "var(--kritisch)" }}
+        >
+          <p className="font-medium">Ihre Touren sind gerade nicht abrufbar.</p>
+          <p className="mt-1 text-sm text-ink-2">
+            Bitte die Seite neu laden. Das heißt <strong>nicht</strong>, dass keine Tour für Sie
+            ansteht – melden Sie sich im Zweifel bei der Disposition.
+          </p>
+        </div>
+      ) : offen.length === 0 ? (
         <div className="karte-flaeche p-6 text-center">
           <p className="font-medium">Für Sie ist gerade keine Tour eingeplant.</p>
           <p className="mt-1 text-sm text-ink-2">

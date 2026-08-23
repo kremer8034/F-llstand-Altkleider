@@ -92,7 +92,17 @@ export function Entsorgerverwaltung({
 
       {/* Formular */}
       {formularOffen && (
-        <form action={absenden} className="karte-flaeche space-y-4 p-4">
+        // Der key baut das Formular neu auf, sobald ein anderer Bauhof
+        // bearbeitet wird. Ohne ihn bleibt es haengen: defaultValue greift nur
+        // beim Einhaengen, das versteckte id-Feld aendert sich aber sofort -
+        // wer bei offenem Formular auf "Bearbeiten" eines anderen Eintrags
+        // klickt, wuerde dessen Datensatz mit den Werten des vorigen
+        // ueberschreiben.
+        <form
+          key={bearbeitet?.id ?? "neu"}
+          action={absenden}
+          className="karte-flaeche space-y-4 p-4"
+        >
           {bearbeitet && <input type="hidden" name="id" value={bearbeitet.id} />}
           <h2 className="font-semibold">
             {bearbeitet ? `${bearbeitet.name} bearbeiten` : "Neuer Bauhof"}

@@ -72,11 +72,14 @@ export function Tourablauf({
   stopps,
   darfFahren,
   darfPlanen,
+  stoppsGestoert = false,
 }: {
   tour: Tour;
   stopps: Fahrstopp[];
   darfFahren: boolean;
   darfPlanen: boolean;
+  /** Die Stopps kamen nicht durch - dann heißt leer nicht "fertig". */
+  stoppsGestoert?: boolean;
 }) {
   const router = useRouter();
 
@@ -368,6 +371,30 @@ export function Tourablauf({
                 : "Diese Tour ist Ihnen nicht zugewiesen."}
             </p>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // 2b. Die Stopps sind gar nicht angekommen
+  //
+  // Ohne diese Abfrage liefe der Fahrer in "Alle Stopps erledigt" - und
+  // schlösse eine Tour ab, die er nie gefahren ist.
+  // ---------------------------------------------------------------------
+  if (stoppsGestoert && alleStopps.length === 0) {
+    return (
+      <div className="space-y-4">
+        {kopf}
+        <div
+          className="karte-flaeche border-l-4 p-6 text-center"
+          style={{ borderLeftColor: "var(--kritisch)" }}
+        >
+          <p className="font-medium">Die Stopps sind gerade nicht abrufbar.</p>
+          <p className="mt-1 text-sm text-ink-2">
+            Bitte die Seite neu laden. Schließen Sie die Tour <strong>nicht</strong> ab – sie ist
+            nicht leer, sie ist nur nicht geladen.
+          </p>
         </div>
       </div>
     );

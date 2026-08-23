@@ -101,6 +101,18 @@ export default async function TourenSeite({
         </p>
       )}
 
+      {/* Sonst hieße ein Abfragefehler "Für diesen Tag ist keine Tour
+          angelegt" - und die Disposition legte eine zweite an. */}
+      {tourAntwort.error && (
+        <p
+          className="karte-flaeche border-l-4 p-4 text-sm text-ink-2"
+          style={{ borderLeftColor: "var(--kritisch)" }}
+        >
+          Die Touren dieses Tages sind nicht abrufbar: {tourAntwort.error.message}. Was unten steht,
+          ist unvollständig – bitte nicht auf dieser Grundlage planen.
+        </p>
+      )}
+
       <Tagesuebersicht
         datum={datum}
         touren={touren}
