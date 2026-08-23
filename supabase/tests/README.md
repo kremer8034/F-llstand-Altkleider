@@ -23,9 +23,13 @@ $P -f supabase/migrations/0010_prognose.sql
 $P -f supabase/migrations/0011_standorte.sql
 $P -f supabase/migrations/0012_regeltouren.sql
 $P -f supabase/migrations/0013_buergermeldung.sql
+$P -f supabase/migrations/0014_entsorger.sql
+$P -f supabase/migrations/0015_touren.sql
+$P -f supabase/migrations/0016_adresse_am_standort.sql
 $P -f supabase/tests/10_ablauf.sql
 $P -f supabase/tests/30_prognose.sql
 $P -f supabase/tests/40_standorte.sql
+$P -f supabase/tests/50_touren.sql
 $P -c "grant usage on schema auth to anon, authenticated;"
 $P -f supabase/tests/20_zugriffsschutz.sql
 ```
