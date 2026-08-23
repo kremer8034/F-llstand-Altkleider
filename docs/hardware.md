@@ -1,5 +1,11 @@
 # Hardware – Vorschlag und Stückliste
 
+> **Bevor Sie hier weiterlesen:** Ob überhaupt selbst gebaut werden soll, ist
+> eine eigene Frage – es gibt Fertiggeräte ab rund 99 €, die dasselbe können.
+> Der Vergleich steht in der
+> **[Entscheidungsvorlage](sensor-entscheidung.md)**. Dieses Dokument
+> beschreibt den Eigenbau.
+
 > **Wer einen Sensor bauen will und noch nie gelötet hat**, nimmt die
 > **[Sensor-Bauanleitung.docx](Sensor-Bauanleitung.docx)** – dort steht jeder
 > Handgriff einzeln. Dieses Dokument hier ist die technische Begründung

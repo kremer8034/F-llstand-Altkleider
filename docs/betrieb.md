@@ -179,10 +179,33 @@ Tabelle `einstellung`, änderbar nur durch die Administration:
 | `max_stille_stunden` | 30 | danach „kein Signal“ |
 | `batterie_min_v` | 3.4 | darunter Batteriealarm |
 | `voll_abstand_anteil` | 0.15 | Vollwert = Leerwert × dieser Anteil |
+| `kalibrier_fenster_stunden` | 6 | aus diesem Zeitraum wird der Leerwert gemittelt |
 | `leerung_erkennung_diff` | 40 | Sprung nach unten, der als Leerung zählt |
+| `leerung_min_abstand_stunden` | 12 | darunter gilt eine zweite Leerung als Korrektur und zählt nicht in den Rhythmus |
+| `tour_vorlauf_tage` | 3 | so weit blickt die Tourenplanung voraus |
 | `karte_zentrum` | Miltenberg | Startausschnitt der Karte |
 | `oeffentliche_karte` | true | öffentliche Karte freigeschaltet |
 | `betriebshof` | null | fester Startpunkt der Tour, siehe unten |
+
+Für die Tourenplanung auf Standort-Ebene
+([docs/tourenplanung.md](tourenplanung.md)) kommt dazu:
+
+| Schlüssel | Standard | Bedeutung |
+|---|---|---|
+| `standort_reserve_prozent` | 20 | unter dieser freien Restkapazität gilt ein Standort als anzufahren |
+| `standard_volumen_liter` | 2500 | Ersatzwert, wenn an einem Container kein Volumen gepflegt ist |
+| `max_tage_ueber_schwelle` | 7 | so lange darf ein Container höchstens voll stehen, dann muss der Stopp mit |
+| `kosten_pro_km` | 0.80 | Sprit, Verschleiß, Reifen, Wartung |
+| `kosten_pro_stunde` | 45.00 | Fahrpersonal einschließlich Nebenkosten |
+| `minuten_je_stopp` | 8 | anhalten, aufschließen, sichern |
+| `minuten_je_container` | 4 | je Container leeren |
+| `durchschnitt_kmh` | 45 | Reisegeschwindigkeit im Flächenlandkreis |
+| `meldung_zusammenfassen_stunden` | 6 | Bürgermeldungen am selben Container zählen in diesem Fenster hoch, statt neue Einträge anzulegen |
+| `meldung_hoechstzahl` | 25 | Obergrenze für den Zähler einer offenen Bürgermeldung |
+
+**Die Kostensätze sind Vorschlagswerte, keine Messwerte.** Sie bestimmen, welcher
+Stopp als „lohnt heute nicht" gekennzeichnet wird – das ist der erste Wert, der
+durch die echten Zahlen des Kreisverbands ersetzt gehört.
 
 ### Startpunkt der Tour
 

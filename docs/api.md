@@ -90,6 +90,34 @@ curl -X POST https://<ihre-domain>/api/ingest \
   -d "$RUMPF"
 ```
 
+### Ohne Hardware testen
+
+`scripts/messung-senden.mjs` macht dasselbe wie die Firmware, nur ohne Sensor.
+Damit lässt sich die ganze Kette prüfen, solange noch keine Box gebaut oder
+gekauft ist – Kurve, Leerungserkennung, Alarme, Tourenliste, öffentliche Karte.
+
+```bash
+# 1. Intern -> Sensoren -> Gerät aufnehmen. ID und Schlüssel notieren.
+# 2. Leeren Container melden:
+npm run sensor:senden -- --geraet ALT-0042 --key <hex> --abstand 1800 --anlass taster
+
+# 3. Sensor anlernen, dann "Leerwert übernehmen" antippen.
+# 4. Vierzehn Tage Betrieb simulieren:
+npm run sensor:senden -- --geraet ALT-0042 --key <hex> --verlauf 14
+```
+
+Ohne Schritt 3 bleibt der Füllstand leer – erst die Kalibrierung macht aus dem
+Abstand einen Prozentwert. Das Ziel steht in `--url` (Standard
+`http://localhost:3000`), ersatzweise in `INGEST_URL`; `--hilfe` zeigt alle
+Schalter.
+
+Der Verlauf lässt den Container volllaufen, leeren und wieder anfüllen, und die
+Batteriespannung bis unter die Alarmschwelle sinken – danach sind ein
+Füllstandsalarm, eine erkannte Leerung und ein Batteriealarm zu sehen. Der Zeitstempel in der
+Kopfzeile ist dabei immer *jetzt* – die historischen Zeitpunkte stehen als
+`gemessen_am` im Rumpf, sonst griffe das 15-Minuten-Fenster. Genau so verhält
+sich auch ein Gerät, das nach einem Funkausfall seinen Puffer nachreicht.
+
 ---
 
 ## POST /api/geraete/registrieren – Erstinbetriebnahme

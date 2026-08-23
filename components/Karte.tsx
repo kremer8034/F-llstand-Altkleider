@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Map as LeafletMap, Marker } from "leaflet";
+import type { CircleMarker, Map as LeafletMap, Marker } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { STUFEN, adresse, alterText, prozentText, standzeitText, stufeVon } from "@/lib/fuellstand";
 import type { Fuellstandsstufe } from "@/lib/typen";
@@ -105,16 +105,24 @@ export default function Karte({
   zoom = 11,
   hoehe = "100%",
   className = "",
+  eigenePosition = null,
 }: {
   punkte: Kartenpunkt[];
   zentrum?: [number, number];
   zoom?: number;
   hoehe?: string | number;
   className?: string;
+  /**
+   * Standort des Geraets. Bewusst ein anderer Markertyp als die Container -
+   * ein blauer Punkt, keine Nadel: er ist kein Ziel, sondern der Bezugspunkt,
+   * und die Karte muss auf einen Blick zeigen, was wovon wie weit weg ist.
+   */
+  eigenePosition?: { lat: number; lng: number } | null;
 }) {
   const behaelter = useRef<HTMLDivElement>(null);
   const karte = useRef<LeafletMap | null>(null);
   const marker = useRef<Marker[]>([]);
+  const eigener = useRef<CircleMarker | null>(null);
 
   useEffect(() => {
     let abgebrochen = false;
@@ -142,6 +150,7 @@ export default function Karte({
       karte.current?.remove();
       karte.current = null;
       marker.current = [];
+      eigener.current = null;
     };
     // Zentrum/Zoom sind nur der Startausschnitt - bewusst nur einmal anwenden.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,11 +182,33 @@ export default function Karte({
         marker.current.push(m);
       });
 
-      if (punkte.length > 1) {
-        const grenzen = L.latLngBounds(punkte.map((p) => [p.lat, p.lng] as [number, number]));
-        karte.current.fitBounds(grenzen, { padding: [40, 40], maxZoom: 14 });
-      } else if (punkte.length === 1) {
-        karte.current.setView([punkte[0].lat, punkte[0].lng], 15);
+      eigener.current?.remove();
+      eigener.current = null;
+
+      if (eigenePosition) {
+        eigener.current = L.circleMarker([eigenePosition.lat, eigenePosition.lng], {
+          radius: 8,
+          weight: 3,
+          color: "#ffffff",
+          fillColor: "var(--serie)",
+          fillOpacity: 1,
+        })
+          .addTo(karte.current)
+          .bindPopup("<strong>Ihr Standort</strong>");
+      }
+
+      // Der Ausschnitt muss die eigene Position einschliessen - sonst sieht
+      // man die Container, aber nicht, wo man selbst steht.
+      const punkteFuerGrenzen: [number, number][] = punkte.map((p) => [p.lat, p.lng]);
+      if (eigenePosition) punkteFuerGrenzen.push([eigenePosition.lat, eigenePosition.lng]);
+
+      if (punkteFuerGrenzen.length > 1) {
+        karte.current.fitBounds(L.latLngBounds(punkteFuerGrenzen), {
+          padding: [40, 40],
+          maxZoom: 15,
+        });
+      } else if (punkteFuerGrenzen.length === 1) {
+        karte.current.setView(punkteFuerGrenzen[0], 15);
       }
     }
 
@@ -187,7 +218,7 @@ export default function Karte({
       abgebrochen = true;
       clearTimeout(t);
     };
-  }, [punkte]);
+  }, [punkte, eigenePosition]);
 
   return <div ref={behaelter} className={className} style={{ height: hoehe, width: "100%" }} />;
 }

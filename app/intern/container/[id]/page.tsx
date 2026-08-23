@@ -2,12 +2,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
+import { Prognosekarte } from "@/components/Prognosekarte";
 import { Verlaufskurve } from "@/components/Verlaufskurve";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { STUFEN, adresse, alterText, formatDatum, formatDatumZeit, stufeVon } from "@/lib/fuellstand";
-import type { Alarm, Container, ContainerZustand, Leerung, Messung, Sensor } from "@/lib/typen";
+import type {
+  Alarm,
+  Container,
+  ContainerPrognose,
+  ContainerRhythmus,
+  ContainerZustand,
+  Leerung,
+  Messung,
+  Sensor,
+} from "@/lib/typen";
 import { Erfassungsbereich } from "./Erfassungsbereich";
 import { alarmQuittieren, kalibrieren, meldungErledigen } from "../aktionen";
 
@@ -37,8 +47,17 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
 
   const vor30Tagen = new Date(Date.now() - 30 * 86400_000).toISOString();
 
-  const [zustandAntwort, sensorAntwort, messungAntwort, leerungAntwort, meldungAntwort, alarmAntwort, werte] =
-    await Promise.all([
+  const [
+    zustandAntwort,
+    sensorAntwort,
+    messungAntwort,
+    leerungAntwort,
+    meldungAntwort,
+    alarmAntwort,
+    prognoseAntwort,
+    rhythmusAntwort,
+    werte,
+  ] = await Promise.all([
       supabase.from("container_zustand").select("*").eq("container_id", c.id).maybeSingle(),
       supabase.from("sensor").select("*").eq("container_id", c.id).maybeSingle(),
       supabase
@@ -66,8 +85,20 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
         .eq("container_id", c.id)
         .is("geschlossen_am", null)
         .order("ausgeloest_am", { ascending: false }),
+      supabase.from("container_prognose").select("*").eq("container_id", c.id).maybeSingle(),
+      supabase.from("container_rhythmus").select("*").eq("container_id", c.id).maybeSingle(),
       einstellungen(supabase),
     ]);
+
+  // Standort samt Geschwisterzahl - zeigt sofort, ob der Container allein steht
+  // oder Teil eines Clusters ist, der gemeinsam angefahren wird.
+  const { data: standort } = c.standort_id
+    ? await supabase
+        .from("standort_zustand")
+        .select("standort_id, name, container_gesamt, freie_prozent")
+        .eq("standort_id", c.standort_id)
+        .maybeSingle()
+    : { data: null };
 
   const zustand = zustandAntwort.data as ContainerZustand | null;
   const sensor = sensorAntwort.data as Sensor | null;
@@ -75,8 +106,11 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   const leerungen = (leerungAntwort.data ?? []) as Leerung[];
   const meldungen = (meldungAntwort.data ?? []) as { id: string; typ: string; text: string | null; gemeldet_am: string; erledigt_am: string | null }[];
   const alarme = (alarmAntwort.data ?? []) as Alarm[];
+  const prognose = prognoseAntwort.data as ContainerPrognose | null;
+  const rhythmus = rhythmusAntwort.data as ContainerRhythmus | null;
 
   const schwelleVoll = zahlAusEinstellung(werte, "schwelle_voll", 90);
+  const schwelleTour = zahlAusEinstellung(werte, "schwelle_warnung", 75);
   const stufe = stufeVon(zustand?.fuellstand_prozent);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 
@@ -85,7 +119,10 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
       {/* Kopf */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href="/intern/container" className="text-sm text-ink-3 underline underline-offset-2">
+          <Link
+            href="/intern/standorte?ansicht=container"
+            className="text-sm text-ink-3 underline underline-offset-2"
+          >
             ← Alle Container
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{c.bezeichnung ?? c.nummer}</h1>
@@ -94,6 +131,21 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             {adresse(c) && ` · ${adresse(c)}`}
             {c.aufstelldatum && ` · Standort seit ${formatDatum(c.aufstelldatum)}`}
           </p>
+          {standort && (
+            <p className="mt-1 text-sm">
+              <Link
+                href={`/intern/standorte/${standort.standort_id}`}
+                className="underline underline-offset-2"
+              >
+                {standort.name}
+              </Link>
+              <span className="text-ink-3">
+                {standort.container_gesamt > 1
+                  ? ` · Cluster aus ${standort.container_gesamt} Containern, ${standort.freie_prozent ?? "–"} % frei`
+                  : " · steht allein an diesem Standort"}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -108,9 +160,14 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             </a>
           )}
           {bearbeiten && (
-            <Link href={`/intern/container/${c.id}/bearbeiten`} className="knopf-sekundaer">
-              Bearbeiten
-            </Link>
+            <>
+              <Link href={`/intern/container/${c.id}/etikett`} className="knopf-sekundaer">
+                Etikett
+              </Link>
+              <Link href={`/intern/container/${c.id}/bearbeiten`} className="knopf-sekundaer">
+                Bearbeiten
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -189,8 +246,15 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
           </div>
         </section>
 
-        {/* Sensor und Kalibrierung */}
+        {/* Prognose, Sensor und Kalibrierung */}
         <section className="space-y-4">
+          <Prognosekarte
+            prognose={prognose}
+            rhythmus={rhythmus}
+            schwelleTour={schwelleTour}
+            schwelleVoll={schwelleVoll}
+          />
+
           <div className="karte-flaeche p-4">
             <h2 className="mb-3 font-semibold">Sensor</h2>
 

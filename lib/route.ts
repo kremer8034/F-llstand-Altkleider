@@ -167,3 +167,54 @@ export function kartenAbschnitte<T extends Ort>(punkte: T[], start: Ort | null):
 
   return links;
 }
+
+/**
+ * Was kostet es, ein Ziel ZUSÄTZLICH in eine geplante Route zu hängen?
+ *
+ * Nicht die Entfernung zum Ziel, sondern der Umweg an der günstigsten Stelle:
+ *
+ *     d(vorher, Ziel) + d(Ziel, nachher) − d(vorher, nachher)
+ *
+ * Das ist die Zahl, mit der sich entscheiden lässt, ob ein voller Container
+ * abseits der Route heute mitgenommen wird oder zwei Tage stehen bleibt
+ * (siehe docs/tourenplanung.md, Abschnitt 3).
+ *
+ * @param folge     die geplante Reihenfolge der schon gesetzten Ziele
+ * @param start     Ausgangspunkt oder null
+ * @param ziel      der zusätzliche Stopp
+ * @param rundfahrt ob am Ende zum Start zurückgefahren wird
+ */
+export function umwegKm(folge: Ort[], start: Ort | null, ziel: Ort, rundfahrt = false): number {
+  // Ohne andere Ziele gibt es keinen Umweg, sondern nur die Fahrt selbst.
+  if (folge.length === 0) {
+    if (!start) return 0;
+    return entfernungKm(start, ziel) * (rundfahrt ? 2 : 1);
+  }
+
+  // Die Kette, in die eingefügt wird: Start, Ziele, bei Rundfahrt zurück.
+  const kette: (Ort | null)[] = [start, ...folge, rundfahrt ? start : null];
+
+  let bestes = Infinity;
+  for (let i = 0; i < kette.length - 1; i++) {
+    const vorher = kette[i];
+    const nachher = kette[i + 1];
+    if (!vorher && !nachher) continue;
+
+    // Am offenen Anfang oder Ende hängt das Ziel nur an einer Seite.
+    if (!vorher) {
+      bestes = Math.min(bestes, entfernungKm(ziel, nachher!));
+      continue;
+    }
+    if (!nachher) {
+      bestes = Math.min(bestes, entfernungKm(vorher, ziel));
+      continue;
+    }
+
+    bestes = Math.min(
+      bestes,
+      entfernungKm(vorher, ziel) + entfernungKm(ziel, nachher) - entfernungKm(vorher, nachher),
+    );
+  }
+
+  return Math.max(0, bestes === Infinity ? 0 : bestes);
+}

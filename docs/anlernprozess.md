@@ -97,16 +97,22 @@ einen neuen aus.
 Jetzt lernt das System, welcher Abstand „leer“ bedeutet.
 
 1. Container leeren, Deckel schließen.
-2. **Magnet an den Reed-Kontakt halten** (bzw. Taster drücken). Das Gerät wacht
-   sofort auf, misst und sendet – die LED blinkt zweimal, nach erfolgreicher
-   Übertragung dreimal kurz.
+2. Eine Messung abwarten oder auslösen. Beim Eigenbau geht das sofort:
+   **Magnet an den Reed-Kontakt halten** (bzw. Taster drücken) – das Gerät wacht
+   auf, misst und sendet, die LED blinkt zweimal, nach erfolgreicher
+   Übertragung dreimal kurz. Ein Gerät ohne Taster meldet sich von selbst; dann
+   wartet man den nächsten Sendezeitpunkt ab oder stellt das Intervall für die
+   Anlernphase kurz auf fünf Minuten.
 3. In der App auf *Leerwert übernehmen* tippen. Das System nimmt den **Median
-   der letzten fünf Messungen der vergangenen Stunde** als `leer_abstand_mm`.
+   der letzten fünf gültigen Messungen** als `leer_abstand_mm`. Wie weit es
+   dafür zurückblickt, steht in der Einstellung `kalibrier_fenster_stunden`
+   (Standard: sechs Stunden, siehe [betrieb.md](betrieb.md)).
 4. Der Vollwert wird daraus abgeleitet (Standard: 15 % des Leerwerts) und lässt
    sich auf der Containerseite jederzeit anpassen.
 
 Geht der Container gerade nicht zu leeren, kann die Innenhöhe auch von Hand in
-Millimetern eingetragen werden – ein Zollstock reicht.
+Millimetern eingetragen werden – ein Zollstock reicht. Denselben Weg nimmt man,
+wenn im Zeitfenster keine Messung angekommen ist.
 
 **Ohne Kalibrierung gibt es keinen Prozentwert.** Die Messungen laufen zwar
 schon ein und werden gespeichert, aber erst der Leerwert macht daraus einen

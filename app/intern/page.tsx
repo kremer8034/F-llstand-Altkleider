@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { angemeldeterBenutzer } from "@/lib/auth";
 import { Kachel } from "@/components/Kachel";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
@@ -19,6 +21,14 @@ const ALARM_TEXT: Record<Alarmtyp, string> = {
 
 export default async function Uebersicht({ searchParams }: { searchParams: Promise<{ grund?: string }> }) {
   const { grund } = await searchParams;
+
+  // Fahrpersonal landet nach der Anmeldung hier - und kann mit einer
+  // Kennzahlenübersicht der Disposition nichts anfangen. Es braucht seine
+  // Tour. Die übrigen Seiten bleiben erreichbar, nur der Einstieg ist ein
+  // anderer.
+  const angemeldet = await angemeldeterBenutzer();
+  if (angemeldet?.profil.rolle === "fahrer") redirect("/fahrer");
+
   const supabase = await serverClient();
   const [zeilen, alarme, werte] = await Promise.all([
     containerMitZustand(supabase),
@@ -100,7 +110,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
         <section className="karte-flaeche lg:col-span-2">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="font-semibold">Höchste Füllstände</h2>
-            <Link href="/intern/container" className="text-sm text-ink-3 underline underline-offset-2">
+            <Link href="/intern/standorte" className="text-sm text-ink-3 underline underline-offset-2">
               Alle Container
             </Link>
           </div>

@@ -1,9 +1,11 @@
 # Füllstandsüberwachung Altkleidercontainer
 
 Sensoren melden, wie voll die Altkleidercontainer sind. Daraus entsteht für das
-Fahrpersonal eine Tourenliste – welche Container drankommen, entscheidet der
-Füllstand, die Reihenfolge die kürzeste Fahrtstrecke. Die Öffentlichkeit sieht
-auf einer Karte ohne Anmeldung, welcher Container noch Platz hat.
+Fahrpersonal eine Tourenliste – welche Stopps drankommen, entscheiden freie
+Restkapazität, Prognose, Regeltour und die Kosten des Umwegs; die Reihenfolge
+entscheidet die kürzeste Fahrtstrecke. Die Öffentlichkeit sieht auf einer Karte
+ohne Anmeldung, welcher Container noch Platz hat, und kann über einen QR-Code
+am Container melden, dass er voll ist.
 
 Entstanden für den **BRK Kreisverband Miltenberg**.
 
@@ -15,10 +17,13 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
                         │  Füllstand berechnen, Leerung erkennen, Alarm setzen
                         ▼
         ┌───────────────┴────────────────┐
-        ▼                                ▼
-  Öffentliche Karte                Interner Bereich
-  (ohne Anmeldung)                 Übersicht · Karte · Tour · Container ·
-                                   Sensoren · Import · Benutzer
+        ▼                    ▼                        ▼
+  Öffentliche Karte   Interner Bereich          Fahreransicht
+  QR-Code am          Übersicht · Karte ·       Tour beginnen ·
+  Container           Touren · Regeltouren ·    Stopp für Stopp ·
+  (ohne Anmeldung)    Standorte · Sensoren ·    Leerung bestätigen
+                      Auswertung · Bauhöfe ·    (funklochfest)
+                      Benutzer
 ```
 
 ## Was drin ist
@@ -28,21 +33,57 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   und Standzeit; Filter „Noch Platz“; Routenlink ins Navigationsgerät
 - dieselben Daten als JSON unter `/api/oeffentlich/container` – zum Einbinden in
   brk-mill.de
+- **QR-Code am Container** (`/container/<Nummer>`): nennt zuerst den nächsten
+  Platz mit freier Kapazität, mit Entfernung, Routenknopf und Karte. Der
+  Standort wird beim Laden abgefragt, nicht auf Knopfdruck; er bleibt dabei auf
+  dem Gerät. Nimmt außerdem die Meldung „Container ist voll" entgegen. Das
+  druckbare Etikett dazu liegt unter `/intern/container/<id>/etikett`
 
 **Intern, mit Anmeldung**
 - Übersicht mit Kennzahlen und offenen Alarmen
-- Karte und Containerliste mit Suche, Filtern und Sortierung
+- Karte sowie Standortliste mit aufklappbaren Containern, Suche, Filtern und
+  Sortierung; dieselbe Seite zeigt auf Wunsch die Containersicht
 - Containerdetail: Füllstandsverlauf der letzten 30 Tage, Leerungen, Meldungen,
-  Kalibrierung
-- Tourenliste: Auswahl nach Füllstand, **Reihenfolge nach kürzester Fahrtstrecke**
-  (Nächster-Nachbar + 2-opt), mit Sammelroute für die Navigation
+  Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
+- Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
+  Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr
+- **Standorte**: mehrere Container an einem Platz sind ein Stopp. Zuordnung von
+  Hand oder über den CSV-Import, Standorte zusammenführen, freie Restkapazität
+  in Litern statt Füllstand je Container
+- **Regeltouren**: „jeden zweiten Dienstag" als Wochentag, Wochenabstand und
+  Ankerdatum. Daraus der nächste Planbesuch je Standort und die Frage, ob ein
+  Stopp bis dahin gedeckt ist
+- **Tagestouren**: ein Fahrauftrag je Tag und Fahrer, mehrere Touren am selben
+  Tag möglich. Aus einer Regeltour entsteht mit einem Klick eine Tour samt
+  Standorten; Fahrer zuweisen, Stopps aufnehmen und streichen,
+  **Reihenfolge nach kürzester Fahrtstrecke** (Nächster-Nachbar + 2-opt), mit
+  Sammelroute für die Navigation. Fortschritt der laufenden Touren aus den
+  Bestätigungen des Fahrpersonals – ohne Fahrzeugposition
+- Fälligkeit auf Stopp-Ebene: **Pflicht** (muss heute mit), **Kann** (lohnt
+  sich nur bei kleinem Umweg) und **ruht**, jeweils mit Begründung; dazu
+  **Umwegkosten in Euro je 100 Liter** gegen den Tourdurchschnitt
+- **Bauhöfe**: wer bei Fremdmüll im Container gerufen wird, je Gemeinde einmal
+  gepflegt und am Standort verwiesen. Ohne Eintrag nimmt das Fahrpersonal den
+  Müll mit
 - Sensorverwaltung samt **Anlernprozess** und druckbarem QR-Etikett
 - Import von Containerstammdaten aus der DRK-Dienstleistungsdatenbank (CSV)
 - Benutzerverwaltung mit drei Rollen; Passwort-Zurücksetzen ohne Administration
 
+**Fahreransicht (`/fahrer`)**
+- Ein Schritt je Bildschirm: Tour beginnen → nächster Stopp mit Zufahrtshinweis
+  und Navigationsknopf → vor Ort je Container „geleert" oder „stehen geblieben"
+  mit Grund → nächster Stopp → Tour abschließen
+- Bei Fremdmüll: Name und Rufnummer des zuständigen Bauhofs, oder der Hinweis,
+  dass der Müll mitzunehmen ist
+- **Funklochfest**: Bestätigungen liegen bis zum nächsten Netz im Gerät und
+  gehen dann selbsttätig raus. Doppelte Leerungen kann es dabei nicht geben –
+  die Buchung in der Datenbank ist wiederholbar
+
 **Automatisch im Hintergrund**
 - Füllstand aus Abstand und Kalibrierung, rückwirkend neu gerechnet, wenn sich
   die Kalibrierung ändert
+- Prognose, wann ein Container die Tourenschwelle und die Vollschwelle erreicht –
+  aus dem Anstieg im laufenden Zyklus und dem bisherigen Leerungsrhythmus
 - Leerungserkennung aus dem Verlauf
 - Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst;
   die stündliche Signalprüfung läuft als Datenbank-Job (pg_cron)
@@ -52,9 +93,9 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 
 | Verzeichnis | Inhalt |
 |---|---|
-| `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Schnittstellen |
+| `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Fahreransicht, Schnittstellen |
 | `components/` | Karte, Verlaufskurve, Füllstandsbalken, Statussymbole, QR-Scanner |
-| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, CSV-Leser |
+| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser, Offline-Warteschlange |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
 | `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |
@@ -98,10 +139,13 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 
 | | |
 |---|---|
+| [docs/sensor-entscheidung.md](docs/sensor-entscheidung.md) | **Vorher lesen:** Eigenbau oder Fertiggerät kaufen? Marktübersicht, Kosten und Empfehlung |
 | **[docs/Sensor-Bauanleitung.docx](docs/Sensor-Bauanleitung.docx)** | **Bauanleitung für Anfänger: vom Einkauf bis zum eingebauten Sensor** |
 | [docs/hardware.md](docs/hardware.md) | Stückliste, Verdrahtung, Montage, Stromverbrauch |
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
+| [docs/prognose.md](docs/prognose.md) | Prognose der nächsten Leerung und Leerungsrhythmus |
+| [docs/tourenplanung.md](docs/tourenplanung.md) | Standorte, Kosten je Stopp, Regeltouren, QR-Code für Bürger – Rechenweg und Entscheidungslogik |
 | [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
 | [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
 | [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |

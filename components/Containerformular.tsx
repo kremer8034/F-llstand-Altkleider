@@ -194,7 +194,10 @@ export function Containerformular({ container }: { container?: Container }) {
         <button type="submit" className="knopf-primaer">
           Speichern
         </button>
-        <a href={c ? `/intern/container/${c.id}` : "/intern/container"} className="knopf-sekundaer">
+        <a
+          href={c ? `/intern/container/${c.id}` : "/intern/standorte?ansicht=container"}
+          className="knopf-sekundaer"
+        >
           Abbrechen
         </a>
       </div>

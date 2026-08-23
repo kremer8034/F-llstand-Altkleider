@@ -60,10 +60,17 @@ do $$ declare n int; begin
   raise notice 'korrekt: Rohtabelle fuer anon leer';
 end $$;
 do $$ declare n int; begin
-  select count(*) into n from public.tourenliste(null);
-  raise exception 'FEHLER: anon konnte die Tourenliste abrufen (% Zeilen)', n;
+  select count(*) into n from public.tourenplanung();
+  raise exception 'FEHLER: anon konnte die Tourenplanung abrufen (% Zeilen)', n;
 exception when insufficient_privilege then
-  raise notice 'korrekt abgelehnt: Tourenliste ohne Anmeldung nicht aufrufbar';
+  raise notice 'korrekt abgelehnt: Tourenplanung ohne Anmeldung nicht aufrufbar';
+end $$;
+do $$ declare n int; begin
+  select count(*) into n from public.standort_planung;
+  if n > 0 then raise exception 'FEHLER: anon sieht % Zeilen der Planungsansicht', n; end if;
+  raise notice 'korrekt: Planungsansicht fuer anon leer';
+exception when insufficient_privilege then
+  raise notice 'korrekt abgelehnt: Planungsansicht ohne Anmeldung nicht lesbar';
 end $$;
 reset role;
 

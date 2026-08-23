@@ -16,15 +16,17 @@ export function Kartenansicht({
   punkte,
   hoeheKlasse = "h-[420px]",
   mitLegende = true,
+  eigenePosition = null,
 }: {
   punkte: Kartenpunkt[];
   hoeheKlasse?: string;
   mitLegende?: boolean;
+  eigenePosition?: { lat: number; lng: number } | null;
 }) {
   return (
     <div className="karte-flaeche overflow-hidden">
       <div className={hoeheKlasse}>
-        <Karte punkte={punkte} />
+        <Karte punkte={punkte} eigenePosition={eigenePosition} />
       </div>
       {mitLegende && (
         <div className="border-t px-4 py-3">
