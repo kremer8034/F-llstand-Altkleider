@@ -17,11 +17,13 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
                         │  Füllstand berechnen, Leerung erkennen, Alarm setzen
                         ▼
         ┌───────────────┴────────────────┐
-        ▼                                ▼
-  Öffentliche Karte                Interner Bereich
-  QR-Code am Container             Übersicht · Karte · Tour · Standorte ·
-  (ohne Anmeldung)                 Regeltouren · Container · Sensoren ·
-                                   Auswertung · Import · Benutzer
+        ▼                    ▼                        ▼
+  Öffentliche Karte   Interner Bereich          Fahreransicht
+  QR-Code am          Übersicht · Karte ·       Tour beginnen ·
+  Container           Touren · Regeltouren ·    Stopp für Stopp ·
+  (ohne Anmeldung)    Standorte · Sensoren ·    Leerung bestätigen
+                      Auswertung · Bauhöfe ·    (funklochfest)
+                      Benutzer
 ```
 
 ## Was drin ist
@@ -31,14 +33,16 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   und Standzeit; Filter „Noch Platz“; Routenlink ins Navigationsgerät
 - dieselben Daten als JSON unter `/api/oeffentlich/container` – zum Einbinden in
   brk-mill.de
-- **QR-Code am Container** (`/container/<Nummer>`): zeigt den Füllstand dieses
-  Containers, sortiert die nächstgelegenen mit Platz – die Position bleibt dabei
-  auf dem Gerät – und nimmt die Meldung „Container ist voll" entgegen. Das
+- **QR-Code am Container** (`/container/<Nummer>`): nennt zuerst den nächsten
+  Platz mit freier Kapazität, mit Entfernung, Routenknopf und Karte. Der
+  Standort wird beim Laden abgefragt, nicht auf Knopfdruck; er bleibt dabei auf
+  dem Gerät. Nimmt außerdem die Meldung „Container ist voll" entgegen. Das
   druckbare Etikett dazu liegt unter `/intern/container/<id>/etikett`
 
 **Intern, mit Anmeldung**
 - Übersicht mit Kennzahlen und offenen Alarmen
-- Karte und Containerliste mit Suche, Filtern und Sortierung
+- Karte sowie Standortliste mit aufklappbaren Containern, Suche, Filtern und
+  Sortierung; dieselbe Seite zeigt auf Wunsch die Containersicht
 - Containerdetail: Füllstandsverlauf der letzten 30 Tage, Leerungen, Meldungen,
   Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
 - Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
@@ -49,14 +53,31 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - **Regeltouren**: „jeden zweiten Dienstag" als Wochentag, Wochenabstand und
   Ankerdatum. Daraus der nächste Planbesuch je Standort und die Frage, ob ein
   Stopp bis dahin gedeckt ist
-- Tourenliste auf Stopp-Ebene: **Pflicht** (muss heute mit), **Kann** (lohnt
-  sich nur bei kleinem Umweg) und **ruht**, jeweils mit Begründung; dazu
-  **Umwegkosten in Euro je 100 Liter** gegen den Tourdurchschnitt.
+- **Tagestouren**: ein Fahrauftrag je Tag und Fahrer, mehrere Touren am selben
+  Tag möglich. Aus einer Regeltour entsteht mit einem Klick eine Tour samt
+  Standorten; Fahrer zuweisen, Stopps aufnehmen und streichen,
   **Reihenfolge nach kürzester Fahrtstrecke** (Nächster-Nachbar + 2-opt), mit
-  Sammelroute für die Navigation
+  Sammelroute für die Navigation. Fortschritt der laufenden Touren aus den
+  Bestätigungen des Fahrpersonals – ohne Fahrzeugposition
+- Fälligkeit auf Stopp-Ebene: **Pflicht** (muss heute mit), **Kann** (lohnt
+  sich nur bei kleinem Umweg) und **ruht**, jeweils mit Begründung; dazu
+  **Umwegkosten in Euro je 100 Liter** gegen den Tourdurchschnitt
+- **Bauhöfe**: wer bei Fremdmüll im Container gerufen wird, je Gemeinde einmal
+  gepflegt und am Standort verwiesen. Ohne Eintrag nimmt das Fahrpersonal den
+  Müll mit
 - Sensorverwaltung samt **Anlernprozess** und druckbarem QR-Etikett
 - Import von Containerstammdaten aus der DRK-Dienstleistungsdatenbank (CSV)
 - Benutzerverwaltung mit drei Rollen; Passwort-Zurücksetzen ohne Administration
+
+**Fahreransicht (`/fahrer`)**
+- Ein Schritt je Bildschirm: Tour beginnen → nächster Stopp mit Zufahrtshinweis
+  und Navigationsknopf → vor Ort je Container „geleert" oder „stehen geblieben"
+  mit Grund → nächster Stopp → Tour abschließen
+- Bei Fremdmüll: Name und Rufnummer des zuständigen Bauhofs, oder der Hinweis,
+  dass der Müll mitzunehmen ist
+- **Funklochfest**: Bestätigungen liegen bis zum nächsten Netz im Gerät und
+  gehen dann selbsttätig raus. Doppelte Leerungen kann es dabei nicht geben –
+  die Buchung in der Datenbank ist wiederholbar
 
 **Automatisch im Hintergrund**
 - Füllstand aus Abstand und Kalibrierung, rückwirkend neu gerechnet, wenn sich
@@ -72,9 +93,9 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 
 | Verzeichnis | Inhalt |
 |---|---|
-| `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Schnittstellen |
+| `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Fahreransicht, Schnittstellen |
 | `components/` | Karte, Verlaufskurve, Füllstandsbalken, Statussymbole, QR-Scanner |
-| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser |
+| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser, Offline-Warteschlange |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
 | `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |

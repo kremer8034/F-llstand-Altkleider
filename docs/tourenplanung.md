@@ -403,9 +403,14 @@ Regeltour gedeckt, spielt der Vorlauf keine Rolle – dann zählt der Termin.
 
 ---
 
-## 8. Die vier Stufen und wo sie stehen
+## 8. Die Stufen und wo sie stehen
 
 Jede Stufe war für sich nutzbar; gebaut wurden sie in dieser Reihenfolge.
+
+Stufe 5 kam nach diesem Papier dazu und beantwortet, was die ersten vier offen
+ließen: die geplante Tour war ein Vorschlag im Browser und ließ sich weder
+speichern noch jemandem zuweisen. Sie ist in
+[fahrbetrieb.md](fahrbetrieb.md) beschrieben.
 
 | Stufe | Inhalt | Migration | Oberfläche |
 |---|---|---|---|
@@ -413,6 +418,7 @@ Jede Stufe war für sich nutzbar; gebaut wurden sie in dieser Reihenfolge.
 | **2** | Kostenmodell, Umwegkosten, Euro je 100 Liter | – ([`lib/kosten.ts`](../lib/kosten.ts), [`lib/route.ts`](../lib/route.ts)) | `/intern/touren` |
 | **3** | Regeltouren, Deckung, drei Zustände | [`0012_regeltouren.sql`](../supabase/migrations/0012_regeltouren.sql) | `/intern/routen` |
 | **4** | Öffentlicher QR-Code | [`0013_buergermeldung.sql`](../supabase/migrations/0013_buergermeldung.sql) | `/container/<Nummer>`, Etikett unter `/intern/container/<id>/etikett` |
+| **5** | Tagestouren, Fahrerablauf, Bauhöfe | [`0014_entsorger.sql`](../supabase/migrations/0014_entsorger.sql), [`0015_touren.sql`](../supabase/migrations/0015_touren.sql), [`0016_adresse_am_standort.sql`](../supabase/migrations/0016_adresse_am_standort.sql) | `/intern/touren`, `/intern/entsorger`, `/fahrer` |
 
 Stufe 2 braucht keine Migration: die Kostensätze sind Einstellungen, gerechnet
 wird im Browser aus Daten, die ohnehin schon geladen sind. Damit ändert sich

@@ -33,12 +33,15 @@ export default async function FahrerSeite() {
     .order("name");
 
   const plant = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
+  // `.neq("fahrer_id", ...)` allein würde Touren OHNE Fahrer verschlucken:
+  // NULL <> 'x' ist in SQL nicht wahr, sondern unbekannt. Gerade die
+  // unzugewiesenen Touren muss die Disposition aber sehen.
   const fremde = plant
     ? await supabase
         .from("tour_fortschritt")
         .select("*")
         .eq("datum", tag)
-        .neq("fahrer_id", benutzer?.id ?? "")
+        .or(`fahrer_id.is.null,fahrer_id.neq.${benutzer?.id ?? ""}`)
         .order("name")
     : { data: [] };
 

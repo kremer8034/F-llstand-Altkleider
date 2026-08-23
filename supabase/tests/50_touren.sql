@@ -2,8 +2,8 @@
 \pset pager off
 
 -- ===========================================================================
--- Tagestouren, Fahrerablauf und Entsorger
--- (0014_entsorger.sql, 0015_touren.sql, 0016_adresse_am_standort.sql)
+-- Tagestouren, Fahrerablauf, Entsorger und Benutzeranlage
+-- (0014_entsorger.sql bis 0017_benutzername_ohne_email.sql)
 --
 -- Geprueft wird das, worauf sich der Fahrerablauf verlaesst:
 --
@@ -17,6 +17,7 @@
 --   8. Nach dem Abschluss nimmt die Tour nichts mehr an
 --   9. Entsorger: hinterlegt -> anrufen, nicht hinterlegt -> mitnehmen
 --  10. Ein Container ohne eigene Koordinaten bleibt oeffentlich sichtbar
+--  11. Ein Benutzer ohne E-Mail laesst sich anlegen (0017)
 --
 -- Punkt 5 traegt die Offlinefaehigkeit der Fahreransicht. Sendet sie eine
 -- Bestaetigung nach, von der sie nicht weiss, ob der erste Versuch ankam,
@@ -377,6 +378,41 @@ begin
   end if;
 
   raise notice 'OK: Rueckfall auf die Standortkoordinate greift';
+end $$;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 11. Benutzer ohne E-Mail laesst sich anlegen ==='
+--
+-- neuen_benutzer_anlegen() setzte den Namen aus Metadaten ODER E-Mail. Fehlten
+-- beide, wurde er NULL - und weil benutzerprofil.name NOT NULL ist, scheiterte
+-- die ganze Benutzeranlage. Der Ausloeser haengt AFTER INSERT an auth.users,
+-- also mit einem Datenbankfehler, dem man die Ursache nicht ansieht.
+-- ---------------------------------------------------------------------------
+do $$
+declare v_name text; v_name2 text;
+begin
+  insert into auth.users (id) values ('88888888-0000-0000-0000-000000000001');
+  select name into v_name from public.benutzerprofil
+   where id = '88888888-0000-0000-0000-000000000001';
+
+  if v_name is null then
+    raise exception 'Der Name darf nicht NULL sein';
+  end if;
+  if v_name <> '' then
+    raise exception 'Ohne Angabe wird ein leerer Name erwartet, bekommen: %', v_name;
+  end if;
+
+  -- Mit E-Mail bleibt es beim bisherigen Verhalten: der Teil vor dem @.
+  insert into auth.users (id, email)
+  values ('88888888-0000-0000-0000-000000000002', 'hans.meier@brk-mill.de');
+  select name into v_name2 from public.benutzerprofil
+   where id = '88888888-0000-0000-0000-000000000002';
+
+  if v_name2 <> 'hans.meier' then
+    raise exception 'Aus der E-Mail sollte hans.meier werden, bekommen: %', v_name2;
+  end if;
+
+  raise notice 'OK: ohne E-Mail leerer Name statt Fehler, mit E-Mail unveraendert';
 end $$;
 
 \echo '=== Alle Pruefungen bestanden ==='

@@ -26,6 +26,7 @@ $P -f supabase/migrations/0013_buergermeldung.sql
 $P -f supabase/migrations/0014_entsorger.sql
 $P -f supabase/migrations/0015_touren.sql
 $P -f supabase/migrations/0016_adresse_am_standort.sql
+$P -f supabase/migrations/0017_benutzername_ohne_email.sql
 $P -f supabase/tests/10_ablauf.sql
 $P -f supabase/tests/30_prognose.sql
 $P -f supabase/tests/40_standorte.sql
