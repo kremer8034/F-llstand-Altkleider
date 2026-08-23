@@ -19,6 +19,7 @@
 --  10. Ein Container ohne eigene Koordinaten bleibt oeffentlich sichtbar
 --  11. Ein Benutzer ohne E-Mail laesst sich anlegen (0017)
 --  12. Keine oeffentliche Ansicht ruft eine fuer anon gesperrte Funktion (0018)
+--  13. Kein Container verlaesst einen Stopp ohne Angabe (0019)
 --
 -- Punkt 5 traegt die Offlinefaehigkeit der Fahreransicht. Sendet sie eine
 -- Bestaetigung nach, von der sie nicht weiss, ob der erste Versuch ankam,
@@ -488,6 +489,89 @@ begin
   end if;
 
   raise notice 'OK: % Plaetze, davon % mit gerechneter Restkapazitaet', v_zeilen, v_mit_wert;
+end $$;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 13. Kein Container verlaesst einen Stopp ohne Angabe ==='
+--
+-- Die Fahreransicht verlangt zu jedem Container eine ausdrueckliche Angabe.
+-- Eine Luecke bleibt, die sie nicht schliessen kann: der Fahrer laedt die
+-- Tour, faehrt ins Funkloch, und die Disposition stellt in der Zwischenzeit
+-- einen weiteren Container an denselben Platz. Sein Geraet weiss davon
+-- nichts.
+--
+-- Abweisen waere falsch - dann steht das Fahrpersonal vor einem Knopf, der
+-- nicht funktioniert. Der fehlende Container wird stattdessen als
+-- "nicht erfasst" vermerkt, und zwar OHNE Leerung.
+-- ---------------------------------------------------------------------------
+set test.uid = '55555555-5555-5555-5555-555555555555';
+
+insert into public.standort (name, ort, lat, lng)
+values ('Nachtragsplatz', 'Miltenberg', 49.7000, 9.2500);
+
+insert into public.container (nummer, bezeichnung, ort, leer_abstand_mm, voll_abstand_mm, standort_id)
+select 'NT-' || i, 'Nachtrag ' || i, 'Miltenberg', 1000, 200,
+       (select id from public.standort where name = 'Nachtragsplatz')
+from generate_series(1, 2) i;
+
+do $$
+declare
+  v_tour uuid; v_stopp uuid; v_c1 uuid;
+  v_antwort jsonb; v_zeilen integer; v_leerungen integer; v_grund text;
+begin
+  insert into public.tour (name, datum, fahrer_id, angelegt_von)
+  values ('Nachtragstour', current_date,
+          '66666666-6666-6666-6666-666666666666',
+          '55555555-5555-5555-5555-555555555555')
+  returning id into v_tour;
+
+  insert into public.tour_stopp (tour_id, standort_id, position)
+  select v_tour, id, 1 from public.standort where name = 'Nachtragsplatz';
+
+  select id into v_stopp from public.tour_stopp where tour_id = v_tour;
+  select id into v_c1 from public.container where nummer = 'NT-1';
+
+  perform set_config('test.uid', '66666666-6666-6666-6666-666666666666', false);
+  perform public.tour_starten(v_tour);
+
+  -- Nur der erste Container wird gemeldet.
+  v_antwort := public.tour_stopp_abschliessen(
+    v_stopp,
+    jsonb_build_array(jsonb_build_object('container_id', v_c1, 'geleert', true)));
+
+  if (v_antwort ->> 'nachgetragen')::integer <> 1 then
+    raise exception 'Erwartet einen Nachtrag, bekommen: %', v_antwort;
+  end if;
+
+  -- Zu BEIDEN Containern muss eine Zeile stehen.
+  select count(*) into v_zeilen from public.tour_container where stopp_id = v_stopp;
+  if v_zeilen <> 2 then
+    raise exception 'Erwartet 2 Zeilen am Stopp, bekommen %', v_zeilen;
+  end if;
+
+  -- Der nachgetragene gilt als NICHT geleert und traegt einen Grund.
+  select grund into v_grund from public.tour_container tc
+    join public.container c on c.id = tc.container_id
+   where tc.stopp_id = v_stopp and c.nummer = 'NT-2';
+
+  if v_grund is null or v_grund not like 'Nicht erfasst%' then
+    raise exception 'Der nachgetragene Container braucht den Vermerk, hat aber: %', v_grund;
+  end if;
+
+  if (select geleert from public.tour_container tc
+        join public.container c on c.id = tc.container_id
+       where tc.stopp_id = v_stopp and c.nummer = 'NT-2') then
+    raise exception 'Ein nicht erfasster Container darf nicht als geleert gelten';
+  end if;
+
+  -- Und vor allem: keine erfundene Leerung.
+  select count(*) into v_leerungen from public.leerung
+   where container_id in (select id from public.container where nummer like 'NT-%');
+  if v_leerungen <> 1 then
+    raise exception 'Erwartet genau 1 Leerung (nur NT-1), bekommen %', v_leerungen;
+  end if;
+
+  raise notice 'OK: fehlender Container als "nicht erfasst" vermerkt, keine erfundene Leerung';
 end $$;
 
 \echo '=== Alle Pruefungen bestanden ==='

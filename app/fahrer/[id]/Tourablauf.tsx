@@ -217,17 +217,35 @@ export function Tourablauf({
     router.refresh();
   }
 
-  /** Stopp abschließen – erst in die Schlange, dann senden. */
+  /**
+   * Stopp abschließen – erst in die Schlange, dann senden.
+   *
+   * Hier galt ein Container ohne Angabe einmal als geleert. Das war bequem
+   * und falsch: wer im Regen vor dem Fahrzeug steht und einen Container
+   * übersieht, hätte damit eine Leerung erzeugt, die nie stattgefunden hat.
+   * Der Fehler wäre nirgends aufgefallen und hätte dauerhaft in
+   * Leerungsrhythmus, Prognose und Auswertung gestanden.
+   *
+   * Jetzt muss jeder Container ausdrücklich angetippt werden; der Knopf
+   * bleibt bis dahin gesperrt. Beim ausdrücklichen Überspringen des ganzen
+   * Stopps gilt: nicht geleert - denn der Fahrer war nicht dort.
+   */
   function stoppAbschliessen(stopp: Fahrstopp, status: "erledigt" | "uebersprungen") {
     const container = stopp.container.map((c) => {
       const e = erfassung[c.id];
-      // Ohne Angabe gilt der Container als geleert: das ist der Normalfall,
-      // und wer nichts sagt, hat geleert. Alles andere verlangt eine Angabe.
-      const geleert = e ? e.geleert : status === "erledigt";
+      const geleert = e ? e.geleert : false;
       return {
         container_id: c.id,
         geleert,
-        ...(geleert ? {} : { grund: e?.grund || "Ohne Angabe stehen geblieben" }),
+        ...(geleert
+          ? {}
+          : {
+              grund:
+                e?.grund?.trim() ||
+                (status === "uebersprungen"
+                  ? `Stopp übersprungen: ${notiz.trim() || "ohne Angabe"}`
+                  : "stehen geblieben"),
+            }),
       };
     });
 
@@ -433,9 +451,13 @@ export function Tourablauf({
   // 4. Vor Ort: was ist mit den Containern?
   // ---------------------------------------------------------------------
   if (vorOrt) {
-    const alleEntschieden = naechster.container.every(
-      (c) => erfassung[c.id] === undefined || erfassung[c.id].geleert || erfassung[c.id].grund,
+    // Jeder Container braucht eine ausdrueckliche Angabe - und wer stehen
+    // bleibt, einen Grund. Beides Pflicht, sonst geht es nicht weiter.
+    const nochOffen = naechster.container.filter((c) => erfassung[c.id] === undefined);
+    const ohneGrund = naechster.container.filter(
+      (c) => erfassung[c.id] && !erfassung[c.id].geleert && !erfassung[c.id].grund.trim(),
     );
+    const alleEntschieden = nochOffen.length === 0 && ohneGrund.length === 0;
 
     return (
       <div className="space-y-4">
@@ -449,13 +471,21 @@ export function Tourablauf({
             <Entsorgerhinweis entsorgung={naechster.entsorgung} gross />
           </div>
 
-          <h2 className="mt-5 text-sm font-semibold">
-            {naechster.container.length === 1
-              ? "Container geleert?"
-              : `${naechster.container.length} Container – was ist womit passiert?`}
-          </h2>
+          <div className="mt-5 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              {naechster.container.length === 1
+                ? "Container geleert?"
+                : `${naechster.container.length} Container – was ist womit passiert?`}
+            </h2>
+            <span
+              className="zahl text-xs font-medium"
+              style={{ color: alleEntschieden ? "var(--gut)" : "var(--ernst)" }}
+            >
+              {naechster.container.length - nochOffen.length} / {naechster.container.length}
+            </span>
+          </div>
           <p className="mt-1 text-xs text-ink-3">
-            Ohne Angabe gilt ein Container als geleert. Nur was stehen bleibt, braucht einen Grund.
+            Jeder Container braucht eine Angabe. Was stehen bleibt, braucht zusätzlich einen Grund.
           </p>
 
           <ul className="mt-3 space-y-3">
@@ -463,8 +493,14 @@ export function Tourablauf({
               const e = erfassung[c.id];
               const stehenGeblieben = e && !e.geleert;
 
+              const unentschieden = e === undefined;
+
               return (
-                <li key={c.id} className="rounded-lg border p-3">
+                <li
+                  key={c.id}
+                  className="rounded-lg border p-3"
+                  style={unentschieden ? { borderColor: "var(--ernst)" } : undefined}
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>
                       <span className="font-medium">{c.bezeichnung ?? c.nummer}</span>
@@ -562,17 +598,30 @@ export function Tourablauf({
               </button>
               {!alleEntschieden && (
                 <p className="mt-1 text-center text-xs" style={{ color: "var(--ernst)" }}>
-                  Bitte bei jedem stehen gebliebenen Container einen Grund angeben.
+                  {nochOffen.length > 0
+                    ? nochOffen.length === 1
+                      ? `Noch offen: ${nochOffen[0].bezeichnung ?? nochOffen[0].nummer}`
+                      : `Noch ${nochOffen.length} Container ohne Angabe`
+                    : "Bitte bei jedem stehen gebliebenen Container einen Grund angeben."}
                 </p>
               )}
 
+              {/* Ohne Begründungspflicht wäre das Überspringen die neue stille
+                  Hintertür: ein Druck, und der ganze Stopp verschwindet ohne
+                  Angabe, warum. Die Disposition muss das nachvollziehen können. */}
               <button
                 type="button"
                 onClick={() => stoppAbschliessen(naechster, "uebersprungen")}
+                disabled={!notiz.trim()}
                 className="knopf-sekundaer mt-2 w-full"
               >
                 Stopp überspringen
               </button>
+              {!notiz.trim() && (
+                <p className="mt-1 text-center text-xs text-ink-3">
+                  Zum Überspringen bitte oben kurz notieren, warum.
+                </p>
+              )}
             </>
           )}
 
