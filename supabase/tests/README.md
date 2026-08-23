@@ -15,7 +15,10 @@ $P -f supabase/migrations/0001_schema.sql
 $P -f supabase/migrations/0002_funktionen.sql
 $P -f supabase/migrations/0003_rls.sql
 $P -f supabase/migrations/0004_beispieldaten.sql
+$P -f supabase/migrations/0009_geraetevielfalt.sql
+$P -f supabase/migrations/0010_prognose.sql
 $P -f supabase/tests/10_ablauf.sql
+$P -f supabase/tests/30_prognose.sql
 $P -c "grant usage on schema auth to anon, authenticated;"
 $P -f supabase/tests/20_zugriffsschutz.sql
 ```
@@ -24,6 +27,7 @@ $P -f supabase/tests/20_zugriffsschutz.sql
 |---|---|
 | `00_supabase_nachbau.sql` | ersetzt `auth.users`, `auth.uid()` und die Rollen `anon`/`authenticated`, die sonst Supabase mitbringt |
 | `10_ablauf.sql` | erster Benutzer wird Administrator · Anlernen inklusive Ablehnung einer Doppelkopplung · Kalibrierung samt Rückrechnung · Füllstands-, Batterie- und Signalalarme · Leerungserkennung · Dublettenschutz · Tourenliste · öffentliche Ansicht · Entkoppeln |
+| `30_prognose.sql` | Leerungsrhythmus (Mittelwert, Aussondern von Doppelerfassungen) · Prognose aus Messreihe und Historie · vorausschauende Tourenliste · Auswertungen ohne Anmeldung leer |
 | `20_zugriffsschutz.sql` | Fahrpersonal darf erfassen, aber keine Container anlegen · Gerätegeheimnisse sind für niemanden lesbar · niemand befördert sich selbst · unbekannte Konten sehen nichts · ohne Anmeldung nur die öffentliche Ansicht |
 
 Die Ausgabe wird nicht automatisch verglichen – sie ist zum Lesen gedacht.

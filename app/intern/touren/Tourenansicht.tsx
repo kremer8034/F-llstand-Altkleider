@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
 import { adresse, alterText, stufeVon } from "@/lib/fuellstand";
+import { tageText } from "@/lib/prognose";
 import { kartenAbschnitte, routePlanen, type Ort } from "@/lib/route";
 import type { Tourzeile } from "./page";
 
@@ -245,6 +246,14 @@ export function Tourenansicht({
                       {zeile.offene_meldungen} Meldung{zeile.offene_meldungen > 1 ? "en" : ""}
                     </span>
                   )}
+                  {zeile.grund === "prognose" && (
+                    <span
+                      className="rounded border px-1.5 py-0.5 text-xs font-medium text-ink-2"
+                      title="Noch unter der Schwelle, wird laut Hochrechnung aber demnächst fällig"
+                    >
+                      vorausschauend
+                    </span>
+                  )}
                 </div>
                 <div className="mt-0.5 pl-6 text-sm text-ink-2">{adresse(zeile)}</div>
               </div>
@@ -253,6 +262,7 @@ export function Tourenansicht({
                 <Fuellstandsbalken prozent={zeile.fuellstand_prozent} />
                 <div className="mt-1 text-xs text-ink-3">
                   {alterText(zeile.gemessen_am)}
+                  {zeile.tage_bis_tour !== null && ` · fällig ${tageText(zeile.tage_bis_tour)}`}
                   {etappe !== null && ` · ${KM.format(etappe)} km ab ${index === 0 ? "Start" : "Vorgänger"}`}
                 </div>
               </div>

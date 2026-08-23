@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
 import { adresse, alterText, formatDatum, stufeVon } from "@/lib/fuellstand";
+import { jahresText, prognoseDatum, rhythmusText, tageText } from "@/lib/prognose";
 import type { ContainerStatus } from "@/lib/typen";
 
 export interface Listenzeile {
@@ -21,9 +22,15 @@ export interface Listenzeile {
   gemessen_am: string | null;
   sensor_geraete_id: string | null;
   kalibriert: boolean;
+  /** Tage bis zur Tourenschwelle laut Hochrechnung, null wenn keine moeglich. */
+  tage_bis_tour: number | null;
+  prognose_tour_am: string | null;
+  /** Arithmetisches Mittel der Abstaende zwischen zwei Leerungen. */
+  mittel_tage: number | null;
+  leerungen_pro_jahr: number | null;
 }
 
-type Sortierung = "fuellstand" | "nummer" | "ort" | "messung";
+type Sortierung = "fuellstand" | "prognose" | "haeufigkeit" | "nummer" | "ort" | "messung";
 
 export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
   const [suche, setSuche] = useState("");
@@ -54,6 +61,12 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
           return (a.ort ?? "").localeCompare(b.ort ?? "", "de") || a.nummer.localeCompare(b.nummer, "de");
         case "messung":
           return (b.gemessen_am ?? "").localeCompare(a.gemessen_am ?? "");
+        case "prognose":
+          // Ohne Prognose ans Ende, nicht nach vorn: ein fehlender Wert ist
+          // keine Dringlichkeit.
+          return (a.tage_bis_tour ?? Infinity) - (b.tage_bis_tour ?? Infinity);
+        case "haeufigkeit":
+          return (b.leerungen_pro_jahr ?? -1) - (a.leerungen_pro_jahr ?? -1);
         default:
           return (b.fuellstand_prozent ?? -1) - (a.fuellstand_prozent ?? -1);
       }
@@ -94,6 +107,8 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
           aria-label="Sortierung"
         >
           <option value="fuellstand">Füllstand absteigend</option>
+          <option value="prognose">Nächste Leerung zuerst</option>
+          <option value="haeufigkeit">Häufigste Leerungen zuerst</option>
           <option value="nummer">Nummer</option>
           <option value="ort">Ort</option>
           <option value="messung">Letzte Messung</option>
@@ -142,6 +157,29 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
               <div className="w-full max-w-[220px]">
                 <Fuellstandsbalken prozent={z.fuellstand_prozent} />
                 <div className="mt-1 text-xs text-ink-3">{alterText(z.gemessen_am)}</div>
+              </div>
+
+              <div className="w-full text-xs sm:w-40">
+                <div className="text-ink-3">Nächste Leerung</div>
+                {z.tage_bis_tour === null ? (
+                  <div className="text-ink-3">–</div>
+                ) : (
+                  <div className="font-medium text-ink-2">
+                    {tageText(z.tage_bis_tour)}
+                    <span className="zahl ml-1 font-normal text-ink-3">
+                      {prognoseDatum(z.prognose_tour_am)}
+                    </span>
+                  </div>
+                )}
+                <div className="mt-0.5 text-ink-3">
+                  {z.mittel_tage === null ? (
+                    "kein Rhythmus"
+                  ) : (
+                    <>
+                      {rhythmusText(z.mittel_tage)} · {jahresText(z.leerungen_pro_jahr)}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="w-full text-xs text-ink-3 sm:w-44 sm:text-right">

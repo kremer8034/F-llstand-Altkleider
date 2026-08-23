@@ -46,6 +46,10 @@ export default async function ContainerSeite() {
           gemessen_am: z.zustand?.gemessen_am ?? null,
           sensor_geraete_id: z.sensor?.geraete_id ?? null,
           kalibriert: z.leer_abstand_mm !== null,
+          tage_bis_tour: z.prognose?.tage_bis_tour ?? null,
+          prognose_tour_am: z.prognose?.prognose_tour_am ?? null,
+          mittel_tage: z.rhythmus?.mittel_tage ?? null,
+          leerungen_pro_jahr: z.rhythmus?.leerungen_pro_jahr ?? null,
         }))}
       />
     </div>

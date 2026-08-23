@@ -181,6 +181,8 @@ Tabelle `einstellung`, änderbar nur durch die Administration:
 | `voll_abstand_anteil` | 0.15 | Vollwert = Leerwert × dieser Anteil |
 | `kalibrier_fenster_stunden` | 6 | aus diesem Zeitraum wird der Leerwert gemittelt |
 | `leerung_erkennung_diff` | 40 | Sprung nach unten, der als Leerung zählt |
+| `leerung_min_abstand_stunden` | 12 | darunter gilt eine zweite Leerung als Korrektur und zählt nicht in den Rhythmus |
+| `tour_vorlauf_tage` | 3 | so weit blickt die Tourenliste voraus |
 | `karte_zentrum` | Miltenberg | Startausschnitt der Karte |
 | `oeffentliche_karte` | true | öffentliche Karte freigeschaltet |
 | `betriebshof` | null | fester Startpunkt der Tour, siehe unten |

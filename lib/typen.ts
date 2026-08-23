@@ -123,3 +123,41 @@ export interface OeffentlicherContainer {
   gemessen_am: string | null;
   stunden_seit_messung: number | null;
 }
+
+export type Prognosegrundlage = "messung_und_historie" | "messung" | "historie" | "keine";
+
+/** Hochrechnung je Container - Ansicht public.container_prognose. */
+export interface ContainerPrognose {
+  container_id: string;
+  nummer: string;
+  fuellstand_prozent: number | null;
+  gemessen_am: string | null;
+  /** Anstieg im laufenden Zyklus, Prozentpunkte je Tag. */
+  rate_messung: number | null;
+  /** Anstieg, der sich aus dem bisherigen Rhythmus ergibt. */
+  rate_historie: number | null;
+  /** Aus beidem gemischt - damit wird gerechnet. */
+  rate_prozent_pro_tag: number | null;
+  tage_bis_tour: number | null;
+  tage_bis_voll: number | null;
+  prognose_tour_am: string | null;
+  prognose_voll_am: string | null;
+  grundlage: Prognosegrundlage;
+}
+
+/** Leerungsrhythmus je Container - Ansicht public.container_rhythmus. */
+export interface ContainerRhythmus {
+  container_id: string;
+  nummer: string;
+  leerungen_gesamt: number;
+  abstaende_anzahl: number;
+  erste_leerung_am: string | null;
+  letzte_leerung_am: string | null;
+  tage_seit_letzter_leerung: number | null;
+  /** Arithmetisches Mittel der Abstaende zwischen zwei Leerungen. */
+  mittel_tage: number | null;
+  streuung_tage: number | null;
+  kuerzester_abstand_tage: number | null;
+  laengster_abstand_tage: number | null;
+  leerungen_pro_jahr: number | null;
+}

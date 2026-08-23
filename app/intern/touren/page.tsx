@@ -19,6 +19,11 @@ export interface Tourzeile {
   stunden_seit_messung: number | null;
   offene_meldungen: number;
   prioritaet: number;
+  /** Warum steht der Container auf der Liste? */
+  grund: "fuellstand" | "meldung" | "prognose";
+  tage_bis_tour: number | null;
+  prognose_tour_am: string | null;
+  prognose_voll_am: string | null;
 }
 
 /** Optionaler fester Ausgangspunkt der Tour (Einstellung "betriebshof"). */
@@ -41,14 +46,16 @@ export default async function TourenSeite() {
 
   const zeilen = (antwort.data ?? []) as Tourzeile[];
   const schwelle = zahlAusEinstellung(werte, "schwelle_warnung", 75);
+  const vorlauf = zahlAusEinstellung(werte, "tour_vorlauf_tage", 3);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Nächste Tour</h1>
-        <p className="mt-1 text-sm text-ink-2">
-          Container ab {schwelle} % Füllstand sowie alle mit offener Meldung – in der Reihenfolge der
-          kürzesten Fahrtstrecke.
+        <p className="mt-1 max-w-3xl text-sm text-ink-2">
+          Container ab {schwelle} % Füllstand, alle mit offener Meldung, und alles, was laut
+          Hochrechnung in den nächsten {vorlauf} Tagen fällig wird – in der Reihenfolge der kürzesten
+          Fahrtstrecke.
         </p>
       </div>
 

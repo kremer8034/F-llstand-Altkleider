@@ -9,6 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:route": "node scripts/route-pruefen.mjs",
+    "test:prognose": "node scripts/prognose-pruefen.mjs",
     "sensor:senden": "node scripts/messung-senden.mjs",
     "anleitung": "node scripts/anleitung-erzeugen.js"
   },

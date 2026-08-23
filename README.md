@@ -33,9 +33,12 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Übersicht mit Kennzahlen und offenen Alarmen
 - Karte und Containerliste mit Suche, Filtern und Sortierung
 - Containerdetail: Füllstandsverlauf der letzten 30 Tage, Leerungen, Meldungen,
-  Kalibrierung
-- Tourenliste: Auswahl nach Füllstand, **Reihenfolge nach kürzester Fahrtstrecke**
-  (Nächster-Nachbar + 2-opt), mit Sammelroute für die Navigation
+  Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
+- Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
+  Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr
+- Tourenliste: Auswahl nach Füllstand **und Prognose** (was in den nächsten
+  Tagen fällig wird, kommt vorausschauend mit), **Reihenfolge nach kürzester
+  Fahrtstrecke** (Nächster-Nachbar + 2-opt), mit Sammelroute für die Navigation
 - Sensorverwaltung samt **Anlernprozess** und druckbarem QR-Etikett
 - Import von Containerstammdaten aus der DRK-Dienstleistungsdatenbank (CSV)
 - Benutzerverwaltung mit drei Rollen; Passwort-Zurücksetzen ohne Administration
@@ -43,6 +46,8 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 **Automatisch im Hintergrund**
 - Füllstand aus Abstand und Kalibrierung, rückwirkend neu gerechnet, wenn sich
   die Kalibrierung ändert
+- Prognose, wann ein Container die Tourenschwelle und die Vollschwelle erreicht –
+  aus dem Anstieg im laufenden Zyklus und dem bisherigen Leerungsrhythmus
 - Leerungserkennung aus dem Verlauf
 - Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst;
   die stündliche Signalprüfung läuft als Datenbank-Job (pg_cron)
@@ -103,6 +108,7 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 | [docs/hardware.md](docs/hardware.md) | Stückliste, Verdrahtung, Montage, Stromverbrauch |
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
+| [docs/prognose.md](docs/prognose.md) | Prognose der nächsten Leerung und Leerungsrhythmus |
 | [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
 | [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
 | [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |
