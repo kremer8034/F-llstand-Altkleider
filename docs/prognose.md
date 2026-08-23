@@ -113,6 +113,12 @@ selbst hinter die tatsächlich fälligen.
 Wer das nicht möchte, setzt `tour_vorlauf_tage` auf `0` – dann verhält sich die
 Liste wie vorher.
 
+> **Weitergedacht:** [tourenplanung.md](tourenplanung.md) beschreibt als Konzept,
+> wie aus der Prognose je Container eine Prognose je *Standort* wird – mit
+> Restkapazität, Kosten je Stopp und Regeltouren. Der feste Vorlauf in Tagen
+> wird dort vom Begriff der **Deckung** abgelöst: es zählt nicht mehr eine
+> Tagezahl, sondern ob die nächste Regeltour rechtzeitig kommt.
+
 ---
 
 ## Was die Prognose nicht kann

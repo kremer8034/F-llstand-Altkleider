@@ -109,6 +109,7 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 | [docs/einkaufsliste.md](docs/einkaufsliste.md) | Konkrete Produkte mit Bezugsquellen und Preisübersicht |
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
 | [docs/prognose.md](docs/prognose.md) | Prognose der nächsten Leerung und Leerungsrhythmus |
+| [docs/tourenplanung.md](docs/tourenplanung.md) | Konzept: Standorte, Kosten je Stopp, Regeltouren, QR-Code für Bürger |
 | [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
 | [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
 | [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |
