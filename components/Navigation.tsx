@@ -6,16 +6,24 @@ import { useState } from "react";
 import { ROLLEN_TEXT } from "@/lib/rollen";
 import type { Benutzerrolle } from "@/lib/typen";
 
+/**
+ * „Container" ist kein eigener Punkt mehr: die Containerliste ist eine
+ * Ansicht der Standortseite. Zwei gleichrangige Einträge für dieselbe Sache
+ * waren die Ursache der Verwirrung - geplant, angefahren und geleert wird
+ * der Standort, also führt er.
+ *
+ * Der Import steckt jetzt als Knopf auf der Standortseite; er ist ein
+ * Handgriff an den Stammdaten, kein eigener Bereich.
+ */
 const PUNKTE: { pfad: string; text: string; rollen?: Benutzerrolle[] }[] = [
   { pfad: "/intern", text: "Übersicht" },
   { pfad: "/intern/karte", text: "Karte" },
-  { pfad: "/intern/touren", text: "Tour" },
-  { pfad: "/intern/container", text: "Container" },
-  { pfad: "/intern/standorte", text: "Standorte" },
+  { pfad: "/intern/touren", text: "Touren" },
   { pfad: "/intern/routen", text: "Regeltouren", rollen: ["admin", "dispo"] },
-  { pfad: "/intern/auswertung", text: "Auswertung" },
+  { pfad: "/intern/standorte", text: "Standorte" },
   { pfad: "/intern/sensoren", text: "Sensoren" },
-  { pfad: "/intern/import", text: "Import", rollen: ["admin", "dispo"] },
+  { pfad: "/intern/auswertung", text: "Auswertung" },
+  { pfad: "/intern/entsorger", text: "Bauhöfe", rollen: ["admin", "dispo"] },
   { pfad: "/intern/benutzer", text: "Benutzer", rollen: ["admin"] },
 ];
 
@@ -25,7 +33,11 @@ export function Navigation({ name, rolle }: { name: string; rolle: Benutzerrolle
   const sichtbar = PUNKTE.filter((p) => !p.rollen || p.rollen.includes(rolle));
 
   function istAktiv(ziel: string) {
-    return ziel === "/intern" ? pfad === "/intern" : pfad.startsWith(ziel);
+    if (ziel === "/intern") return pfad === "/intern";
+    // Die Containerdetailseiten gehören zur Standortansicht - sonst wäre auf
+    // ihnen kein Menüpunkt hervorgehoben.
+    if (ziel === "/intern/standorte" && pfad.startsWith("/intern/container")) return true;
+    return pfad.startsWith(ziel);
   }
 
   return (

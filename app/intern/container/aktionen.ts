@@ -149,6 +149,7 @@ export async function containerSpeichern(formular: FormData) {
     if (error) throw new Error(error.message);
     revalidatePath(`/intern/container/${id}`);
     revalidatePath("/intern/container");
+    revalidatePath("/intern/standorte");
     redirect(`/intern/container/${id}`);
   }
 
@@ -156,5 +157,6 @@ export async function containerSpeichern(formular: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/intern/container");
+  revalidatePath("/intern/standorte");
   redirect(`/intern/container/${data.id}`);
 }

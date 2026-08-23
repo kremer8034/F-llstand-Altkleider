@@ -119,7 +119,10 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
       {/* Kopf */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href="/intern/container" className="text-sm text-ink-3 underline underline-offset-2">
+          <Link
+            href="/intern/standorte?ansicht=container"
+            className="text-sm text-ink-3 underline underline-offset-2"
+          >
             ← Alle Container
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{c.bezeichnung ?? c.nummer}</h1>

@@ -100,7 +100,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
         <section className="karte-flaeche lg:col-span-2">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="font-semibold">Höchste Füllstände</h2>
-            <Link href="/intern/container" className="text-sm text-ink-3 underline underline-offset-2">
+            <Link href="/intern/standorte" className="text-sm text-ink-3 underline underline-offset-2">
               Alle Container
             </Link>
           </div>

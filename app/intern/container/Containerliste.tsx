@@ -28,6 +28,9 @@ export interface Listenzeile {
   /** Arithmetisches Mittel der Abstaende zwischen zwei Leerungen. */
   mittel_tage: number | null;
   leerungen_pro_jahr: number | null;
+  /** Der Platz, zu dem dieser Container gehoert - null heisst: keiner. */
+  standort_id: string | null;
+  standort_name: string | null;
 }
 
 type Sortierung = "fuellstand" | "prognose" | "haeufigkeit" | "nummer" | "ort" | "messung";
@@ -36,6 +39,7 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
   const [suche, setSuche] = useState("");
   const [status, setStatus] = useState<ContainerStatus | "alle">("aktiv");
   const [nurOhneSensor, setNurOhneSensor] = useState(false);
+  const [nurOhneStandort, setNurOhneStandort] = useState(false);
   const [sortierung, setSortierung] = useState<Sortierung>("fuellstand");
 
   const gefiltert = useMemo(() => {
@@ -44,8 +48,9 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
     const liste = zeilen.filter((z) => {
       if (status !== "alle" && z.status !== status) return false;
       if (nurOhneSensor && z.sensor_geraete_id) return false;
+      if (nurOhneStandort && z.standort_id) return false;
       if (!text) return true;
-      return [z.nummer, z.bezeichnung, z.strasse, z.plz, z.ort, z.sensor_geraete_id]
+      return [z.nummer, z.bezeichnung, z.strasse, z.plz, z.ort, z.sensor_geraete_id, z.standort_name]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -72,7 +77,9 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
       }
     });
     return sortiert;
-  }, [zeilen, suche, status, nurOhneSensor, sortierung]);
+  }, [zeilen, suche, status, nurOhneSensor, nurOhneStandort, sortierung]);
+
+  const ohneStandort = zeilen.filter((z) => !z.standort_id && z.status === "aktiv").length;
 
   return (
     <div className="space-y-3">
@@ -123,6 +130,17 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
           nur ohne Sensor
         </label>
 
+        {ohneStandort > 0 && (
+          <label className="inline-flex items-center gap-2 text-sm text-ink-2">
+            <input
+              type="checkbox"
+              checked={nurOhneStandort}
+              onChange={(e) => setNurOhneStandort(e.target.checked)}
+            />
+            nur ohne Standort ({ohneStandort})
+          </label>
+        )}
+
         <span className="ml-auto text-sm text-ink-3">{gefiltert.length} Treffer</span>
       </div>
 
@@ -152,6 +170,15 @@ export function Containerliste({ zeilen }: { zeilen: Listenzeile[] }) {
                   )}
                 </div>
                 <div className="mt-0.5 pl-6 text-sm text-ink-2">{adresse(z) || "keine Adresse hinterlegt"}</div>
+                <div className="mt-0.5 pl-6 text-xs">
+                  {z.standort_name ? (
+                    <span className="text-ink-3">Standort: {z.standort_name}</span>
+                  ) : (
+                    <span style={{ color: "var(--ernst)" }}>
+                      ohne Standort – taucht in keiner Tour auf
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="w-full max-w-[220px]">
