@@ -16,6 +16,7 @@ import type { Benutzerrolle } from "@/lib/typen";
  * Handgriff an den Stammdaten, kein eigener Bereich.
  */
 const PUNKTE: { pfad: string; text: string; rollen?: Benutzerrolle[] }[] = [
+  { pfad: "/fahrer", text: "Meine Tour" },
   { pfad: "/intern", text: "Übersicht" },
   { pfad: "/intern/karte", text: "Karte" },
   { pfad: "/intern/touren", text: "Touren" },
