@@ -178,6 +178,8 @@ export interface Standort {
   bemerkung: string | null;
   /** Zustaendiger Bauhof. Nicht gesetzt heisst: der Muell wird mitgenommen. */
   entsorger_id: string | null;
+  /** Betreuende Bereitschaft. Nicht gesetzt heisst: gemeinsame Zustaendigkeit. */
+  gruppe_id: string | null;
   aktiv: boolean;
   angelegt_am: string;
 }
@@ -212,6 +214,8 @@ export interface Route {
   wochentag: number;
   intervall_wochen: number;
   anker_datum: string;
+  /** Bereitschaft, die diese Regeltour faehrt. */
+  gruppe_id: string | null;
   aktiv: boolean;
   bemerkung: string | null;
   angelegt_am: string;
@@ -294,6 +298,8 @@ export interface Tour {
   datum: string;
   route_id: string | null;
   fahrer_id: string | null;
+  /** Bereitschaft, die diesen Fahrauftrag faehrt. */
+  gruppe_id: string | null;
   status: Tourstatus;
   begonnen_am: string | null;
   abgeschlossen_am: string | null;
@@ -369,4 +375,30 @@ export interface OeffentlicherStandort {
   stufe: Fuellstandsstufe;
   gemessen_am: string | null;
   stunden_seit_messung: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Bereitschaften (0019_gruppen.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * Organisationseinheit ueber Standorten und Touren. Beim BRK heisst sie
+ * "Bereitschaft": sie betreut eigene Plaetze und faehrt eigene Touren.
+ */
+export interface Gruppe {
+  id: string;
+  name: string;
+  ansprechpartner: string | null;
+  telefon: string | null;
+  email: string | null;
+  bemerkung: string | null;
+  aktiv: boolean;
+  angelegt_am: string;
+}
+
+/** Berechtigung eines Kontos fuer eine Bereitschaft. */
+export interface BenutzerGruppe {
+  benutzer_id: string;
+  gruppe_id: string;
+  angelegt_am: string;
 }

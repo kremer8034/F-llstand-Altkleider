@@ -28,10 +28,13 @@ $P -f supabase/migrations/0015_touren.sql
 $P -f supabase/migrations/0016_adresse_am_standort.sql
 $P -f supabase/migrations/0017_benutzername_ohne_email.sql
 $P -f supabase/migrations/0018_oeffentliche_standorte_ohne_funktion.sql
+$P -f supabase/migrations/0019_gruppen.sql
+$P -f supabase/migrations/0020_fertiggeraete.sql
 $P -f supabase/tests/10_ablauf.sql
 $P -f supabase/tests/30_prognose.sql
 $P -f supabase/tests/40_standorte.sql
 $P -f supabase/tests/50_touren.sql
+$P -f supabase/tests/60_gruppen.sql
 $P -c "grant usage on schema auth to anon, authenticated;"
 $P -f supabase/tests/20_zugriffsschutz.sql
 ```
@@ -50,6 +53,8 @@ Zugriffsregeln zu prüfen statt der Rechte.
 | `10_ablauf.sql` | erster Benutzer wird Administrator · Anlernen inklusive Ablehnung einer Doppelkopplung · Kalibrierung samt Rückrechnung · Füllstands-, Batterie- und Signalalarme · Leerungserkennung · Dublettenschutz · Tourenplanung · öffentliche Ansicht · Entkoppeln |
 | `30_prognose.sql` | Leerungsrhythmus (Mittelwert, Aussondern von Doppelerfassungen) · Prognose aus Messreihe und Historie · vorausschauende Planung und der steuerbare Vorlauf · Auswertungen ohne Anmeldung leer |
 | `40_standorte.sql` | das Cluster-Beispiel aus [tourenplanung.md](../../docs/tourenplanung.md) nachgerechnet (17 500 l / 5 125 l / 29,3 %) · Reserve, Deckung durch eine Regeltour und die drei Zustände · offene Meldung überstimmt die Deckung · Container ohne Standort · Bürgermeldung samt Missbrauchsschutz · was `anon` darf |
+| `50_touren.sql` | Tagestour aus einer Regeltour · mehrere Touren am Tag · wiederholbarer Start und Abschluss (Funkloch) · genau eine Leerung je Container, auch beim Nachsenden · nicht geleert wird zur Meldung · fremdes Fahrpersonal abgewiesen · Bauhof hinterlegt oder nicht · Benutzer ohne E-Mail |
+| `60_gruppen.sql` | Bereitschaften: ohne Zuordnung bleibt alles sichtbar · zugeordnet nur die eigene · Herrenloses für alle · fremde Tour nicht änderbar · fremder Standort nicht aufnehmbar · Administration sieht alles · eingeteiltes Fahrpersonal sieht seine Tour über Gruppengrenzen · Tagestour erbt die Bereitschaft · aufgelöste Bereitschaft nimmt keine Standorte mit |
 | `20_zugriffsschutz.sql` | Fahrpersonal darf erfassen, aber keine Container anlegen · Gerätegeheimnisse sind für niemanden lesbar · niemand befördert sich selbst · unbekannte Konten sehen nichts · ohne Anmeldung nur die öffentliche Ansicht |
 
 Die Ausgabe wird nicht automatisch verglichen – sie ist zum Lesen gedacht.

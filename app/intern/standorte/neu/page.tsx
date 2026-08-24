@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Standortformular } from "@/components/Standortformular";
 import { rolleErzwingen } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/server";
-import type { Entsorger } from "@/lib/typen";
+import type { Entsorger, Gruppe } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Neuer Standort" };
@@ -11,12 +11,10 @@ export default async function NeuerStandort() {
   await rolleErzwingen(["admin", "dispo"]);
 
   const supabase = await serverClient();
-  const { data } = await supabase
-    .from("entsorger")
-    .select("*")
-    .eq("aktiv", true)
-    .order("gemeinde")
-    .order("name");
+  const [entsorgerAntwort, gruppenAntwort] = await Promise.all([
+    supabase.from("entsorger").select("*").eq("aktiv", true).order("gemeinde").order("name"),
+    supabase.from("gruppe").select("id, name").eq("aktiv", true).order("name"),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -30,7 +28,10 @@ export default async function NeuerStandort() {
         </p>
       </div>
 
-      <Standortformular entsorger={(data ?? []) as Entsorger[]} />
+      <Standortformular
+        entsorger={(entsorgerAntwort.data ?? []) as Entsorger[]}
+        gruppen={(gruppenAntwort.data ?? []) as Pick<Gruppe, "id" | "name">[]}
+      />
     </div>
   );
 }

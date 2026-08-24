@@ -48,6 +48,7 @@ export async function standortSpeichern(formular: FormData) {
     zufahrt: text(formular, "zufahrt"),
     bemerkung: text(formular, "bemerkung"),
     entsorger_id: text(formular, "entsorger_id"),
+    gruppe_id: text(formular, "gruppe_id"),
     aktiv: formular.get("aktiv") === "on",
   };
 

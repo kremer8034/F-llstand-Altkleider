@@ -3,7 +3,7 @@ import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
-import type { Benutzerprofil, Route, TourFortschritt } from "@/lib/typen";
+import type { Gruppe, Route, TourFortschritt } from "@/lib/typen";
 import { Tagesuebersicht } from "./Tagesuebersicht";
 import type { Tourzeile } from "./planungstypen";
 
@@ -25,22 +25,34 @@ export default async function TourenSeite({
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(tag ?? "") ? (tag as string) : heute();
 
   const supabase = await serverClient();
-  const [tourAntwort, planungAntwort, routenAntwort, fahrerAntwort, werte, benutzer] =
-    await Promise.all([
+  const [
+    tourAntwort,
+    planungAntwort,
+    routenAntwort,
+    werte,
+    benutzer,
+    gruppenAntwort,
+    standortGruppeAntwort,
+  ] = await Promise.all([
       supabase.from("tour_fortschritt").select("*").eq("datum", datum).order("name"),
       supabase.rpc("tourenplanung"),
       supabase.from("route").select("*").eq("aktiv", true).order("name"),
-      supabase
-        .from("benutzerprofil")
-        .select("id, name, email, rolle, telefon, aktiv, angelegt_am")
-        .eq("aktiv", true)
-        .in("rolle", ["fahrer", "dispo", "admin"])
-        .order("name"),
       einstellungen(supabase),
       angemeldeterBenutzer(),
+      supabase.from("gruppe").select("id, name").eq("aktiv", true).order("name"),
+      // Die Fälligkeitsrechnung liefert die Bereitschaft nicht mit - für den
+      // Filter unten wird sie über den Standort nachgeschlagen.
+      supabase.from("standort").select("id, gruppe_id"),
     ]);
 
   const touren = (tourAntwort.data ?? []) as TourFortschritt[];
+  const gruppen = (gruppenAntwort.data ?? []) as Pick<Gruppe, "id" | "name">[];
+  const gruppeJeStandort = new Map(
+    ((standortGruppeAntwort.data ?? []) as { id: string; gruppe_id: string | null }[]).map((s) => [
+      s.id,
+      s.gruppe_id,
+    ]),
+  );
 
   // Welche Standorte stehen an diesem Tag schon auf irgendeiner Tour? Bewusst
   // eine zweite Abfrage ueber die Tour-Kennungen statt einer eingebetteten
@@ -54,7 +66,16 @@ export default async function TourenSeite({
     : { data: [] };
   const faellig = (planungAntwort.data ?? []) as Tourzeile[];
   const routen = (routenAntwort.data ?? []) as Route[];
-  const fahrer = (fahrerAntwort.data ?? []) as Benutzerprofil[];
+
+  const tourGruppeAntwort = touren.length
+    ? await supabase.from("tour").select("id, gruppe_id").in("id", touren.map((t) => t.tour_id))
+    : { data: [] };
+  const gruppeJeTour = new Map(
+    ((tourGruppeAntwort.data ?? []) as { id: string; gruppe_id: string | null }[]).map((t) => [
+      t.id,
+      t.gruppe_id,
+    ]),
+  );
 
   const verplant = new Map<string, { tour_id: string; status: string }>();
   ((stoppAntwort.data ?? []) as { standort_id: string; tour_id: string; status: string }[]).forEach(
@@ -104,10 +125,12 @@ export default async function TourenSeite({
       <Tagesuebersicht
         datum={datum}
         touren={touren}
+        gruppen={gruppen}
+        gruppeJeTour={Object.fromEntries(gruppeJeTour)}
+        gruppeJeStandort={Object.fromEntries(gruppeJeStandort)}
         faellig={faellig}
         verplant={Object.fromEntries(verplant)}
         regeltourenHeute={heuteFaellig}
-        fahrer={fahrer.map((f) => ({ id: f.id, name: f.name || (f.email ?? "ohne Namen"), rolle: f.rolle }))}
         bearbeiten={bearbeiten}
       />
 

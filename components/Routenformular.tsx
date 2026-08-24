@@ -4,14 +4,20 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { routeSpeichern, type Routenergebnis } from "@/app/intern/routen/aktionen";
 import { rhythmusText, isoWochentag, wochentagName } from "@/lib/wochentage";
-import type { Route } from "@/lib/typen";
+import type { Gruppe, Route } from "@/lib/typen";
 
 /**
  * Der Wochentag wird nicht abgefragt, sondern aus dem Ankerdatum abgeleitet.
  * Zwei Felder, die dasselbe sagen müssen, sind eine Fehlerquelle ohne Nutzen -
  * die Datenbank lehnt eine Dienstagstour mit Donnerstagsanker ohnehin ab.
  */
-export function Routenformular({ route }: { route?: Route }) {
+export function Routenformular({
+  route,
+  gruppen = [],
+}: {
+  route?: Route;
+  gruppen?: Pick<Gruppe, "id" | "name">[];
+}) {
   const [ergebnis, absenden] = useActionState<Routenergebnis | null, FormData>(routeSpeichern, null);
   const r = route;
 
@@ -81,6 +87,31 @@ export function Routenformular({ route }: { route?: Route }) {
               Ankertermin fällt auf einen {wochentagName(isoWochentag(new Date(r.anker_datum)))}.
             </p>
           )}
+
+          <div className="sm:col-span-2">
+            <label htmlFor="gruppe_id" className="mb-1 block text-sm font-medium">
+              Bereitschaft
+            </label>
+            <select
+              id="gruppe_id"
+              name="gruppe_id"
+              defaultValue={r?.gruppe_id ?? ""}
+              className="feld"
+              disabled={gruppen.length === 0}
+            >
+              <option value="">– keine, gemeinsame Regeltour –</option>
+              {gruppen.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-3">
+              {gruppen.length === 0
+                ? "Noch keine Bereitschaft angelegt."
+                : "Jede Tagestour, die aus dieser Regeltour entsteht, erbt die Bereitschaft."}
+            </p>
+          </div>
 
           <div className="sm:col-span-2">
             <label htmlFor="bemerkung" className="mb-1 block text-sm font-medium">

@@ -42,6 +42,7 @@ export default async function StandorteSeite({
     zuordnungAntwort,
     werte,
     benutzer,
+    gruppenAntwort,
   ] = await Promise.all([
     supabase.from("standort").select("*").order("name"),
     supabase.from("standort_zustand").select("*"),
@@ -58,6 +59,7 @@ export default async function StandorteSeite({
     supabase.from("route_standort").select("route_id, standort_id"),
     einstellungen(supabase),
     angemeldeterBenutzer(),
+    supabase.from("gruppe").select("id, name").eq("aktiv", true).order("name"),
   ]);
 
   const standorte = (standortAntwort.data ?? []) as Standort[];
@@ -100,6 +102,9 @@ export default async function StandorteSeite({
   const reserve = zahlAusEinstellung(werte, "standort_reserve_prozent", 20);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
   const ohneStandort = ohneAntwort.count ?? 0;
+
+  const gruppen = (gruppenAntwort.data ?? []) as { id: string; name: string }[];
+  const gruppeJeId = new Map(gruppen.map((g) => [g.id, g.name]));
 
   // Die Containeransicht braucht den vollen Datensatz - nur dann laden.
   const containerZeilen = nachContainer ? await containerMitZustand(supabase) : [];
@@ -213,6 +218,7 @@ export default async function StandorteSeite({
       ) : (
         <Standortliste
           reserve={reserve}
+          gruppen={gruppen}
           zeilen={standorte.map((s) => {
             const z = zustaende.get(s.id);
             const eigene = (containerJeStandort.get(s.id) ?? []).filter(
@@ -237,6 +243,8 @@ export default async function StandorteSeite({
               zufluss_liter_je_tag: z?.zufluss_liter_je_tag ?? null,
               offene_meldungen: z?.offene_meldungen ?? 0,
               hat_entsorger: s.entsorger_id !== null,
+              gruppe_id: s.gruppe_id,
+              gruppe_name: s.gruppe_id ? (gruppeJeId.get(s.gruppe_id) ?? null) : null,
               routen: meineRouten.map((r) => r.name),
               container: eigene.map((c) => ({
                 id: c.id,

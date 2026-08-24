@@ -231,6 +231,50 @@ export async function rolleAendern(formular: FormData) {
   revalidatePath("/intern/benutzer");
 }
 
+/**
+ * Bereitschaften eines Kontos setzen.
+ *
+ * Die Auswahl ist der vollstaendige neue Stand - was nicht angehakt ist, wird
+ * entzogen. Das ist die einzige Form, in der sich ein Recht auch wieder
+ * wegnehmen laesst, ohne eine zweite Bedienung dafuer zu bauen.
+ *
+ * KEIN Eintrag heisst NICHT "sieht nichts", sondern "sieht alles" - so, wie es
+ * vor den Bereitschaften war (siehe Kopf von 0019_gruppen.sql). Das ist beim
+ * Bedienen der wichtigste Punkt und steht deshalb auch in der Oberflaeche.
+ *
+ * Geschrieben wird mit der Service-Role: benutzer_gruppe ist durch
+ * Zugriffsregeln geschuetzt, und die Administration soll auch dann Rechte
+ * vergeben koennen, wenn sie selbst einer Bereitschaft zugeordnet ist.
+ */
+export async function gruppenrechteSetzen(formular: FormData) {
+  await adminErzwingen();
+
+  const id = String(formular.get("id") ?? "");
+  if (!id) return;
+
+  const gewaehlt = formular
+    .getAll("gruppe_id")
+    .filter((w): w is string => typeof w === "string" && w !== "");
+
+  const admin = adminClient();
+
+  const { error: fehlerLoeschen } = await admin
+    .from("benutzer_gruppe")
+    .delete()
+    .eq("benutzer_id", id);
+  if (fehlerLoeschen) throw new Error(fehlerLoeschen.message);
+
+  if (gewaehlt.length > 0) {
+    const { error } = await admin
+      .from("benutzer_gruppe")
+      .insert(gewaehlt.map((gruppe_id) => ({ benutzer_id: id, gruppe_id })));
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/intern/benutzer");
+  revalidatePath("/intern/gruppen");
+}
+
 export async function zugangUmschalten(formular: FormData) {
   const ich = await adminErzwingen();
 
