@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { adminClient } from "@/lib/supabase/admin";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
+import { STANDARD_BAUART, geraeteart } from "@/lib/geraetearten";
 
 /** Zeichenvorrat ohne verwechselbare Zeichen (kein 0/O, kein 1/I). */
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -28,16 +29,24 @@ export interface AnlageErgebnis {
   fehler?: string;
   geraete_id?: string;
   anlerncode?: string;
+  /** Nur beim Eigenbau gesetzt - ein Fertiggeraet kann damit nichts anfangen. */
   geheimnis?: string;
+  bauart?: string;
 }
 
 /**
- * Neues Geraet aufnehmen: Stammsatz, HMAC-Geheimnis und Anlerncode.
+ * Neues Geraet aufnehmen: Stammsatz, Anlerncode und - beim Eigenbau - das
+ * HMAC-Geheimnis.
  *
  * Das Geheimnis wird genau einmal zurueckgegeben - danach steht es nur noch in
  * der Datenbank und ist ueber die Oberflaeche nicht mehr abrufbar. Entweder es
  * wird beim Flashen in die Firmware uebernommen, oder das Geraet holt es sich
  * beim ersten Start selbst ab (siehe /api/geraete/registrieren).
+ *
+ * Ein Fertiggeraet bekommt keines: es kann unser Signaturverfahren nicht und
+ * meldet ueber /api/ingest/webhook (docs/em400-tld.md). Was es stattdessen
+ * braucht, ist eine Kennung, unter der es sich meldet - Seriennummer, IMEI
+ * oder ICCID.
  */
 export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: FormData): Promise<AnlageErgebnis> {
   const benutzer = await angemeldeterBenutzer();
@@ -50,16 +59,32 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
   const geraeteId = feld(formular, "geraete_id");
   if (!geraeteId) return { ok: false, fehler: "Die Geräte-ID ist ein Pflichtfeld." };
 
+  // Die Bauart entscheidet ueber Messbereich und Annahmeweg. Ein unbekannter
+  // Wert aus dem Browser wuerde stillschweigend als Eigenbau durchgehen und
+  // dessen Messgrenzen erben - deshalb wird er hier abgewiesen.
+  const bauartWert = feld(formular, "bauart") ?? STANDARD_BAUART;
+  const art = geraeteart(bauartWert);
+  if (!art) return { ok: false, fehler: "Unbekannte Gerätebauart." };
+
+  // Beim Fertiggeraet ist die Geraete-ID die Seriennummer vom Aufkleber -
+  // unter ihr meldet es sich. IMEI und ICCID sind zusaetzliche Suchwege, falls
+  // die Firmware die Seriennummer nicht mitschickt (siehe lib/messung.ts).
+  const iccid = feld(formular, "iccid");
+  const imei = feld(formular, "imei");
+
   const admin = adminClient();
 
   const { data: sensor, error } = await admin
     .from("sensor")
     .insert({
       geraete_id: geraeteId,
-      imei: feld(formular, "imei"),
-      iccid: feld(formular, "iccid"),
+      imei,
+      iccid,
       mobilfunkanbieter: feld(formular, "mobilfunkanbieter"),
       hardware_rev: feld(formular, "hardware_rev"),
+      bauart: art.kennung,
+      mess_min_mm: Number(feld(formular, "mess_min_mm") ?? art.mess_min_mm) || art.mess_min_mm,
+      mess_max_mm: Number(feld(formular, "mess_max_mm") ?? art.mess_max_mm) || art.mess_max_mm,
       montage_offset_mm: Number(feld(formular, "montage_offset_mm") ?? 0) || 0,
       intervall_minuten: Number(feld(formular, "intervall_minuten") ?? 360) || 360,
       bemerkung: feld(formular, "bemerkung"),
@@ -70,18 +95,29 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
 
   if (error) {
     const doppelt = error.code === "23505";
-    return { ok: false, fehler: doppelt ? "Diese Geräte-ID gibt es bereits." : error.message };
+    return {
+      ok: false,
+      fehler: doppelt
+        ? "Geräte-ID, IMEI oder ICCID gibt es schon an einem anderen Gerät."
+        : error.message,
+    };
   }
 
-  const geheimnis = randomBytes(32).toString("hex");
   const code = anlerncodeErzeugen();
-
-  await admin.from("sensor_geheimnis").insert({ sensor_id: sensor.id, geheimnis });
   await admin.from("anlerncode").insert({ sensor_id: sensor.id, code });
+
+  // Das HMAC-Geheimnis braucht nur die eigene Firmware. Einem Fertiggeraet
+  // eines auszustellen waere ein Schluessel, den nie jemand benutzt - und in
+  // der Anzeige ein Arbeitsschritt, den es nicht gibt.
+  let geheimnis: string | undefined;
+  if (art.annahme === "eigenbau") {
+    geheimnis = randomBytes(32).toString("hex");
+    await admin.from("sensor_geheimnis").insert({ sensor_id: sensor.id, geheimnis });
+  }
 
   revalidatePath("/intern/sensoren");
 
-  return { ok: true, geraete_id: sensor.geraete_id, anlerncode: code, geheimnis };
+  return { ok: true, geraete_id: sensor.geraete_id, anlerncode: code, geheimnis, bauart: art.kennung };
 }
 
 export interface KopplungErgebnis {

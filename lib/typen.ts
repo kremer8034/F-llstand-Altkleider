@@ -45,6 +45,7 @@ export interface ContainerZustand {
   abstand_mm: number | null;
   gemessen_am: string | null;
   batterie_v: number | null;
+  batterie_prozent: number | null;
   rssi: number | null;
 }
 
@@ -64,6 +65,8 @@ export interface Sensor {
   intervall_minuten: number;
   letzte_meldung_am: string | null;
   batterie_v: number | null;
+  /** Fertiggeraete melden Prozent statt Volt (0020_fertiggeraete.sql). */
+  batterie_prozent: number | null;
   rssi: number | null;
   angelernt_am: string | null;
   bemerkung: string | null;
@@ -77,6 +80,7 @@ export interface Messung {
   abstand_mm: number | null;
   fuellstand_prozent: number | null;
   batterie_v: number | null;
+  batterie_prozent: number | null;
   temperatur_c: number | null;
   rssi: number | null;
   anlass: Messanlass;

@@ -11,6 +11,7 @@
     "test:route": "node scripts/route-pruefen.mjs",
     "test:prognose": "node scripts/prognose-pruefen.mjs",
     "test:kosten": "node scripts/kosten-pruefen.mjs",
+    "test:dekoder": "node scripts/dekoder-pruefen.mjs",
     "sensor:senden": "node scripts/messung-senden.mjs",
     "anleitung": "node scripts/anleitung-erzeugen.js"
   },

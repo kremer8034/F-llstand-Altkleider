@@ -3,10 +3,13 @@ import { adminClient } from "@/lib/supabase/admin";
 /**
  * Annahme von Messwerten - unabhaengig davon, auf welchem Weg sie hereinkamen.
  *
- * Heute gibt es genau einen Weg: die eigene Firmware signiert ihre Meldung und
- * schickt sie an /api/ingest (siehe app/api/ingest/route.ts). Sollte spaeter
- * ein gekauftes Geraet dazukommen, kann es unser Signaturverfahren nicht - es
- * braucht einen zweiten Annahmeweg (docs/sensor-entscheidung.md, Abschnitt 5).
+ * Es gibt zwei Wege:
+ *
+ *   a) /api/ingest          - die eigene Firmware signiert ihre Meldung
+ *   b) /api/ingest/webhook  - Fertiggeraete, die das nicht koennen, weisen
+ *                             sich mit einem gemeinsamen Schluessel aus
+ *                             (docs/em400-tld.md)
+ *
  * Was in beiden Faellen gleich ist - Geraet finden, Werte pruefen, Messung
  * speichern -, steht deshalb hier und nicht in der Route.
  */
@@ -16,6 +19,7 @@ export interface Sensorzeile {
   id: string;
   container_id: string | null;
   status: string;
+  bauart: string;
   intervall_minuten: number;
   firmware: string | null;
 }
@@ -24,6 +28,8 @@ export interface Sensorzeile {
 export interface Messmeldung {
   abstand_mm?: unknown;
   batterie_v?: unknown;
+  /** Fertiggeraete melden ihren Ladezustand in Prozent statt in Volt. */
+  batterie_prozent?: unknown;
   temperatur_c?: unknown;
   rssi?: unknown;
   anlass?: unknown;
@@ -38,27 +44,45 @@ function zahl(wert: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const SENSORSPALTEN = "id, container_id, status, bauart, intervall_minuten, firmware";
+
 /**
  * Geraet anhand seiner Kennung suchen.
  *
- * Die eigene Firmware weist sich mit der Geraete-ID aus. Ein gekauftes Geraet
- * haette diese ID nicht, wohl aber die ICCID seiner SIM - deshalb sind beide
- * Wege hier vorgesehen. Genutzt wird derzeit nur der erste.
+ * Die eigene Firmware weist sich mit der Geraete-ID aus, die wir selbst
+ * vergeben. Ein gekauftes Geraet hat diese ID nicht - es nennt seine
+ * Seriennummer, seine IMEI oder die ICCID seiner SIM, je nach Hersteller und
+ * Firmwarestand. Deshalb wird der Reihe nach gesucht statt sich auf ein Feld
+ * zu verlassen: welches ankommt, entscheidet das Geraet, nicht wir.
+ *
+ * Die Seriennummer wird beim Aufnehmen in die Geraete-ID eingetragen (siehe
+ * lib/geraetearten.ts) - damit ist sie derselbe Suchweg wie beim Eigenbau.
  */
-export async function sensorZuKennung(
-  kennung: { geraete_id?: string | null; iccid?: string | null },
-): Promise<Sensorzeile | null> {
-  const spalte = kennung.geraete_id ? "geraete_id" : "iccid";
-  const wert = kennung.geraete_id ?? kennung.iccid;
-  if (!wert) return null;
+export async function sensorZuKennung(kennung: {
+  geraete_id?: string | null;
+  imei?: string | null;
+  iccid?: string | null;
+}): Promise<Sensorzeile | null> {
+  const wege: [string, string | null | undefined][] = [
+    ["geraete_id", kennung.geraete_id],
+    ["imei", kennung.imei],
+    ["iccid", kennung.iccid],
+  ];
 
-  const { data } = await adminClient()
-    .from("sensor")
-    .select("id, container_id, status, intervall_minuten, firmware")
-    .eq(spalte, wert)
-    .maybeSingle();
+  const admin = adminClient();
 
-  return (data as Sensorzeile | null) ?? null;
+  for (const [spalte, wert] of wege) {
+    if (!wert) continue;
+    const { data } = await admin
+      .from("sensor")
+      .select(SENSORSPALTEN)
+      .eq(spalte, wert)
+      .maybeSingle();
+
+    if (data) return data as unknown as Sensorzeile;
+  }
+
+  return null;
 }
 
 export type Speicherergebnis = { ok: true } | { ok: false; fehler: string };
@@ -88,12 +112,22 @@ export async function messungSpeichern(
     return ersatzZeitpunkt.toISOString();
   })();
 
+  // Prozentwerte werden gerundet und begrenzt: die Spalte ist smallint mit
+  // Pruefbedingung 0..100, und ein Geraet, das 101 meldet, soll deshalb nicht
+  // seine ganze Meldung verlieren.
+  const batterieProzent = (() => {
+    const n = zahl(daten.batterie_prozent);
+    if (n === null) return null;
+    return Math.min(100, Math.max(0, Math.round(n)));
+  })();
+
   const { error } = await admin.from("messung").insert({
     sensor_id: sensor.id,
     container_id: sensor.container_id,
     gemessen_am: gemessenAm,
     abstand_mm: zahl(daten.abstand_mm),
     batterie_v: zahl(daten.batterie_v),
+    batterie_prozent: batterieProzent,
     temperatur_c: zahl(daten.temperatur_c),
     rssi: zahl(daten.rssi),
     anlass: ANLAESSE.includes(String(daten.anlass) as (typeof ANLAESSE)[number])

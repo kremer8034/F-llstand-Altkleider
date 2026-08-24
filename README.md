@@ -53,6 +53,11 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - **Regeltouren**: „jeden zweiten Dienstag" als Wochentag, Wochenabstand und
   Ankerdatum. Daraus der nächste Planbesuch je Standort und die Frage, ob ein
   Stopp bis dahin gedeckt ist
+- **Bereitschaften**: mehrere Dispositionen unter einem Dach. Standorte und
+  Touren gehören einer Bereitschaft, und wer ihr zugeordnet ist, sieht und
+  plant nur sie – so ändern sich zwei Bereitschaften nicht gegenseitig die
+  Fahraufträge. Ohne Zuordnung bleibt alles wie bisher sichtbar
+  ([docs/bereitschaften.md](docs/bereitschaften.md))
 - **Tagestouren**: ein Fahrauftrag je Tag und Fahrer, mehrere Touren am selben
   Tag möglich. Aus einer Regeltour entsteht mit einem Klick eine Tour samt
   Standorten; Fahrer zuweisen, Stopps aufnehmen und streichen,
@@ -146,7 +151,9 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 | [docs/anlernprozess.md](docs/anlernprozess.md) | Wie Sensor und Container verheiratet werden |
 | [docs/prognose.md](docs/prognose.md) | Prognose der nächsten Leerung und Leerungsrhythmus |
 | [docs/tourenplanung.md](docs/tourenplanung.md) | Standorte, Kosten je Stopp, Regeltouren, QR-Code für Bürger – Rechenweg und Entscheidungslogik |
-| [docs/api.md](docs/api.md) | Messwertannahme, Provisionierung, öffentliches JSON |
+| [docs/bereitschaften.md](docs/bereitschaften.md) | Mehrere Dispositionen unter einem Dach: Standorte und Touren je Bereitschaft, Rechte auf Gruppenebene |
+| [docs/em400-tld.md](docs/em400-tld.md) | Milesight EM400-TLD (NB-IoT) anbinden – Fertiggerät ohne Lötkolben |
+| [docs/api.md](docs/api.md) | Messwertannahme (eigene Firmware und Fertiggeräte), Provisionierung, öffentliches JSON |
 | [docs/betrieb.md](docs/betrieb.md) | Einrichtung bei Supabase und Vercel, Rollen, Schwellwerte, Datenschutz |
 | [docs/docker.md](docs/docker.md) | Betrieb im eigenen Haus mit Docker |
 | [docs/dienstleistungsdatenbank.md](docs/dienstleistungsdatenbank.md) | Import heute, Live-Anbindung später |
@@ -154,14 +161,20 @@ Vercel, erstes Konto – steht in **[docs/betrieb.md](docs/betrieb.md)**.
 
 ## Sicherheit in Kurzform
 
-- Jedes Gerät signiert seine Messungen mit einem eigenen Schlüssel
-  (HMAC-SHA256); der Zeitstempel verhindert das erneute Einspielen
-  mitgeschnittener Meldungen.
+- Jedes Gerät der eigenen Firmware signiert seine Messungen mit einem eigenen
+  Schlüssel (HMAC-SHA256); der Zeitstempel verhindert das erneute Einspielen
+  mitgeschnittener Meldungen. Fertiggeräte können das nicht und melden über
+  einen zweiten, mit einem gemeinsamen Schlüssel geschützten Weg – was das
+  bedeutet, steht offen in [docs/em400-tld.md](docs/em400-tld.md).
 - Die Gerätegeheimnisse liegen in einer Tabelle **ohne jede Zugriffsregel** –
   auch angemeldete Konten kommen nicht heran, nur der Server.
 - Die Zugriffsrechte hängen an Row-Level-Security-Regeln in der Datenbank, nicht
   an der Oberfläche. Die Rolle eines Kontos setzt ausschließlich die
   Benutzerverwaltung – sie lässt sich nicht beim Anmelden mitgeben.
+- Dasselbe gilt für die **Bereitschaften**: sieht ein Konto nur seine eigene
+  Gruppe, dann nicht, weil eine Seite filtert, sondern weil die Datenbank die
+  übrigen Zeilen nicht herausgibt. Eine vergessene Filterzeile in einer neuen
+  Ansicht kann die Trennung deshalb nicht aufheben.
 - Die Selbstregistrierung gehört abgeschaltet: Zugänge legt die Administration
   an. Im Docker-Betrieb ist das voreingestellt, bei Supabase Cloud ist es ein
   Schalter (siehe [docs/betrieb.md](docs/betrieb.md)).
