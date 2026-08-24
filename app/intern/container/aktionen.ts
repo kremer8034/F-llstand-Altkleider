@@ -121,7 +121,15 @@ export async function containerSpeichern(formular: FormData) {
   if (!darfBearbeiten(benutzer.profil.rolle)) redirect("/intern?grund=keine-berechtigung");
 
   const id = text(formular, "id");
-  const daten = {
+
+  // Beim Anlegen aus einem Standort heraus kommt dessen Kennung als
+  // verstecktes Feld mit. Beim Bearbeiten steht sie NICHT im Formular - die
+  // Zuordnung wird dort ueber den Standort gepflegt, und ein fehlendes Feld
+  // duerfte sie nicht stillschweigend loeschen. Deshalb wird sie nur
+  // geschrieben, wenn sie auch mitgeschickt wurde.
+  const standortId = text(formular, "standort_id");
+
+  const daten: Record<string, unknown> = {
     nummer: text(formular, "nummer") ?? "",
     externe_id: text(formular, "externe_id"),
     bezeichnung: text(formular, "bezeichnung"),
@@ -141,6 +149,7 @@ export async function containerSpeichern(formular: FormData) {
   };
 
   if (!daten.nummer) throw new Error("Die Containernummer ist ein Pflichtfeld.");
+  if (standortId) daten.standort_id = standortId;
 
   const supabase = await serverClient();
 
@@ -154,9 +163,15 @@ export async function containerSpeichern(formular: FormData) {
   }
 
   const { data, error } = await supabase.from("container").insert(daten).select("id").single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error(`Die Containernummer „${daten.nummer}" gibt es bereits.`);
+    }
+    throw new Error(error.message);
+  }
 
   revalidatePath("/intern/container");
   revalidatePath("/intern/standorte");
+  if (standortId) revalidatePath(`/intern/standorte/${standortId}`);
   redirect(`/intern/container/${data.id}`);
 }
