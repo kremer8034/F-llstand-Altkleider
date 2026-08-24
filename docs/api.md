@@ -120,6 +120,43 @@ sich auch ein Gerät, das nach einem Funkausfall seinen Puffer nachreicht.
 
 ---
 
+## POST /api/ingest/webhook – Messwerte von Fertiggeräten
+
+Zweiter Annahmeweg für gekaufte Geräte, die unser Signaturverfahren nicht
+können – etwa den Milesight EM400-TLD (NB-IoT). Ausführlich in
+[em400-tld.md](em400-tld.md).
+
+```
+X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>
+{ "sn": "6746D3486383", "data": { "battery": 96, "distance": 812, "temperature": 14.2 } }
+```
+
+Der Schlüssel gilt für **alle** Geräte gemeinsam. Das ist schwächer als ein
+Geheimnis je Gerät, und mehr gibt die Sache nicht her: ein Fertiggerät kann nur
+eine feste Kopfzeile mitschicken. Wer den Schlüssel hat, kann für jedes
+angelernte Gerät Messwerte einreichen – ein Gerät übernehmen kann er nicht, und
+schlimmstenfalls steht ein falscher Füllstand in der Liste, den die nächste
+echte Meldung überschreibt. Deshalb: **Adresse nicht in Handbücher, Schlüssel
+lang und zufällig.**
+
+Welches Gerät gemeldet hat, steht in der Nutzlast – Seriennummer, IMEI oder
+ICCID, in dieser Reihenfolge gesucht. Die Feldnamen sind zwischen
+Firmwareständen nicht einheitlich; der Dekoder kennt deshalb mehrere
+Schreibweisen und liest zusätzlich die HEX-Form. Der unveränderte Rumpf landet
+in `messung.roh`.
+
+| Antwort | Bedeutung |
+|---|---|
+| `{"ok":true,"gespeichert":true}` | angekommen und abgelegt |
+| `{"ok":true,"gespeichert":false}` | Lebenszeichen ohne Messwert – kein Fehler |
+| **404** mit `gesucht` | Gerät nicht angelernt; `gesucht` nennt die Kennungen aus der Meldung |
+| **401** | Schlüssel falsch |
+| **503** | `INGEST_WEBHOOK_TOKEN` nicht gesetzt – der Weg ist zu |
+
+Ohne Gerät prüfbar mit `npm run test:dekoder`.
+
+---
+
 ## POST /api/geraete/registrieren – Erstinbetriebnahme
 
 Holt einmalig das Gerätegeheimnis ab, wenn es nicht mitgeflasht wurde.

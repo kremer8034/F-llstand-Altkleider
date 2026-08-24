@@ -48,6 +48,7 @@ export async function standortSpeichern(formular: FormData) {
     zufahrt: text(formular, "zufahrt"),
     bemerkung: text(formular, "bemerkung"),
     entsorger_id: text(formular, "entsorger_id"),
+    gruppe_id: text(formular, "gruppe_id"),
     aktiv: formular.get("aktiv") === "on",
   };
 
@@ -85,6 +86,75 @@ export async function containerZuordnen(formular: FormData) {
 
   if (error) throw new Error(error.message);
   alleSeitenNeu(standortId);
+}
+
+/**
+ * Einen neuen Container an diesem Standort anlegen.
+ *
+ * Bisher fuehrte der Weg ueber "Neuer Container", das leere Formular und das
+ * Abtippen von Adresse und Koordinaten - und danach zurueck zum Standort, um
+ * ihn dort zuzuordnen. Drei Schritte fuer einen Vorgang, bei dem die Haelfte
+ * der Angaben bereits danebensteht.
+ *
+ * Hier stehen sie ohnehin: Adresse, Ort und Koordinaten kommen vom Standort,
+ * die Zuordnung gleich mit. Einzutragen bleibt, was den Container vom Standort
+ * unterscheidet - seine Nummer.
+ *
+ * Die Adresse wird KOPIERT und nicht verwiesen. Das ist Absicht: der Container
+ * fuehrt seine eigene Anschrift, weil er den Standort wechseln kann und die
+ * Papiere der Dienstleistungsdatenbank an ihm haengen. Wandert er weg, soll
+ * seine alte Anschrift nicht ruecklings mitwandern.
+ */
+export async function containerAnlegenAmStandort(formular: FormData) {
+  await berechtigt();
+
+  const standortId = text(formular, "standort_id");
+  const nummer = text(formular, "nummer");
+  if (!standortId) return;
+  if (!nummer) throw new Error("Die Containernummer ist ein Pflichtfeld.");
+
+  const supabase = await serverClient();
+
+  const { data: standort } = await supabase
+    .from("standort")
+    .select("id, name, strasse, plz, ort, lat, lng")
+    .eq("id", standortId)
+    .maybeSingle();
+
+  if (!standort) throw new Error("Diesen Standort gibt es nicht (mehr).");
+
+  const { data, error } = await supabase
+    .from("container")
+    .insert({
+      nummer,
+      bezeichnung: text(formular, "bezeichnung") ?? standort.name,
+      standort_id: standort.id,
+      strasse: standort.strasse,
+      plz: standort.plz,
+      ort: standort.ort,
+      lat: standort.lat,
+      lng: standort.lng,
+      typ: text(formular, "typ") ?? "Depotcontainer",
+      volumen_liter: zahl(formular, "volumen_liter"),
+      status: "aktiv",
+      oeffentlich: formular.get("oeffentlich") === "on",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // 23505 = Eindeutigkeitsverletzung. Die Containernummer ist die Kennung,
+    // unter der im Haus ueber den Container gesprochen wird - zweimal
+    // dieselbe waere von da an eine Verwechslung in jedem Anruf.
+    if (error.code === "23505") {
+      throw new Error(`Die Containernummer „${nummer}" gibt es bereits.`);
+    }
+    throw new Error(error.message);
+  }
+
+  alleSeitenNeu(standort.id);
+  revalidatePath(`/intern/container/${data.id}`);
+  redirect(`/intern/container/${data.id}`);
 }
 
 /**

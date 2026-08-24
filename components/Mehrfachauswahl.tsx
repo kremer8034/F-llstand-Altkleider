@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 
 export interface Auswahleintrag {
   id: string;
@@ -8,8 +9,22 @@ export interface Auswahleintrag {
   titel: string;
   /** Zweite Zeile, kleiner - Adresse, Ort, Nummer. */
   unterzeile?: string | null;
-  /** Rechts stehender Zusatz - Füllstand, Zustand, Zahl der Container. */
+  /** Rechts stehender Zusatz - Zustand, Zahl der Container. */
   hinweis?: string | null;
+  /**
+   * Gefüllter Anteil in Prozent. Ist er gesetzt, steht rechts ein Balken
+   * statt einer blossen Zahl - "84 %" neben einem roten Balken sagt in einem
+   * Blick, was "Pflicht" erst nach dem Nachdenken sagt.
+   */
+  fuellstand_prozent?: number | null;
+  /** Hebt den Eintrag hervor - für das, was heute mit muss. */
+  dringend?: boolean;
+  /**
+   * Beim Aufbau bereits angehakt. Für Formulare, in denen die Auswahl den
+   * vollständigen neuen Stand bildet: dort muss der aktuelle Stand als
+   * Vorauswahl dastehen, sonst löscht das Absenden ihn.
+   */
+  vorgewaehlt?: boolean;
   /** Zusätzlicher Text, der bei der Suche mitzählt, aber nicht angezeigt wird. */
   suchtext?: string | null;
 }
@@ -52,7 +67,12 @@ export function Mehrfachauswahl({
   hoeheKlasse?: string;
 }) {
   const [suche, setSuche] = useState("");
-  const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
+  // Nur beim Aufbau ausgewertet: die Vorauswahl ist der Anfangszustand, nicht
+  // eine Fessel. Wer die Liste mit anderen Vorgaben neu bestücken will, gibt
+  // der Komponente einen anderen `key` - dann baut React sie neu auf.
+  const [gewaehlt, setGewaehlt] = useState<Set<string>>(
+    () => new Set(eintraege.filter((e) => e.vorgewaehlt).map((e) => e.id)),
+  );
   const gruppenId = useId();
 
   const passend = useMemo(() => {
@@ -163,13 +183,34 @@ export function Mehrfachauswahl({
                       className="mt-0.5 h-4 w-4 shrink-0"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{e.titel}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{e.titel}</span>
+                        {e.dringend && (
+                          <span
+                            className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
+                            style={{ background: "var(--ernst)" }}
+                          >
+                            muss mit
+                          </span>
+                        )}
+                      </span>
                       {e.unterzeile && (
                         <span className="block text-xs text-ink-3">{e.unterzeile}</span>
                       )}
                     </span>
-                    {e.hinweis && (
-                      <span className="zahl shrink-0 text-xs text-ink-3">{e.hinweis}</span>
+                    {e.fuellstand_prozent !== undefined && e.fuellstand_prozent !== null ? (
+                      <span className="w-32 shrink-0">
+                        <Fuellstandsbalken prozent={e.fuellstand_prozent} />
+                        {e.hinweis && (
+                          <span className="mt-0.5 block text-right text-xs text-ink-3">
+                            {e.hinweis}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      e.hinweis && (
+                        <span className="zahl shrink-0 text-xs text-ink-3">{e.hinweis}</span>
+                      )
                     )}
                   </label>
                 </li>

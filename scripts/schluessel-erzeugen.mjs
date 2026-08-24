@@ -48,6 +48,7 @@ const zeilen = [
   `ANON_KEY=${jwt("anon", jwtGeheimnis)}`,
   `SERVICE_ROLE_KEY=${jwt("service_role", jwtGeheimnis)}`,
   `GERAETE_PROVISIONIERUNG_SCHLUESSEL=${randomBytes(32).toString("hex")}`,
+  `INGEST_WEBHOOK_TOKEN=${randomBytes(32).toString("hex")}`,
   `CRON_SECRET=${passwort()}`,
   "",
 ];

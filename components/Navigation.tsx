@@ -25,6 +25,7 @@ const PUNKTE: { pfad: string; text: string; rollen?: Benutzerrolle[] }[] = [
   { pfad: "/intern/sensoren", text: "Sensoren" },
   { pfad: "/intern/auswertung", text: "Auswertung" },
   { pfad: "/intern/entsorger", text: "Bauhöfe", rollen: ["admin", "dispo"] },
+  { pfad: "/intern/gruppen", text: "Bereitschaften", rollen: ["admin"] },
   { pfad: "/intern/benutzer", text: "Benutzer", rollen: ["admin"] },
 ];
 

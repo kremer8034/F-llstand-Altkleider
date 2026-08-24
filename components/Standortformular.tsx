@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { standortSpeichern } from "@/app/intern/standorte/aktionen";
-import type { Entsorger, Standort } from "@/lib/typen";
+import type { Entsorger, Gruppe, Standort } from "@/lib/typen";
 
 /** Ein Formular für Anlegen und Bearbeiten - Unterschied ist nur die id. */
 export function Standortformular({
   standort,
   entsorger = [],
+  gruppen = [],
 }: {
   standort?: Standort;
   entsorger?: Entsorger[];
+  gruppen?: Pick<Gruppe, "id" | "name">[];
 }) {
   const s = standort;
 
@@ -132,6 +134,31 @@ export function Standortformular({
             <p className="mt-1 text-xs text-ink-3">
               Ist ein Bauhof hinterlegt, lässt das Fahrpersonal den Müll stehen und ruft an. Ohne
               Eintrag nimmt es ihn mit.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="gruppe_id" className="mb-1 block text-sm font-medium">
+              Betreuende Bereitschaft
+            </label>
+            <select
+              id="gruppe_id"
+              name="gruppe_id"
+              defaultValue={s?.gruppe_id ?? ""}
+              className="feld"
+              disabled={gruppen.length === 0}
+            >
+              <option value="">– keine, gemeinsame Zuständigkeit –</option>
+              {gruppen.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-3">
+              {gruppen.length === 0
+                ? "Noch keine Bereitschaft angelegt – der Platz gehört damit allen."
+                : "Entscheidet, welche Disposition diesen Platz sieht und verplanen darf. Ohne Eintrag sehen ihn alle."}
             </p>
           </div>
 

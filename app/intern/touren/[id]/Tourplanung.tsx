@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Mehrfachauswahl } from "@/components/Mehrfachauswahl";
 import { adresse } from "@/lib/fuellstand";
@@ -82,6 +82,7 @@ export function Tourplanung({
   zeilen,
   kandidaten,
   fahrer,
+  gruppen,
   betriebshof,
   saetze,
   bearbeiten,
@@ -89,14 +90,66 @@ export function Tourplanung({
   tour: Tour;
   fortschritt: TourFortschritt | null;
   zeilen: Stoppzeile[];
-  kandidaten: { id: string; name: string; ort: string | null; hinweis: string | null }[];
+  kandidaten: {
+    id: string;
+    name: string;
+    ort: string | null;
+    hinweis: string | null;
+    pflicht: boolean;
+    fuellstand_prozent: number | null;
+    ertrag_liter: number | null;
+    container_gesamt: number;
+  }[];
   fahrer: { id: string; name: string; rolle: string }[];
+  gruppen: { id: string; name: string }[];
   betriebshof: (Ort & { name?: string }) | null;
   saetze: Kostensaetze;
   bearbeiten: boolean;
 }) {
   const [rundfahrt, setRundfahrt] = useState(true);
   const [abStart, setAbStart] = useState(betriebshof !== null);
+
+  /**
+   * Die Kopfdaten der Tour stehen in gesteuerten Feldern, nicht in
+   * `defaultValue`.
+   *
+   * Das war die Ursache eines handfesten Fehlers: React setzt ein Formular
+   * nach einer Server-Aktion zurück (`requestFormReset`). Ein Zurücksetzen
+   * bringt jedes Feld auf seinen Zustand im HTML - bei einer Auswahlliste
+   * also auf die Option mit dem `selected`-Merkmal. Das ist die, die beim
+   * Aufbau der Seite gesetzt war, nämlich „niemand". Der neu ausgewählte
+   * Fahrer wurde zwar gespeichert, die Anzeige sprang danach aber sichtbar
+   * zurück - und wer daraufhin ein zweites Mal auf „Übernehmen" drückte,
+   * schickte den zurückgesetzten, leeren Wert ab und löschte damit die
+   * Zuweisung, die eben noch richtig gespeichert war.
+   *
+   * Mit gesteuerten Feldern gibt es diesen Zustand nicht: was angezeigt
+   * wird, steht in React, und der Abgleich mit dem Server läuft über den
+   * useEffect darunter. Angezeigt ist damit immer das, was gespeichert ist.
+   */
+  const [name, setName] = useState(tour.name ?? "");
+  const [datum, setDatum] = useState(tour.datum);
+  const [fahrerId, setFahrerId] = useState(tour.fahrer_id ?? "");
+  const [gruppeId, setGruppeId] = useState(tour.gruppe_id ?? "");
+  const [bemerkung, setBemerkung] = useState(tour.bemerkung ?? "");
+
+  // Nach dem Speichern kommt die Seite mit den neuen Werten zurück; von da an
+  // gelten sie. Ohne diesen Abgleich bliebe die Anzeige auf dem Stand des
+  // ersten Aufbaus stehen.
+  useEffect(() => {
+    setName(tour.name ?? "");
+    setDatum(tour.datum);
+    setFahrerId(tour.fahrer_id ?? "");
+    setGruppeId(tour.gruppe_id ?? "");
+    setBemerkung(tour.bemerkung ?? "");
+  }, [tour.name, tour.datum, tour.fahrer_id, tour.gruppe_id, tour.bemerkung]);
+
+  const geaendert =
+    name !== (tour.name ?? "") ||
+    datum !== tour.datum ||
+    fahrerId !== (tour.fahrer_id ?? "") ||
+    gruppeId !== (tour.gruppe_id ?? "") ||
+    bemerkung !== (tour.bemerkung ?? "");
 
   const laeuft = tour.status === "laeuft";
   const beendet = tour.status === "abgeschlossen" || tour.status === "abgebrochen";
@@ -170,6 +223,7 @@ export function Tourplanung({
   );
 
   const ertragGesamt = zeilen.reduce((s, z) => s + Number(z.ertrag_liter ?? 0), 0);
+  const pflichtOffen = kandidaten.filter((k) => k.pflicht).length;
 
   return (
     <div className="space-y-4">
@@ -228,7 +282,7 @@ export function Tourplanung({
           )}
         </div>
 
-        {/* Fahrer, Name, Tag */}
+        {/* Fahrer, Name, Tag, Bereitschaft */}
         {bearbeiten && (
           <form action={tourAendern} className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-4">
             <input type="hidden" name="id" value={tour.id} />
@@ -236,7 +290,13 @@ export function Tourplanung({
               <label htmlFor="name" className="mb-1 block text-xs font-medium text-ink-2">
                 Bezeichnung
               </label>
-              <input id="name" name="name" defaultValue={tour.name ?? ""} className="feld" />
+              <input
+                id="name"
+                name="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="feld"
+              />
             </div>
             <div>
               <label htmlFor="datum" className="mb-1 block text-xs font-medium text-ink-2">
@@ -246,7 +306,8 @@ export function Tourplanung({
                 id="datum"
                 name="datum"
                 type="date"
-                defaultValue={tour.datum}
+                value={datum}
+                onChange={(e) => setDatum(e.target.value)}
                 className="feld zahl"
               />
             </div>
@@ -257,7 +318,8 @@ export function Tourplanung({
               <select
                 id="fahrer_id"
                 name="fahrer_id"
-                defaultValue={tour.fahrer_id ?? ""}
+                value={fahrerId}
+                onChange={(e) => setFahrerId(e.target.value)}
                 className="feld"
               >
                 <option value="">– niemand –</option>
@@ -269,25 +331,60 @@ export function Tourplanung({
                 ))}
               </select>
             </div>
-            <div className="sm:col-span-4">
+            <div className="sm:col-span-2">
+              <label htmlFor="gruppe_id" className="mb-1 block text-xs font-medium text-ink-2">
+                Bereitschaft
+              </label>
+              <select
+                id="gruppe_id"
+                name="gruppe_id"
+                value={gruppeId}
+                onChange={(e) => setGruppeId(e.target.value)}
+                className="feld"
+                disabled={gruppen.length === 0}
+              >
+                <option value="">– keine, gemeinsame Tour –</option>
+                {gruppen.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-3">
+                {gruppen.length === 0
+                  ? "Noch keine Bereitschaft angelegt."
+                  : "Entscheidet, welche Disposition diese Tour sieht und ändern darf."}
+              </p>
+            </div>
+            <div className="sm:col-span-2">
               <label htmlFor="bemerkung" className="mb-1 block text-xs font-medium text-ink-2">
                 Hinweis für das Fahrpersonal
               </label>
               <input
                 id="bemerkung"
                 name="bemerkung"
-                defaultValue={tour.bemerkung ?? ""}
+                value={bemerkung}
+                onChange={(e) => setBemerkung(e.target.value)}
                 className="feld"
                 placeholder="z. B. Schlüssel für Poller liegt im Fahrzeug"
               />
             </div>
-            <div className="sm:col-span-4">
-              <button type="submit" className="knopf-sekundaer">
+            <div className="sm:col-span-4 flex flex-wrap items-center gap-3">
+              <button type="submit" className={geaendert ? "knopf-primaer" : "knopf-sekundaer"}>
                 Übernehmen
               </button>
-              {!tour.fahrer_id && (
-                <span className="ml-3 text-xs" style={{ color: "var(--ernst)" }}>
+              {geaendert && (
+                <span className="text-xs text-ink-2">Noch nicht gespeichert.</span>
+              )}
+              {!geaendert && !tour.fahrer_id && (
+                <span className="text-xs" style={{ color: "var(--ernst)" }}>
                   Ohne Fahrer erscheint die Tour in keiner Fahreransicht.
+                </span>
+              )}
+              {!geaendert && tour.fahrer_id && (
+                <span className="text-xs text-ink-3">
+                  Zugewiesen an{" "}
+                  {fahrer.find((f) => f.id === tour.fahrer_id)?.name ?? "unbekanntes Konto"}.
                 </span>
               )}
             </div>
@@ -506,9 +603,15 @@ export function Tourplanung({
         <section className="karte-flaeche p-4">
           <h2 className="font-semibold">Stopps aufnehmen</h2>
           <p className="mt-1 text-sm text-ink-2">
-            Fällige Standorte stehen oben, mit dem Grund daneben. Neue Stopps kommen ans Ende –
-            danach die Reihenfolge neu rechnen lassen.
+            Fällige Standorte stehen oben, mit Füllstand und Grund daneben. Neue Stopps kommen ans
+            Ende – danach die Reihenfolge neu rechnen lassen.
           </p>
+          {pflichtOffen > 0 && (
+            <p className="mt-1 text-sm" style={{ color: "var(--ernst)" }}>
+              {pflichtOffen} {pflichtOffen === 1 ? "Standort muss" : "Standorte müssen"} heute noch
+              mit und {pflichtOffen === 1 ? "steht" : "stehen"} auf keiner Tour.
+            </p>
+          )}
           <form action={stoppsHinzufuegen} className="mt-3 space-y-3">
             <input type="hidden" name="tour_id" value={tour.id} />
             <Mehrfachauswahl
@@ -517,9 +620,19 @@ export function Tourplanung({
               eintraege={kandidaten.map((k) => ({
                 id: k.id,
                 titel: k.name,
-                unterzeile: k.ort,
+                unterzeile: [
+                  k.ort,
+                  `${k.container_gesamt} Container`,
+                  k.ertrag_liter ? `${L.format(k.ertrag_liter)} l zu holen` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
                 hinweis: k.hinweis,
-                suchtext: k.hinweis,
+                fuellstand_prozent: k.fuellstand_prozent,
+                dringend: k.pflicht,
+                suchtext: [k.hinweis, k.pflicht ? "pflicht muss mit" : null]
+                  .filter(Boolean)
+                  .join(" "),
               }))}
             />
             <button type="submit" className="knopf-primaer">

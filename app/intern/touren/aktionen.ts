@@ -70,6 +70,7 @@ export async function tourAnlegen(formular: FormData) {
       name: text(formular, "name"),
       datum,
       fahrer_id: fahrerId,
+      gruppe_id: text(formular, "gruppe_id"),
       angelegt_von: benutzer.id,
     })
     .select("id")
@@ -80,7 +81,15 @@ export async function tourAnlegen(formular: FormData) {
   redirect(`/intern/touren/${data.id}`);
 }
 
-/** Name, Tag, Fahrer und Bemerkung aendern. */
+/**
+ * Name, Tag, Fahrer, Bereitschaft und Bemerkung aendern.
+ *
+ * Das Ergebnis wird ausgewertet, nicht nur der Fehler. Ohne `.select()` meldet
+ * PostgREST auch dann Erfolg, wenn die Zugriffsregeln die Zeile gar nicht
+ * herausgeben - die Aenderung waere lautlos verpufft, und die Seite zeigte
+ * anschliessend wieder den alten Stand, ohne dass jemand erfaehrt, warum.
+ * Genau so etwas sucht man dann an der falschen Stelle.
+ */
 export async function tourAendern(formular: FormData) {
   await berechtigt();
 
@@ -90,14 +99,21 @@ export async function tourAendern(formular: FormData) {
   const daten: Record<string, unknown> = {
     name: text(formular, "name"),
     fahrer_id: text(formular, "fahrer_id"),
+    gruppe_id: text(formular, "gruppe_id"),
     bemerkung: text(formular, "bemerkung"),
   };
   const datum = text(formular, "datum");
   if (datum) daten.datum = datum;
 
   const supabase = await serverClient();
-  const { error } = await supabase.from("tour").update(daten).eq("id", id);
+  const { data, error } = await supabase.from("tour").update(daten).eq("id", id).select("id");
   if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Die Tour konnte nicht geändert werden. Vermutlich gehört sie einer Bereitschaft, " +
+        "für die dieser Zugang keine Rechte hat.",
+    );
+  }
 
   alleSeitenNeu(id);
 }

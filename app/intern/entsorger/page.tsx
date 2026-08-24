@@ -40,6 +40,18 @@ export default async function EntsorgerSeite() {
 
   const ohneZuordnung = standorte.filter((s) => !s.entsorger_id).length;
 
+  // Alle Ortsnamen, die tatsächlich in den Stammdaten stehen – die Vorlage für
+  // die Auswahl im Formular. Getippt wird die Gemeinde damit nicht mehr:
+  // „Großheubach", „Grossheubach" und „Groß-Heubach" sind für den Abgleich
+  // drei verschiedene Gemeinden, und der Abgleich läuft über genau dieses
+  // Feld (siehe entsorgerAufGemeindeAnwenden in ../standorte/aktionen.ts).
+  const orte = new Map<string, number>();
+  standorte.forEach((s) => {
+    const ort = s.ort?.trim();
+    if (!ort) return;
+    orte.set(ort, (orte.get(ort) ?? 0) + 1);
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -64,6 +76,9 @@ export default async function EntsorgerSeite() {
           .map(([gemeinde, anzahl]) => ({ gemeinde, anzahl }))}
         ohneZuordnung={ohneZuordnung}
         standorteGesamt={standorte.length}
+        orte={[...orte.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0], "de"))
+          .map(([name, anzahl]) => ({ name, anzahl }))}
       />
     </div>
   );

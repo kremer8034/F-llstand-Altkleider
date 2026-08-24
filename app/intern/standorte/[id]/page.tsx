@@ -20,6 +20,7 @@ import type {
   StandortZustand,
 } from "@/lib/typen";
 import {
+  containerAnlegenAmStandort,
   containerLoesen,
   containerZuordnen,
   entsorgerZuordnen,
@@ -373,11 +374,83 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
         )}
       </section>
 
+      {/* Neuen Container anlegen – mit den Angaben dieses Platzes */}
+      {bearbeiten && (
+        <section className="karte-flaeche p-4">
+          <h2 className="font-semibold">Neuen Container hier aufstellen</h2>
+          <p className="mt-1 max-w-3xl text-sm text-ink-2">
+            Adresse, Ort und Koordinaten dieses Standorts werden übernommen – einzutragen bleibt
+            die Nummer. Alles Weitere (Leerwert, Sensor, Aufstelldatum) steht danach auf der Seite
+            des Containers.
+          </p>
+          <p className="mt-1 text-sm text-ink-3">
+            Wird übernommen: {adresse(s) || "keine Adresse hinterlegt"}
+            {s.lat !== null && s.lng !== null
+              ? ` · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`
+              : " · keine Koordinaten – die Tourenplanung nimmt dann den Mittelwert der übrigen Container"}
+          </p>
+
+          <form action={containerAnlegenAmStandort} className="mt-3 grid gap-3 sm:grid-cols-4">
+            <input type="hidden" name="standort_id" value={s.id} />
+            <div>
+              <label htmlFor="neu_nummer" className="mb-1 block text-xs font-medium text-ink-2">
+                Containernummer *
+              </label>
+              <input id="neu_nummer" name="nummer" required className="feld zahl" />
+            </div>
+            <div>
+              <label htmlFor="neu_bezeichnung" className="mb-1 block text-xs font-medium text-ink-2">
+                Bezeichnung
+              </label>
+              <input
+                id="neu_bezeichnung"
+                name="bezeichnung"
+                className="feld"
+                placeholder={s.name}
+              />
+            </div>
+            <div>
+              <label htmlFor="neu_typ" className="mb-1 block text-xs font-medium text-ink-2">
+                Typ
+              </label>
+              <input id="neu_typ" name="typ" defaultValue="Depotcontainer" className="feld" />
+            </div>
+            <div>
+              <label htmlFor="neu_volumen" className="mb-1 block text-xs font-medium text-ink-2">
+                Volumen (Liter)
+              </label>
+              <input
+                id="neu_volumen"
+                name="volumen_liter"
+                type="number"
+                className="feld zahl"
+                placeholder="2500"
+              />
+            </div>
+            <div className="sm:col-span-4 flex flex-wrap items-center gap-4">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" name="oeffentlich" defaultChecked />
+                Auf der öffentlichen Karte anzeigen
+              </label>
+              <button type="submit" className="knopf-primaer">
+                Anlegen und öffnen
+              </button>
+              <Link
+                href={`/intern/container/neu?standort=${s.id}`}
+                className="text-sm text-ink-3 underline underline-offset-2"
+              >
+                Lieber gleich alle Felder ausfüllen
+              </Link>
+            </div>
+          </form>
+        </section>
+      )}
+
       {/* Zuordnen und Zusammenführen */}
       {bearbeiten && (
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="karte-flaeche p-4">
-            <h2 className="font-semibold">Container hierher holen</h2>
+            <h2 className="font-semibold">Vorhandenen Container hierher holen</h2>
             <p className="mt-1 text-sm text-ink-2">
               Suchen, ankreuzen, zuordnen. Ein Container verlässt damit seinen bisherigen Standort.
             </p>

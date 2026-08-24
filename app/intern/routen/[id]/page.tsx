@@ -5,7 +5,7 @@ import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
 import { Mehrfachauswahl } from "@/components/Mehrfachauswahl";
 import { Routenformular } from "@/components/Routenformular";
-import type { Route, StandortPlanung } from "@/lib/typen";
+import type { Gruppe, Route, StandortPlanung } from "@/lib/typen";
 import { routeLoeschen, standortEntfernen, standorteZuordnen } from "../aktionen";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +33,11 @@ export default async function Routendetail({ params }: { params: Promise<{ id: s
   if (!roh) notFound();
   const r = roh as Route;
 
-  const [zuordnungAntwort, planungAntwort, alleAntwort] = await Promise.all([
+  const [zuordnungAntwort, planungAntwort, alleAntwort, gruppenAntwort] = await Promise.all([
     supabase.from("route_standort").select("standort_id, position").eq("route_id", id),
     supabase.from("standort_planung").select("*"),
     supabase.from("standort").select("id, name, ort").eq("aktiv", true).order("name").limit(1000),
+    supabase.from("gruppe").select("id, name").eq("aktiv", true).order("name"),
   ]);
 
   const zugeordnet = new Set(
@@ -87,7 +88,10 @@ export default async function Routendetail({ params }: { params: Promise<{ id: s
 
         {bearbeiten && (
           <section className="lg:col-span-2">
-            <Routenformular route={r} />
+            <Routenformular
+              route={r}
+              gruppen={(gruppenAntwort.data ?? []) as Pick<Gruppe, "id" | "name">[]}
+            />
           </section>
         )}
       </div>

@@ -39,36 +39,63 @@ function tagVerschieben(datum: string, tage: number): string {
 export function Tagesuebersicht({
   datum,
   touren,
+  gruppen,
+  gruppeJeTour,
+  gruppeJeStandort,
   faellig,
   verplant,
   regeltourenHeute,
-  fahrer,
   bearbeiten,
 }: {
   datum: string;
   touren: TourFortschritt[];
+  gruppen: { id: string; name: string }[];
+  /** Bereitschaft je Tour – die Fortschrittsansicht führt die Spalte nicht. */
+  gruppeJeTour: Record<string, string | null>;
+  gruppeJeStandort: Record<string, string | null>;
   faellig: Tourzeile[];
   verplant: Record<string, { tour_id: string; status: string }>;
   regeltourenHeute: { id: string; name: string; rhythmus: string; schonGeplant: boolean }[];
-  fahrer: { id: string; name: string; rolle: string }[];
   bearbeiten: boolean;
 }) {
   const router = useRouter();
   const [zielTour, setZielTour] = useState<string>("");
+  // "" = alle, "__ohne__" = ohne Bereitschaft, sonst eine Gruppen-Kennung.
+  const [gruppe, setGruppe] = useState("");
+
+  const gruppenName = new Map(gruppen.map((g) => [g.id, g.name]));
+
+  /** Gehört das zur gewählten Bereitschaft? Ohne Auswahl gehört alles dazu. */
+  function passt(gruppeId: string | null | undefined): boolean {
+    if (gruppe === "") return true;
+    if (gruppe === "__ohne__") return !gruppeId;
+    return gruppeId === gruppe;
+  }
+
+  const sichtbareTouren = touren.filter((t) => passt(gruppeJeTour[t.tour_id]));
 
   const heute = new Date();
   const istHeute = datum === new Date(heute.getTime() - heute.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   // Fällige Standorte, die an diesem Tag noch auf keiner Tour stehen.
   const offen = useMemo(
-    () => faellig.filter((z) => !verplant[z.standort_id]),
-    [faellig, verplant],
+    () =>
+      faellig.filter(
+        (z) =>
+          !verplant[z.standort_id] &&
+          (gruppe === ""
+            ? true
+            : gruppe === "__ohne__"
+              ? !gruppeJeStandort[z.standort_id]
+              : gruppeJeStandort[z.standort_id] === gruppe),
+      ),
+    [faellig, verplant, gruppe, gruppeJeStandort],
   );
   const pflichtOffen = offen.filter((z) => z.zustand === "pflicht");
   const kannOffen = offen.filter((z) => z.zustand === "kann");
 
   // Nur Touren, die noch Stopps aufnehmen können.
-  const aufnahmefaehig = touren.filter(
+  const aufnahmefaehig = sichtbareTouren.filter(
     (t) => t.status === "geplant" || t.status === "laeuft",
   );
 
@@ -92,11 +119,35 @@ export function Tagesuebersicht({
           </Link>
         )}
 
+        {gruppen.length > 0 && (
+          <select
+            value={gruppe}
+            onChange={(e) => setGruppe(e.target.value)}
+            className="feld w-auto"
+            aria-label="Bereitschaft"
+          >
+            <option value="">Alle Bereitschaften</option>
+            {gruppen.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+            <option value="__ohne__">Ohne Bereitschaft</option>
+          </select>
+        )}
+
         {bearbeiten && (
           <form action={tourAnlegen} className="ml-auto">
             <input type="hidden" name="datum" value={datum} />
+            {/* Wird nach Bereitschaft gefiltert, entsteht die neue Tour gleich
+                in dieser - sonst legte man sie an und müsste sie danach
+                zuordnen, nur um sie in der eigenen Liste wiederzufinden. */}
+            {gruppe !== "" && gruppe !== "__ohne__" && (
+              <input type="hidden" name="gruppe_id" value={gruppe} />
+            )}
             <button type="submit" className="knopf-primaer">
               Neue Tour
+              {gruppe !== "" && gruppe !== "__ohne__" && ` für ${gruppenName.get(gruppe) ?? ""}`}
             </button>
           </form>
         )}
@@ -133,7 +184,7 @@ export function Tagesuebersicht({
       )}
 
       {/* Die Touren des Tages */}
-      {touren.length === 0 ? (
+      {sichtbareTouren.length === 0 ? (
         <div className="karte-flaeche p-8 text-center">
           <p className="font-medium">Für diesen Tag ist keine Tour angelegt.</p>
           <p className="mx-auto mt-1 max-w-xl text-sm text-ink-2">
@@ -144,7 +195,7 @@ export function Tagesuebersicht({
         </div>
       ) : (
         <div className="space-y-3">
-          {touren.map((t) => {
+          {sichtbareTouren.map((t) => {
             const anteil =
               t.stopps_gesamt > 0
                 ? Math.round(((t.stopps_erledigt + t.stopps_uebersprungen) / t.stopps_gesamt) * 100)
@@ -171,6 +222,11 @@ export function Tagesuebersicht({
                       {t.routenname && (
                         <span className="rounded border px-1.5 py-0.5 text-xs text-ink-2">
                           {t.routenname}
+                        </span>
+                      )}
+                      {gruppeJeTour[t.tour_id] && (
+                        <span className="rounded border px-1.5 py-0.5 text-xs text-ink-2">
+                          {gruppenName.get(gruppeJeTour[t.tour_id] as string) ?? "Bereitschaft"}
                         </span>
                       )}
                     </div>

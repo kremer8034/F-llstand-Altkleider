@@ -15,7 +15,7 @@ import type {
   TourFortschritt,
   TourStopp,
 } from "@/lib/typen";
-import type { Tourzeile } from "../planungstypen";
+import { GRUND_TEXT, type Tourzeile } from "../planungstypen";
 import { Tourplanung, type Stoppzeile } from "./Tourplanung";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +47,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
     alleStandorteAntwort,
     werte,
     benutzer,
+    gruppenAntwort,
   ] = await Promise.all([
     supabase.from("tour_stopp").select("*").eq("tour_id", id).order("position"),
     supabase.from("tour_fortschritt").select("*").eq("tour_id", id).maybeSingle(),
@@ -59,6 +60,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
     supabase.from("standort").select("*").eq("aktiv", true).order("name"),
     einstellungen(supabase),
     angemeldeterBenutzer(),
+    supabase.from("gruppe").select("id, name").eq("aktiv", true).order("name"),
   ]);
 
   const stopps = (stoppAntwort.data ?? []) as TourStopp[];
@@ -66,12 +68,16 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
   const fahrer = (fahrerAntwort.data ?? []) as Benutzerprofil[];
   const faellig = (planungAntwort.data ?? []) as Tourzeile[];
   const alleStandorte = (alleStandorteAntwort.data ?? []) as Standort[];
+  const gruppen = (gruppenAntwort.data ?? []) as { id: string; name: string }[];
 
   const standortIds = stopps.map((s) => s.standort_id);
   const leerId = "00000000-0000-0000-0000-000000000000";
 
   const [standortAntwort, containerAntwort, entsorgungAntwort, tcAntwort] = await Promise.all([
-    supabase.from("standort_zustand").select("*").in("standort_id", standortIds.length ? standortIds : [leerId]),
+    // Bewusst ohne Einschraenkung auf die Stopps: die Fuellstaende werden auch
+    // fuer die Standorte gebraucht, die noch NICHT auf der Tour stehen. Wer
+    // entscheiden soll, was mitkommt, muss sehen, wie voll es dort ist.
+    supabase.from("standort_zustand").select("*"),
     supabase
       .from("container")
       .select("id, nummer, bezeichnung, standort_id, volumen_liter")
@@ -174,7 +180,17 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
     };
   });
 
+  /** Gefüllter Anteil eines Standorts – aus der freien Restkapazität. */
+  function gefuelltProzent(standortId: string): number | null {
+    const z = zustandJeId.get(standortId) as { freie_prozent: number | null } | undefined;
+    return z?.freie_prozent == null ? null : Math.round(100 - z.freie_prozent);
+  }
+
   // Kandidaten zum Aufnehmen: erst das Fällige, dann alles Übrige.
+  //
+  // Jeder Kandidat trägt seinen Füllstand mit. „Pflicht" allein sagt nur, dass
+  // die Rechnung ihn ausgewählt hat – nicht, wie dringend es ist und ob sich
+  // der Umweg lohnt. Mit dem Balken daneben entscheidet sich das im Blick.
   const kandidaten = [
     ...faellig
       .filter((z) => !schonDrauf.has(z.standort_id))
@@ -182,11 +198,33 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
         id: z.standort_id,
         name: z.name,
         ort: z.ort,
-        hinweis: z.zustand === "pflicht" ? "Pflicht" : "könnte man mitnehmen",
+        hinweis:
+          z.zustand === "pflicht"
+            ? (GRUND_TEXT[z.grund] ?? "muss mit")
+            : "könnte man mitnehmen",
+        pflicht: z.zustand === "pflicht",
+        fuellstand_prozent:
+          z.freie_prozent == null ? gefuelltProzent(z.standort_id) : Math.round(100 - Number(z.freie_prozent)),
+        ertrag_liter: z.ertrag_liter === null ? null : Number(z.ertrag_liter),
+        container_gesamt: z.container_gesamt,
       })),
     ...alleStandorte
       .filter((s) => !schonDrauf.has(s.id) && !faelligJeId.has(s.id))
-      .map((s) => ({ id: s.id, name: s.name, ort: s.ort, hinweis: null })),
+      .map((s) => {
+        const z = zustandJeId.get(s.id) as
+          | { gefuellt_liter: number | null; container_gesamt: number }
+          | undefined;
+        return {
+          id: s.id,
+          name: s.name,
+          ort: s.ort,
+          hinweis: null,
+          pflicht: false,
+          fuellstand_prozent: gefuelltProzent(s.id),
+          ertrag_liter: z?.gefuellt_liter == null ? null : Number(z.gefuellt_liter),
+          container_gesamt: z?.container_gesamt ?? 0,
+        };
+      }),
   ];
 
   return (
@@ -203,6 +241,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
         fahrer={fahrer
           .filter((f) => f.rolle === "fahrer" || f.rolle === "dispo" || f.rolle === "admin")
           .map((f) => ({ id: f.id, name: f.name || (f.email ?? "ohne Namen"), rolle: f.rolle }))}
+        gruppen={gruppen}
         betriebshof={betriebshofLesen(werte)}
         saetze={saetze}
         bearbeiten={bearbeiten}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { bauartText } from "@/lib/geraetearten";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
@@ -87,6 +88,11 @@ export default async function SensorenSeite() {
                     <span className="rounded bg-flaeche-2 px-1.5 py-0.5 text-xs text-ink-2">
                       {STATUS_TEXT[s.status] ?? s.status}
                     </span>
+                    {s.bauart !== "eigenbau" && (
+                      <span className="rounded border px-1.5 py-0.5 text-xs text-ink-2">
+                        {bauartText(s.bauart)}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-sm text-ink-2">
                     {zugeordnet ? (
@@ -105,8 +111,15 @@ export default async function SensorenSeite() {
                     Meldung: {alterText(s.letzte_meldung_am)}
                     {still && " · überfällig"}
                   </div>
+                  {/* Der Eigenbau meldet Volt, ein Fertiggerät Prozent - angezeigt
+                      wird, was das Gerät tatsächlich kennt (0020_fertiggeraete.sql). */}
                   <div className="zahl">
-                    {s.batterie_v ? `${s.batterie_v} V` : "– V"} · {s.rssi ? `${s.rssi} dBm` : "– dBm"}
+                    {s.batterie_prozent !== null
+                      ? `${s.batterie_prozent} %`
+                      : s.batterie_v
+                        ? `${s.batterie_v} V`
+                        : "– Batterie"}{" "}
+                    · {s.rssi ? `${s.rssi} dBm` : "– dBm"}
                   </div>
                 </div>
 

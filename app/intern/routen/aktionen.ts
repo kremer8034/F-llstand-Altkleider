@@ -68,6 +68,7 @@ export async function routeSpeichern(
     wochentag: isoWochentag(ankerDatum),
     intervall_wochen: Math.round(intervall),
     anker_datum: anker,
+    gruppe_id: text(formular, "gruppe_id"),
     aktiv: formular.get("aktiv") === "on",
     bemerkung: text(formular, "bemerkung"),
   };

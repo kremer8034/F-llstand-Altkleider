@@ -30,6 +30,9 @@ export interface Standortzeile {
   zufluss_liter_je_tag: number | null;
   offene_meldungen: number;
   hat_entsorger: boolean;
+  /** Betreuende Bereitschaft - null heißt gemeinsame Zuständigkeit. */
+  gruppe_id: string | null;
+  gruppe_name: string | null;
   /** Namen der Regeltouren, früheste zuerst. */
   routen: string[];
   container: Standortcontainer[];
@@ -51,10 +54,20 @@ const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
  * beantwortet die Liste beide Fragen an einer Stelle – „wie voll ist der
  * Platz" und „woraus besteht er" – ohne dass man dafür die Seite wechselt.
  */
-export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; reserve: number }) {
+export function Standortliste({
+  zeilen,
+  reserve,
+  gruppen = [],
+}: {
+  zeilen: Standortzeile[];
+  reserve: number;
+  gruppen?: { id: string; name: string }[];
+}) {
   const [suche, setSuche] = useState("");
   const [sortierung, setSortierung] = useState<Sortierung>("kapazitaet");
   const [filter, setFilter] = useState<Filter>("alle");
+  // "" = alle, "__ohne__" = die ohne Bereitschaft, sonst eine Gruppen-Kennung.
+  const [gruppe, setGruppe] = useState("");
   const [offen, setOffen] = useState<Set<string>>(new Set());
 
   const cluster = zeilen.filter((z) => z.container_gesamt >= 2).length;
@@ -65,6 +78,8 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
     const text = suche.trim().toLowerCase();
 
     const liste = zeilen.filter((z) => {
+      if (gruppe === "__ohne__" && z.gruppe_id !== null) return false;
+      if (gruppe !== "" && gruppe !== "__ohne__" && z.gruppe_id !== gruppe) return false;
       if (filter === "cluster" && z.container_gesamt < 2) return false;
       if (filter === "ungedeckt" && (z.routen.length > 0 || !z.aktiv)) return false;
       if (filter === "ohne_bauhof" && (z.hat_entsorger || !z.aktiv)) return false;
@@ -77,6 +92,7 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
         z.strasse,
         z.plz,
         z.ort,
+        z.gruppe_name,
         ...z.routen,
         ...z.container.map((c) => `${c.nummer} ${c.bezeichnung ?? ""}`),
       ]
@@ -101,7 +117,7 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
       }
     });
     return sortiert;
-  }, [zeilen, suche, sortierung, filter]);
+  }, [zeilen, suche, sortierung, filter, gruppe]);
 
   function umschalten(id: string) {
     setOffen((alt) => {
@@ -148,6 +164,25 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
           <option value="ohne_bauhof">Ohne Bauhof ({ohneBauhof})</option>
         </select>
 
+        {gruppen.length > 0 && (
+          <select
+            value={gruppe}
+            onChange={(e) => setGruppe(e.target.value)}
+            className="feld w-auto"
+            aria-label="Bereitschaft"
+          >
+            <option value="">Alle Bereitschaften</option>
+            {gruppen.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name} ({zeilen.filter((z) => z.gruppe_id === g.id).length})
+              </option>
+            ))}
+            <option value="__ohne__">
+              Ohne Bereitschaft ({zeilen.filter((z) => z.gruppe_id === null).length})
+            </option>
+          </select>
+        )}
+
         <span className="ml-auto text-sm text-ink-3">{gefiltert.length} Standorte</span>
       </div>
 
@@ -165,16 +200,43 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
             <div key={z.id}>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-flaeche-2">
                 {/* Aufklappen ist ein eigener Knopf, kein Teil des Links -
-                    sonst käme man nie zum Standort, ohne aufzuklappen. */}
+                    sonst käme man nie zum Standort, ohne aufzuklappen.
+
+                    Er ist bewusst groß: als 6 mm breites Pfeilchen war er auf
+                    dem Handy kaum zu treffen und sah nach Verzierung aus statt
+                    nach Schaltfläche. Jetzt ist er ein umrandetes Quadrat von
+                    44 px - das ist die Größe, ab der eine Fingerkuppe
+                    zuverlässig trifft - und trägt die Zahl der Container in
+                    sich: damit sagt er auch, was beim Drücken erscheint. */}
                 <button
                   type="button"
                   onClick={() => umschalten(z.id)}
                   disabled={z.container.length === 0}
                   aria-expanded={aufgeklappt}
                   aria-label={`Container von ${z.name} ${aufgeklappt ? "einklappen" : "ausklappen"}`}
-                  className="zahl w-6 shrink-0 text-xs text-ink-3 disabled:opacity-30"
+                  title={
+                    z.container.length === 0
+                      ? "Kein Container an diesem Standort"
+                      : aufgeklappt
+                        ? "Container ausblenden"
+                        : `${z.container.length} Container anzeigen`
+                  }
+                  className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    aufgeklappt ? "bg-flaeche-2 text-ink" : "bg-flaeche text-ink-2 hover:bg-flaeche-2 hover:text-ink"
+                  }`}
                 >
-                  {z.container.length === 0 ? "–" : aufgeklappt ? "▾" : "▸"}
+                  <span
+                    aria-hidden="true"
+                    className="text-base leading-none transition-transform"
+                    style={{ transform: aufgeklappt ? "rotate(90deg)" : undefined }}
+                  >
+                    ▶
+                  </span>
+                  {z.container.length > 0 && (
+                    <span className="zahl mt-0.5 text-[10px] leading-none text-ink-3">
+                      {z.container.length}
+                    </span>
+                  )}
                 </button>
 
                 <Link href={`/intern/standorte/${z.id}`} className="min-w-[200px] flex-1">
@@ -212,6 +274,11 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
                     ) : (
                       <span className="text-ink-3">keiner Regeltour zugeordnet</span>
                     )}
+                    {z.gruppe_name && (
+                      <span className="rounded border px-1.5 py-0.5 text-ink-2">
+                        {z.gruppe_name}
+                      </span>
+                    )}
                     {!z.hat_entsorger && (
                       <span className="text-ink-3">· kein Bauhof, Müll wird mitgenommen</span>
                     )}
@@ -248,7 +315,7 @@ export function Standortliste({ zeilen, reserve }: { zeilen: Standortzeile[]; re
                     <li key={c.id}>
                       <Link
                         href={`/intern/container/${c.id}`}
-                        className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-14 pr-4 text-sm transition hover:bg-flaeche-2"
+                        className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-16 pr-4 text-sm transition hover:bg-flaeche-2"
                       >
                         <Stufensymbol stufe={stufeVon(c.fuellstand_prozent)} />
                         <span className="min-w-[160px] flex-1">
