@@ -18,15 +18,33 @@ export function Entsorgerverwaltung({
   offeneGemeinden,
   ohneZuordnung,
   standorteGesamt,
+  orte,
 }: {
   entsorger: Entsorger[];
   zugeordnet: Record<string, number>;
   offeneGemeinden: { gemeinde: string; anzahl: number }[];
   ohneZuordnung: number;
   standorteGesamt: number;
+  /** Ortsnamen aus den Standort-Stammdaten, so wie sie dort geschrieben sind. */
+  orte: { name: string; anzahl: number }[];
 }) {
   const [bearbeitet, setBearbeitet] = useState<Entsorger | null>(null);
   const [formularOffen, setFormularOffen] = useState(false);
+
+  /**
+   * Die Gemeinde wird ausgewählt, nicht getippt.
+   *
+   * Sie ist kein beschreibendes Feld, sondern der Schlüssel, über den ein
+   * Bauhof seinen Standorten zugeordnet wird - verglichen wird Zeichen für
+   * Zeichen. Ein „Grossheubach" statt „Großheubach" sieht richtig aus und
+   * findet doch keinen einzigen Standort; die Lückenliste oben zeigt dann
+   * weiter eine Lücke, und niemand versteht, warum.
+   *
+   * Freitext bleibt trotzdem möglich: eine Gemeinde, in der wir heute keinen
+   * Standort haben, wäre sonst nicht einzutragen.
+   */
+  const [gemeinde, setGemeinde] = useState("");
+  const [freierOrt, setFreierOrt] = useState(false);
 
   const [ergebnis, absenden, laeuft] = useActionState<Entsorgerergebnis | null, FormData>(
     async (vorher, formular) => {
@@ -40,15 +58,29 @@ export function Entsorgerverwaltung({
     null,
   );
 
-  function neu() {
+  const bekannteOrte = orte.map((o) => o.name);
+
+  function neu(vorgabe?: string) {
     setBearbeitet(null);
+    setGemeinde(vorgabe ?? "");
+    setFreierOrt(vorgabe !== undefined && !bekannteOrte.includes(vorgabe));
     setFormularOffen(true);
   }
 
   function bearbeiten(e: Entsorger) {
     setBearbeitet(e);
+    const ort = e.gemeinde ?? "";
+    setGemeinde(ort);
+    // Eine bereits gespeicherte Gemeinde, die in keinem Standort vorkommt,
+    // darf nicht stillschweigend auf "keine" springen - sie bleibt stehen und
+    // ist damit als das erkennbar, was sie ist: ein Eintrag ohne Treffer.
+    setFreierOrt(ort !== "" && !bekannteOrte.includes(ort));
     setFormularOffen(true);
   }
+
+  /** Standorte je Ortsname - für den Zusatz in der Auswahlliste. */
+  const anzahlJeOrt = new Map(orte.map((o) => [o.name, o.anzahl]));
+  const treffer = gemeinde ? (anzahlJeOrt.get(gemeinde) ?? 0) : 0;
 
   return (
     <div className="space-y-4">
@@ -65,17 +97,34 @@ export function Entsorgerverwaltung({
             Dort nimmt das Fahrpersonal den Fremdmüll mit. Das ist eine gültige Lage – aber wenn es
             für die Gemeinde eine Absprache gibt, gehört sie hier hinterlegt.
           </p>
+          {/* Anklickbar, nicht nur anzeigend: der Weg von „hier fehlt einer"
+              zu „hier ist einer" ist damit ein Klick statt Abtippen - und die
+              Gemeinde steht anschließend zeichengenau so im Formular, wie sie
+              an den Standorten steht. */}
           <ul className="mt-3 flex flex-wrap gap-2">
             {offeneGemeinden.map((g) => (
-              <li
-                key={g.gemeinde}
-                className="rounded border bg-flaeche px-2 py-1 text-xs text-ink-2"
-              >
-                {g.gemeinde}
-                <span className="zahl ml-1.5 text-ink-3">{g.anzahl}</span>
+              <li key={g.gemeinde}>
+                <button
+                  type="button"
+                  onClick={() => neu(g.gemeinde === "ohne Ort" ? undefined : g.gemeinde)}
+                  disabled={g.gemeinde === "ohne Ort"}
+                  title={
+                    g.gemeinde === "ohne Ort"
+                      ? "An diesen Standorten ist kein Ort hinterlegt – erst dort nachtragen."
+                      : `Bauhof für ${g.gemeinde} anlegen`
+                  }
+                  className="rounded border bg-flaeche px-2.5 py-1.5 text-xs text-ink-2 transition hover:bg-flaeche-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {g.gemeinde}
+                  <span className="zahl ml-1.5 text-ink-3">{g.anzahl}</span>
+                </button>
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-xs text-ink-3">
+            Auf eine Gemeinde tippen legt einen Bauhof dafür an – Name und Gemeinde sind dann schon
+            eingetragen.
+          </p>
         </section>
       )}
 
@@ -84,7 +133,7 @@ export function Entsorgerverwaltung({
           {entsorger.length} {entsorger.length === 1 ? "Eintrag" : "Einträge"}
         </span>
         {!formularOffen && (
-          <button type="button" onClick={neu} className="knopf-primaer">
+          <button type="button" onClick={() => neu()} className="knopf-primaer">
             Neuer Bauhof
           </button>
         )}
@@ -103,11 +152,15 @@ export function Entsorgerverwaltung({
               <label htmlFor="name" className="mb-1 block text-sm font-medium">
                 Name *
               </label>
+              {/* Der Schlüssel sorgt dafür, dass der Vorschlag beim Öffnen aus
+                  einer Lücke heraus wirklich im Feld steht: ohne ihn behielte
+                  das Feld den Wert des vorigen Aufrufs. */}
               <input
                 id="name"
                 name="name"
                 required
-                defaultValue={bearbeitet?.name ?? ""}
+                key={`name-${bearbeitet?.id ?? gemeinde}`}
+                defaultValue={bearbeitet?.name ?? (gemeinde ? `Bauhof ${gemeinde}` : "")}
                 className="feld"
                 placeholder="z. B. Bauhof Großheubach"
               />
@@ -117,15 +170,63 @@ export function Entsorgerverwaltung({
               <label htmlFor="gemeinde" className="mb-1 block text-sm font-medium">
                 Gemeinde
               </label>
-              <input
-                id="gemeinde"
-                name="gemeinde"
-                defaultValue={bearbeitet?.gemeinde ?? ""}
-                className="feld"
-                placeholder="Großheubach"
-              />
+
+              {freierOrt || orte.length === 0 ? (
+                <>
+                  <input
+                    id="gemeinde"
+                    name="gemeinde"
+                    value={gemeinde}
+                    onChange={(e) => setGemeinde(e.target.value)}
+                    className="feld"
+                    placeholder="Großheubach"
+                  />
+                  {orte.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFreierOrt(false);
+                        if (!bekannteOrte.includes(gemeinde)) setGemeinde("");
+                      }}
+                      className="mt-1 text-xs underline underline-offset-2"
+                    >
+                      doch aus den Stammdaten wählen
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <select
+                    id="gemeinde"
+                    name="gemeinde"
+                    value={gemeinde}
+                    onChange={(e) => {
+                      if (e.target.value === "__frei__") {
+                        setFreierOrt(true);
+                        setGemeinde("");
+                      } else {
+                        setGemeinde(e.target.value);
+                      }
+                    }}
+                    className="feld"
+                  >
+                    <option value="">– keine Gemeinde –</option>
+                    {orte.map((o) => (
+                      <option key={o.name} value={o.name}>
+                        {o.name} ({o.anzahl} {o.anzahl === 1 ? "Standort" : "Standorte"})
+                      </option>
+                    ))}
+                    <option value="__frei__">– andere Gemeinde eintippen –</option>
+                  </select>
+                </>
+              )}
+
               <p className="mt-1 text-xs text-ink-3">
-                Wird mit dem Ort des Standorts abgeglichen und dort vorgeschlagen.
+                {freierOrt || orte.length === 0
+                  ? "Frei eingetragen: Standorte werden nur gefunden, wenn die Schreibweise dort genau gleich ist."
+                  : gemeinde
+                    ? `Trifft ${treffer} ${treffer === 1 ? "Standort" : "Standorte"} – Schreibweise stimmt damit.`
+                    : "Zur Auswahl stehen die Orte, die an den Standorten hinterlegt sind. Danach wird abgeglichen."}
               </p>
             </div>
 
