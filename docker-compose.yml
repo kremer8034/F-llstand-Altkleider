@@ -27,7 +27,13 @@ services:
       AUTHENTICATOR_PASSWORT: ${AUTHENTICATOR_PASSWORT:?AUTHENTICATOR_PASSWORT fehlt}
     volumes:
       - db-daten:/var/lib/postgresql/data
-      - ./docker/db/10-rollen.sh:/docker-entrypoint-initdb.d/init-scripts/10-rollen.sh:ro
+      # Das Rollenskript liegt bewusst eine Ebene höher als die SQL-Datei:
+      # migrate.sh des Images durchsucht init-scripts/ nur nach "*.sql" und
+      # ginge an einer "*.sh" vorbei. Im Verzeichnis darüber führt der
+      # Postgres-Einstiegspunkt auch Shell-Skripte aus - in alphabetischer
+      # Reihenfolge, weshalb der Name mit "zz" beginnt: die Rollen legt
+      # migrate.sh an, ihre Passwörter können erst danach gesetzt werden.
+      - ./docker/db/zz-rollen.sh:/docker-entrypoint-initdb.d/zz-rollen.sh:ro
       - ./docker/db/20-auth-funktionen.sql:/docker-entrypoint-initdb.d/init-scripts/20-auth-funktionen.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
@@ -187,6 +193,43 @@ services:
           fi
         done
 
+  # ------------------------------------------------------------ MQTT-Broker
+  # Annahmeweg für Sensoren, die MQTT sprechen (Dragino DDS75, Milesight
+  # EM400 – siehe docs/sensor-entscheidung.md, "Weg B"). Der Broker nimmt die
+  # Messwerte entgegen und hält sie bereit; jedes Gerät weist sich mit eigenem
+  # Benutzernamen und Passwort aus (docker/mqtt/start.sh).
+  #
+  # Der Broker steht bewusst neben der Anwendung, nicht in ihr: er läuft
+  # dauerhaft, während die Anwendung auch auf Vercel betrieben werden kann.
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    environment:
+      MQTT_BENUTZER: ${MQTT_BENUTZER:?MQTT_BENUTZER fehlt}
+      MQTT_PASSWORT: ${MQTT_PASSWORT:?MQTT_PASSWORT fehlt}
+      MQTT_GERAETE: ${MQTT_GERAETE:-}
+    ports:
+      # 1883 überträgt im Klartext – nur im eigenen Netz freigeben.
+      - "${PORT_MQTT:-1883}:1883"
+      # WebSockets, für Browser-Werkzeuge zur Fehlersuche.
+      - "${PORT_MQTT_WS:-9001}:9001"
+    volumes:
+      - ./docker/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./docker/mqtt/start.sh:/start.sh:ro
+      - mqtt-daten:/mosquitto/data
+    entrypoint: ["/bin/ash", "/start.sh"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_sub -h 127.0.0.1 -p 1883
+          -u "$$MQTT_BENUTZER" -P "$$MQTT_PASSWORT"
+          -t '$$SYS/broker/uptime' -C 1 -W 5 >/dev/null
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # ------------------------------------------------- E-Mail-Test (Profil dev)
   # Fängt alle ausgehenden Mails ab und zeigt sie unter http://localhost:8025.
   # Für den echten Betrieb stattdessen SMTP_* auf den Hausmailserver setzen
@@ -238,3 +281,4 @@ services:
 
 volumes:
   db-daten:
+  mqtt-daten:
