@@ -141,6 +141,60 @@ pruefe("Thema: die IMEI bleibt die Kennung",
   themaUndImei.kennung.imei, "867997030000001");
 
 // ---------------------------------------------------------------------------
+// d) Weiterleitung eines gemieteten Brokers
+//
+// Die uebliche Vorlage lautet
+//   { "topic": "...", "payload": ..., "clientid": "...", "qos": 1 }
+// Die Nutzlast steckt darin je nach Einstellung als Objekt ODER als
+// Zeichenkette - beides muss ankommen.
+// ---------------------------------------------------------------------------
+
+const brokerObjekt = ausMeldung({
+  topic: "altkleider/6746D3486383/up",
+  clientid: "6746D3486383",
+  qos: 1,
+  payload: { sn: "6746D3486383", battery: 96, distance: 812 },
+});
+pruefe("Broker: Nutzlast als Objekt", brokerObjekt.abstand_mm, 812);
+pruefe("Broker: Kennung aus der Nutzlast", brokerObjekt.kennung.geraete_id, "6746D3486383");
+
+const brokerText = ausMeldung({
+  topic: "altkleider/6746D3486383/up",
+  clientid: "6746D3486383",
+  payload: '{"battery":88,"distance":1234}',
+});
+pruefe("Broker: Nutzlast als JSON-Zeichenkette", brokerText.abstand_mm, 1234);
+pruefe("Broker: Batterie aus der Zeichenkette", brokerText.batterie_prozent, 88);
+pruefe("Broker: Seriennummer aus dem vollen Thema",
+  brokerText.kennung.geraete_id, "6746D3486383");
+
+const brokerHex = ausMeldung({
+  topic: "altkleider/6746D3486383/up",
+  payload: "017564038262010467dc00050000",
+});
+pruefe("Broker: Nutzlast als Bytefolge", brokerHex.abstand_mm, 354);
+pruefe("Broker: Thema trägt die Kennung", brokerHex.kennung.geraete_id, "6746D3486383");
+
+const nurClientId = ausMeldung({ clientid: "6746D3486383", payload: '{"distance":700}' });
+pruefe("Broker: Client-ID als letzte Rückfalllinie",
+  nurClientId.kennung.geraete_id, "6746D3486383");
+
+// Das Geraet hat immer Vorrang vor dem Umschlag des Brokers.
+const streit = ausMeldung({
+  topic: "altkleider/FALSCH/up",
+  clientid: "AUCH-FALSCH",
+  payload: { sn: "RICHTIG-AUS-NUTZLAST", distance: 700 },
+});
+pruefe("Broker: die Nutzlast schlägt Thema und Client-ID",
+  streit.kennung.geraete_id, "RICHTIG-AUS-NUTZLAST");
+
+// Ein Thema ohne Schraegstrich ist bereits die Seriennummer - so kommt
+// dieselbe Funktion mit dem Feld der eigenen Bruecke zurecht.
+pruefe("Broker: Thema ohne Schrägstrich gilt als Seriennummer",
+  ausMeldung({ topic: "6746D3486383", payload: '{"distance":1}' }).kennung.geraete_id,
+  "6746D3486383");
+
+// ---------------------------------------------------------------------------
 console.log("");
 if (fehler > 0) {
   console.error(`${fehler} von ${geprueft} Prüfungen fehlgeschlagen.`);

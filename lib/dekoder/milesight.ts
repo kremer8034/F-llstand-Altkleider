@@ -107,8 +107,30 @@ function ebenen(rumpf: Record<string, unknown>): Record<string, unknown>[] {
 
   for (const name of ["data", "payload", "object", "decoded", "values", "body", "properties"]) {
     const wert = rumpf[name];
+
     if (wert && typeof wert === "object" && !Array.isArray(wert)) {
       gefunden.push(wert as Record<string, unknown>);
+      continue;
+    }
+
+    // Ein gemieteter Broker reicht die Nutzlast oft als ZEICHENKETTE weiter,
+    // nicht als Objekt: seine Vorlage lautet etwa
+    //   { "topic": "...", "payload": "{\"sn\":\"…\",\"distance\":812}" }
+    // Ohne diese Zeilen waere der eigentliche Messwert eine Zeichenkette, in
+    // der niemand sucht - die Meldung kaeme an und brachte nichts mit.
+    if (typeof wert === "string") {
+      const getrimmt = wert.trim();
+      if (getrimmt.startsWith("{")) {
+        try {
+          const gelesen: unknown = JSON.parse(getrimmt);
+          if (gelesen && typeof gelesen === "object" && !Array.isArray(gelesen)) {
+            gefunden.push(gelesen as Record<string, unknown>);
+          }
+        } catch {
+          // Keine gueltige JSON-Zeichenkette: dann bleibt es bei der
+          // Bytefolge-Auswertung weiter unten.
+        }
+      }
     }
   }
   return gefunden;
@@ -120,6 +142,24 @@ function ausEbenen(rumpf: Record<string, unknown>, namen: string[]): unknown {
     if (wert !== undefined) return wert;
   }
   return undefined;
+}
+
+/**
+ * Die Seriennummer aus einem MQTT-Thema holen.
+ *
+ * Das Themenschema dieser Anwendung lautet `altkleider/<Seriennummer>/up`
+ * (scripts/mqtt-geraet-anlegen.sh) - deshalb der zweite Abschnitt. Steht dort
+ * gar kein Schraegstrich, ist der Wert bereits die Seriennummer; so kommt
+ * dieselbe Funktion mit dem Feld der eigenen Bruecke und mit dem vollen Thema
+ * eines gemieteten Brokers zurecht.
+ */
+function ausThema(wert: unknown): string | null {
+  const text = zeichenkette(wert);
+  if (!text) return null;
+
+  const teile = text.split("/").filter((t) => t.trim() !== "");
+  if (teile.length === 0) return null;
+  return (teile.length >= 2 ? teile[1] : teile[0]).trim() || null;
 }
 
 /** Unixzeit (Sekunden oder Millisekunden) oder ISO-Text zu ISO-Text. */
@@ -257,20 +297,32 @@ export function ausMeldung(rumpf: Record<string, unknown>): MilesightMeldung {
     iccid: zeichenkette(ausEbenen(rumpf, NAMEN.iccid)),
   };
 
-  // Rueckfalllinie: die Seriennummer aus dem MQTT-Thema.
+  // Rueckfalllinie: was der BROKER ueber die Meldung sagt, nicht das Geraet.
   //
-  // Die Bruecke traegt sie unter `sn_aus_topic` ein (docker/mqtt-bruecke). Sie
-  // gilt AUSDRUECKLICH erst, wenn die Nutzlast selbst keine Kennung mitbringt -
-  // das Geraet weiss besser, wer es ist, als der Pfad, unter dem es
-  // veroeffentlicht. Zaehlte sie zuerst, wuerde ein Tippfehler im Thema die
+  // Zwei Quellen, beide vom Umschlag und nicht vom Inhalt:
+  //
+  //   sn_aus_topic  traegt die eigene Bruecke ein (docker/mqtt-bruecke)
+  //   topic         schickt ein gemieteter Broker in seiner Vorlage mit,
+  //                 in voller Laenge: "altkleider/<SN>/up"
+  //   clientid      dasselbe noch einmal - die Anleitung setzt die Client ID
+  //                 auf die Seriennummer (scripts/mqtt-geraet-anlegen.sh)
+  //
+  // Sie gelten AUSDRUECKLICH erst, wenn die Nutzlast selbst keine Kennung
+  // mitbringt: das Geraet weiss besser, wer es ist, als der Pfad, unter dem es
+  // veroeffentlicht. Zaehlten sie zuerst, wuerde ein Tippfehler im Thema die
   // richtige Seriennummer aus der Meldung ueberstimmen, und die Messung landete
   // stillschweigend am falschen Container.
   //
-  // Ohne diese Zeile waere ein Geraet, dessen Firmware die Seriennummer nicht
+  // Ohne sie waere ein Geraet, dessen Firmware die Seriennummer nicht
   // mitschickt, gar nicht zuzuordnen - und das faellt erst auf, wenn wochenlang
   // kein Messwert kommt.
   if (!kennung.geraete_id && !kennung.imei && !kennung.iccid) {
-    kennung.geraete_id = zeichenkette(rumpf["sn_aus_topic"]);
+    kennung.geraete_id =
+      ausThema(rumpf["sn_aus_topic"]) ??
+      ausThema(rumpf["topic"]) ??
+      ausThema(rumpf["mqtt_topic"]) ??
+      zeichenkette(rumpf["clientid"]) ??
+      zeichenkette(rumpf["clientId"]);
   }
 
   return { ...werte, kennung };

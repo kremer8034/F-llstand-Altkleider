@@ -138,7 +138,89 @@ Supabase gibt es keinen solchen Prozess – das wäre ein Bruch in der
 Architektur, denselben, den [sensor-entscheidung.md](sensor-entscheidung.md)
 in Abschnitt 5 unter Weg B beschreibt.
 
-### Erst den Broker, dann das Gerät
+### Warum der Broker nicht bei Vercel laufen kann
+
+Die naheliegende Frage zuerst, weil sie sich sonst später stellt: **Nein, ein
+MQTT-Broker lässt sich nicht auf Vercel betreiben.** Drei Gründe, jeder für
+sich ausreichend:
+
+1. Vercel führt Funktionen aus, die für die Dauer einer Anfrage leben. Ein
+   Broker muss Tag und Nacht laufen und dabei offene Verbindungen halten.
+2. Nach außen gibt Vercel ausschließlich HTTPS auf Port 443. MQTT braucht
+   einen eigenen TCP-Port (1883 bzw. 8883).
+3. Selbst MQTT über WebSockets – das über 443 ginge – hilft nicht: der EM400
+   spricht rohes MQTT über TCP, nicht über WebSockets.
+
+Dasselbe gilt für TCP und UDP aus der Betriebsartenliste. **Irgendwo muss ein
+Prozess dauerhaft laufen.** Die Frage ist nur, wo.
+
+Zwei Wege führen zum Ziel. Die Anwendung selbst bleibt in beiden Fällen
+unverändert bei Vercel – sie nimmt die Messung über `/api/ingest/webhook`
+entgegen und merkt nicht, woher sie kommt.
+
+| | Broker im eigenen Haus | Gemieteter Broker |
+|---|---|---|
+| Was läuft wo | Mosquitto + Brücke auf einem Rechner bei Ihnen | beim Anbieter; er ruft den Webhook auf |
+| Eigener Server nötig | ja, dauerhaft erreichbar | nein |
+| Erreichbarkeit | feste Adresse oder DynDNS, Portfreigabe | erledigt der Anbieter |
+| Zertifikat | selbst besorgen (Let's Encrypt) | bringt der Anbieter mit |
+| Abhängigkeit von Dritten | keine | eine mehr |
+| Laufende Kosten | Strom und ein Rechner | je nach Tarif, für wenige Geräte oft kostenlos |
+
+Beides ist vorbereitet. Der eigene Broker steckt im `docker-compose.yml`
+(unten); für den gemieteten muss an der Anwendung **nichts** geändert werden –
+der Annahmeweg versteht die übliche Weiterleitungsvorlage bereits, siehe
+[Gemieteter Broker](#gemieteter-broker-ohne-eigenen-server).
+
+---
+
+### Gemieteter Broker (ohne eigenen Server)
+
+Der Anbieter betreibt den Broker; eine Regel dort ruft bei jeder Nachricht
+unseren Webhook auf. Damit läuft alles außer dem Broker bei Vercel, und es gibt
+keinen Rechner im Haus, der nachts laufen muss.
+
+Anbieter mit einer solchen Weiterleitung gibt es mehrere; **EMQX Cloud
+Serverless** ist einer davon und rechnet nach Verbrauch ab – bei wenigen
+Geräten bleibt es im kostenlosen Rahmen, und ein Ausgabelimit von 0 lässt sich
+setzen. **Die Tarife ändern sich; bitte vor dem Verlassen auf sie nachsehen.**
+
+Im Broker einzurichten:
+
+| | |
+|---|---|
+| Zugang je Gerät | Benutzername = Seriennummer, eigenes Passwort |
+| Thema | `altkleider/<Seriennummer>/up` |
+| Regel / Webhook | URL `https://<ihre-adresse>/api/ingest/webhook`, Methode POST |
+| Kopfzeile | `X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>` |
+
+**Die Kopfzeile setzt hier der Broker**, nicht das Gerät – das ist der Grund,
+warum der gemeinsame Schlüssel aus Abschnitt 2 überhaupt noch eine Rolle
+spielt. Erlaubt der Anbieter keine eigene Kopfzeile, taugt er für diesen Weg
+nicht.
+
+Die Nutzlastvorlage kann bleiben, wie sie ab Werk ist. Üblich ist
+
+```json
+{ "topic": "${topic}", "payload": ${payload}, "clientid": "${clientid}", "qos": ${qos} }
+```
+
+und genau damit kommt der Annahmeweg zurecht: `payload` wird als Objekt **und**
+als Zeichenkette gelesen (auch als Bytefolge im HEX-Betrieb), und fehlt in der
+Nutzlast die Seriennummer, holt der Dekoder sie aus `topic` oder `clientid`.
+Was das Gerät selbst über sich sagt, hat dabei immer Vorrang vor dem Umschlag
+des Brokers – sonst schickte ein Tippfehler im Thema die Messung
+stillschweigend an den falschen Container.
+
+Achten Sie darauf, die Zugriffsregeln des Anbieters so zu setzen, dass **jedes
+Gerät nur sein eigenes Thema beschreiben darf**. Ohne das könnte Gerät A
+Messungen im Namen von Gerät B einreichen; die Meldung sähe völlig richtig aus,
+und der Container wäre angeblich leer. Beim eigenen Broker erledigt das
+`docker/mosquitto/acl`.
+
+---
+
+### Broker im eigenen Haus
 
 Das Projekt bringt beides mit: den Broker (Mosquitto) und die Brücke, die vom
 Broker zu `/api/ingest/webhook` weiterreicht. Beide stecken im vorhandenen

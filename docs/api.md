@@ -128,7 +128,19 @@ können – etwa den Milesight EM400-TLD (NB-IoT). Ausführlich in
 
 Diese Geräte rufen den Endpunkt **nicht selbst** auf: der EM400 spricht kein
 HTTP, sondern MQTT, TCP oder UDP. Den Aufruf macht der MQTT-Broker, an den das
-Gerät meldet.
+Gerät meldet – die eigene Brücke im `docker-compose.yml` oder die
+Weiterleitungsregel eines gemieteten Brokers.
+
+Die übliche Vorlage eines gemieteten Brokers wird ohne Anpassung verstanden:
+
+```json
+{ "topic": "altkleider/6746D3486383/up", "payload": { … }, "clientid": "6746D3486383" }
+```
+
+`payload` darf ein Objekt, eine JSON-Zeichenkette oder eine Bytefolge sein.
+Fehlt in der Nutzlast die Seriennummer, holt der Dekoder sie aus `topic` oder
+`clientid` – aber erst dann: was das Gerät über sich selbst sagt, hat Vorrang
+vor dem Umschlag des Brokers.
 
 ```
 X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>
