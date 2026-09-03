@@ -251,12 +251,27 @@ export function ausMeldung(rumpf: Record<string, unknown>): MilesightMeldung {
     }
   }
 
-  return {
-    ...werte,
-    kennung: {
-      geraete_id: zeichenkette(ausEbenen(rumpf, NAMEN.seriennummer)),
-      imei: zeichenkette(ausEbenen(rumpf, NAMEN.imei)),
-      iccid: zeichenkette(ausEbenen(rumpf, NAMEN.iccid)),
-    },
+  const kennung = {
+    geraete_id: zeichenkette(ausEbenen(rumpf, NAMEN.seriennummer)),
+    imei: zeichenkette(ausEbenen(rumpf, NAMEN.imei)),
+    iccid: zeichenkette(ausEbenen(rumpf, NAMEN.iccid)),
   };
+
+  // Rueckfalllinie: die Seriennummer aus dem MQTT-Thema.
+  //
+  // Die Bruecke traegt sie unter `sn_aus_topic` ein (docker/mqtt-bruecke). Sie
+  // gilt AUSDRUECKLICH erst, wenn die Nutzlast selbst keine Kennung mitbringt -
+  // das Geraet weiss besser, wer es ist, als der Pfad, unter dem es
+  // veroeffentlicht. Zaehlte sie zuerst, wuerde ein Tippfehler im Thema die
+  // richtige Seriennummer aus der Meldung ueberstimmen, und die Messung landete
+  // stillschweigend am falschen Container.
+  //
+  // Ohne diese Zeile waere ein Geraet, dessen Firmware die Seriennummer nicht
+  // mitschickt, gar nicht zuzuordnen - und das faellt erst auf, wenn wochenlang
+  // kein Messwert kommt.
+  if (!kennung.geraete_id && !kennung.imei && !kennung.iccid) {
+    kennung.geraete_id = zeichenkette(rumpf["sn_aus_topic"]);
+  }
+
+  return { ...werte, kennung };
 }

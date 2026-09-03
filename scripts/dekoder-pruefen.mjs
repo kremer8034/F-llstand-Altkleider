@@ -118,6 +118,29 @@ const ohne = ausMeldung({ sn: "X", battery: 100 });
 pruefe("Ohne Abstand kommt null, nicht 0", ohne.abstand_mm, null);
 
 // ---------------------------------------------------------------------------
+// c) Rueckfall auf die Seriennummer aus dem MQTT-Thema
+//
+// Die Bruecke traegt sie unter sn_aus_topic ein. Sie darf die Kennung aus der
+// Nutzlast NICHT ueberstimmen - sonst schickte ein Tippfehler im Thema die
+// Messung stillschweigend an den falschen Container.
+// ---------------------------------------------------------------------------
+
+const nurThema = ausMeldung({ sn_aus_topic: "6746D3486383", distance: 500 });
+pruefe("Thema: greift, wenn die Nutzlast keine Kennung hat",
+  nurThema.kennung.geraete_id, "6746D3486383");
+pruefe("Thema: die Messwerte bleiben unberührt", nurThema.abstand_mm, 500);
+
+const themaUndSn = ausMeldung({ sn: "AUS-NUTZLAST", sn_aus_topic: "AUS-THEMA", distance: 500 });
+pruefe("Thema: die Nutzlast hat Vorrang",
+  themaUndSn.kennung.geraete_id, "AUS-NUTZLAST");
+
+const themaUndImei = ausMeldung({ imei: "867997030000001", sn_aus_topic: "AUS-THEMA" });
+pruefe("Thema: auch eine IMEI in der Nutzlast hat Vorrang",
+  themaUndImei.kennung.geraete_id, null);
+pruefe("Thema: die IMEI bleibt die Kennung",
+  themaUndImei.kennung.imei, "867997030000001");
+
+// ---------------------------------------------------------------------------
 console.log("");
 if (fehler > 0) {
   console.error(`${fehler} von ${geprueft} Prüfungen fehlgeschlagen.`);

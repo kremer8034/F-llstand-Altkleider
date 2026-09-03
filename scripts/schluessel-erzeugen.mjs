@@ -49,6 +49,11 @@ const zeilen = [
   `SERVICE_ROLE_KEY=${jwt("service_role", jwtGeheimnis)}`,
   `GERAETE_PROVISIONIERUNG_SCHLUESSEL=${randomBytes(32).toString("hex")}`,
   `INGEST_WEBHOOK_TOKEN=${randomBytes(32).toString("hex")}`,
+  // Das Passwort der Bruecke am MQTT-Broker. Es muss AUSSERDEM dort angelegt
+  // werden: ./scripts/mqtt-geraet-anlegen.sh bruecke - das Skript erzeugt ein
+  // eigenes und nennt es. Dieser Wert hier ist nur der Vorschlag fuer den Fall,
+  // dass der Broker von Hand befuellt wird.
+  `MQTT_BRUECKE_PASSWORT=${passwort()}`,
   `CRON_SECRET=${passwort()}`,
   "",
 ];

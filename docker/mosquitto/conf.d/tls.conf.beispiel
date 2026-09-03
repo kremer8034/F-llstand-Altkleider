@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# Verschluesselter Zugang - diese Datei nach conf.d/tls.conf kopieren
+#
+#   cp docker/mosquitto/conf.d/tls.conf.beispiel docker/mosquitto/conf.d/tls.conf
+#
+# Danach `docker compose restart mosquitto`. Ohne die Umbenennung liest
+# Mosquitto sie nicht: include_dir nimmt nur Dateien auf .conf.
+#
+# Die Zertifikatsdateien gehoeren nach docker/mosquitto/certs/. Ein Zertifikat
+# von Let's Encrypt fuer denselben Namen, unter dem der Broker aus dem Internet
+# erreichbar ist, ist der einfachste Weg - der EM400 prueft es gegen die im
+# Geraet hinterlegte Stammstelle, ein selbst ausgestelltes wuerde er ablehnen.
+# ---------------------------------------------------------------------------
+
+listener 8883
+protocol mqtt
+
+cafile   /mosquitto/certs/chain.pem
+certfile /mosquitto/certs/cert.pem
+keyfile  /mosquitto/certs/privkey.pem
+
+# Das Geraet weist sich mit Benutzername und Passwort aus, nicht mit einem
+# eigenen Zertifikat. Es soll aber pruefen, mit wem es spricht.
+require_certificate false
+tls_version tlsv1.2

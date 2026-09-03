@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# Wer darf was - die Zugriffsregeln des Brokers
+#
+# Gelesen wird von oben nach unten; ohne passende Zeile ist nichts erlaubt.
+# ---------------------------------------------------------------------------
+
+# Die Bruecke liest alles mit und schreibt nichts. Sie ist Zuhoerer, nicht
+# Teilnehmer: haette sie Schreibrecht, waere ein Fehler in ihr in der Lage,
+# Messungen zu erfinden statt nur weiterzureichen.
+user bruecke
+topic read altkleider/#
+
+# Jedes Geraet darf ausschliesslich unter SEINEM EIGENEN Namen veroeffentlichen.
+#
+# %u setzt Mosquitto durch den angemeldeten Benutzernamen. Weil der Benutzername
+# die Seriennummer ist (siehe scripts/mqtt-geraet-anlegen.sh), deckt diese eine
+# Zeile alle Geraete ab - und kein Geraet kommt an das Thema eines anderen.
+# Ohne sie koennte Geraet A Messungen im Namen von Geraet B einreichen; die
+# Meldung saehe voellig richtig aus, und der Container waere angeblich leer.
+pattern write altkleider/%u/up

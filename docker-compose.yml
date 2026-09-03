@@ -187,6 +187,62 @@ services:
           fi
         done
 
+  # ------------------------------------------ Briefkasten der Sensoren (mqtt)
+  #
+  # Nur mit `--profile mqtt`. Wer ausschliesslich Eigenbau-Sensoren betreibt,
+  # braucht ihn nicht: die melden sich unmittelbar bei /api/ingest.
+  #
+  #   docker compose --profile mqtt up -d mosquitto mqtt-bruecke
+  #
+  # Der Milesight EM400 spricht kein HTTP (docs/em400-tld.md). Er veroeffentlicht
+  # hier, und die Bruecke daneben reicht die Meldung an die Anwendung weiter.
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    profiles: ["mqtt"]
+    ports:
+      # 1883 unverschluesselt - fuer den ersten Versuch. Sobald ein Zertifikat
+      # vorliegt, gehoert 8883 daneben und dieser Port hinter die Hausfirewall
+      # (docker/mosquitto/conf.d/tls.conf.beispiel).
+      - "${PORT_MQTT:-1883}:1883"
+      - "${PORT_MQTT_TLS:-8883}:8883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./docker/mosquitto/acl:/mosquitto/config/acl:ro
+      - ./docker/mosquitto/conf.d:/mosquitto/config/conf.d:ro
+      - ./docker/mosquitto/certs:/mosquitto/certs:ro
+      # Beschreibbar: hier legt scripts/mqtt-geraet-anlegen.sh die Passwoerter
+      # ab. Ein Volume statt einer Datei aus dem Repository - Geraetepasswoerter
+      # gehoeren nicht in die Versionsverwaltung.
+      - mqtt-zugaenge:/mosquitto/config/zugaenge
+      - mqtt-daten:/mosquitto/data
+    healthcheck:
+      # Nimmt der Broker Verbindungen an? Mehr laesst sich von aussen nicht
+      # pruefen, ohne einen Zugang dafuer anzulegen - und ein Test, der immer
+      # gelingt, meldete einen toten Broker als gesund.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883 || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  mqtt-bruecke:
+    build:
+      context: ./docker/mqtt-bruecke
+    restart: unless-stopped
+    profiles: ["mqtt"]
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: mqtt://mosquitto:1883
+      MQTT_BENUTZER: bruecke
+      MQTT_PASSWORT: ${MQTT_BRUECKE_PASSWORT:?MQTT_BRUECKE_PASSWORT fehlt}
+      MQTT_THEMA: ${MQTT_THEMA:-altkleider/+/up}
+      # Standardmaessig die Anwendung im selben Netz. Laeuft sie bei Vercel,
+      # steht hier deren oeffentliche Adresse - die Bruecke ruft nur hinaus und
+      # braucht dafuer keinen offenen Port.
+      INGEST_URL: ${INGEST_URL:-http://gateway/api/ingest/webhook}
+      INGEST_WEBHOOK_TOKEN: ${INGEST_WEBHOOK_TOKEN:?INGEST_WEBHOOK_TOKEN fehlt}
+
   # ------------------------------------------------- E-Mail-Test (Profil dev)
   # Fängt alle ausgehenden Mails ab und zeigt sie unter http://localhost:8025.
   # Für den echten Betrieb stattdessen SMTP_* auf den Hausmailserver setzen
@@ -238,3 +294,5 @@ services:
 
 volumes:
   db-daten:
+  mqtt-zugaenge:
+  mqtt-daten:

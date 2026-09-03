@@ -28,6 +28,7 @@ eigenen Maschine.
 
    dazu: migrate (spielt einmalig das Schema ein) · cron (stündlicher Prüflauf)
    optional: mail (Profil dev) · studio + meta (Profil admin)
+            mosquitto + mqtt-bruecke (Profil mqtt) – nur für Fertiggeräte
 ```
 
 Web-Oberfläche und Schnittstelle liegen **auf derselben Adresse**. Damit gibt es
@@ -58,6 +59,7 @@ einspielen. Danach:
 | Anwendung | http://localhost:8080 |
 | Postfach (Profil `dev`) | http://localhost:8025 |
 | Datenbankoberfläche (Profil `admin`) | http://localhost:8000 |
+| MQTT-Broker (Profil `mqtt`) | Port 1883, mit Zertifikat 8883 |
 
 Fortschritt mitlesen:
 
@@ -110,6 +112,29 @@ Prüfen, ob es geklappt hat:
 ```bash
 docker compose exec db psql -U postgres -c "select name, email, rolle from benutzerprofil;"
 ```
+
+---
+
+## MQTT für Fertiggeräte (Profil `mqtt`)
+
+Der Milesight EM400 spricht kein HTTP – er veröffentlicht auf einem
+MQTT-Broker, und eine Brücke reicht die Meldung an `/api/ingest/webhook`
+weiter. Beide Dienste liegen im Profil `mqtt` und starten nur auf Zuruf; wer
+ausschließlich Eigenbau-Sensoren betreibt, braucht sie nicht.
+
+```bash
+docker compose --profile mqtt up -d mosquitto
+./scripts/mqtt-geraet-anlegen.sh bruecke     # Passwort in die .env
+docker compose --profile mqtt up -d mqtt-bruecke
+```
+
+Der Broker lässt sich **auch allein betreiben**, während die Anwendung bei
+Vercel liegt: dann steht in `INGEST_URL` deren öffentliche Adresse. Die Brücke
+ruft nur hinaus und braucht selbst keinen offenen Port – nach außen offen ist
+allein der Broker, damit die Sensoren ihn erreichen.
+
+Der ganze Ablauf samt der Werte für die NFC-App steht in
+[em400-tld.md](em400-tld.md).
 
 ---
 

@@ -1,0 +1,14 @@
+{
+  "name": "fuellstand-mqtt-bruecke",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reicht MQTT-Meldungen der Fertiggeraete an /api/ingest/webhook weiter",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}

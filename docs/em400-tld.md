@@ -138,14 +138,63 @@ Supabase gibt es keinen solchen Prozess – das wäre ein Bruch in der
 Architektur, denselben, den [sensor-entscheidung.md](sensor-entscheidung.md)
 in Abschnitt 5 unter Weg B beschreibt.
 
+### Erst den Broker, dann das Gerät
+
+Das Projekt bringt beides mit: den Broker (Mosquitto) und die Brücke, die vom
+Broker zu `/api/ingest/webhook` weiterreicht. Beide stecken im vorhandenen
+`docker-compose.yml` unter dem Profil `mqtt` und laufen nur, wenn man sie
+ausdrücklich startet – wer nur Eigenbau-Sensoren betreibt, braucht sie nicht.
+
+**Der Broker kann im eigenen Haus stehen, auch wenn die Anwendung bei Vercel
+liegt.** Die Brücke ruft nur hinaus; einen offenen Port braucht sie nicht. Nach
+außen offen ist allein der Broker, damit die Sensoren ihn erreichen.
+
+```
+Sensor ──MQTT──▶ Mosquitto ──▶ Brücke ──HTTPS──▶ /api/ingest/webhook
+   \_ Benutzer + Passwort je Gerät      \_ X-Ingest-Schluessel
+```
+
+```bash
+# 1. Schlüssel für den Annahmeweg setzen (Abschnitt 2), dann Broker starten
+docker compose --profile mqtt up -d mosquitto
+
+# 2. Die Brücke am Broker anmelden – gibt ihr Passwort aus
+./scripts/mqtt-geraet-anlegen.sh bruecke
+#    -> MQTT_BRUECKE_PASSWORT=... in die .env eintragen
+
+# 3. Brücke starten
+docker compose --profile mqtt up -d mqtt-bruecke
+docker compose logs -f mqtt-bruecke
+
+# 4. Für jeden Sensor einen Zugang – gibt alle Werte für die NFC-App aus
+./scripts/mqtt-geraet-anlegen.sh 6746D3486383
+```
+
+Der **Benutzername ist die Seriennummer**, und daran hängt die Zugriffsregel
+`pattern write altkleider/%u/up` (`docker/mosquitto/acl`): jedes Gerät darf
+ausschließlich unter seinem eigenen Namen veröffentlichen. Ohne diese Regel
+könnte Gerät A Messungen im Namen von Gerät B einreichen – die Meldung sähe
+völlig richtig aus, und der Container wäre angeblich leer. Die Brücke wiederum
+darf mitlesen, aber **nicht** veröffentlichen: sie ist Zuhörer, nicht
+Teilnehmer.
+
+> **Verschlüsselung.** Ab Werk lauscht der Broker auf 1883, unverschlüsselt.
+> Darauf wandert das Gerätepasswort im Klartext über das Mobilfunknetz – für
+> einen Versuch am Schreibtisch vertretbar, für den Dauerbetrieb nicht. Sobald
+> ein Zertifikat vorliegt (Let's Encrypt für den Namen, unter dem der Broker
+> erreichbar ist), wird aus `docker/mosquitto/conf.d/tls.conf.beispiel` eine
+> `tls.conf`, und Port 1883 gehört hinter die Hausfirewall. Ein selbst
+> ausgestelltes Zertifikat lehnt der EM400 ab.
+
 ### Einstellungen im Gerät (MQTT)
 
-Erst ausfüllbar, wenn der Broker steht – die Adresse kommt von dort.
+Die Werte gibt `./scripts/mqtt-geraet-anlegen.sh <Seriennummer>` aus – das
+Passwort **nur ein einziges Mal**.
 
 | Feld in der ToolBox | Wert |
 |---|---|
 | Application Mode | MQTT |
-| Broker Address | Adresse des Brokers (**ohne** `/api/...`-Pfad – MQTT kennt keine Pfade) |
+| Broker Address | Adresse Ihres Brokers (**ohne** `/api/...`-Pfad – MQTT kennt keine Pfade) |
 | Broker Port | 8883 mit TLS, 1883 ohne |
 | Client ID | die Seriennummer des Geräts |
 | Topic | ein fester Pfad je Gerät, z. B. `altkleider/<Seriennummer>` |
@@ -234,6 +283,28 @@ Der Dekoder selbst lässt sich ohne Gerät und ohne Datenbank prüfen:
 ```bash
 npm run test:dekoder
 ```
+
+### Wenn nichts ankommt: die Kette von hinten aufrollen
+
+Vier Glieder, vier Prüfungen. Wer von hinten anfängt, findet den Bruch mit
+wenigen Handgriffen statt mit Raten.
+
+| Prüfung | Befund |
+|---|---|
+| `curl` wie oben | geht das nicht, liegt es an der Anwendung, nicht am Funk |
+| `docker compose logs -f mqtt-bruecke` | zeigt jede weitergereichte Meldung samt Antwort. Steht dort nichts, kommt beim Broker nichts an |
+| `mosquitto_sub -h <broker> -u bruecke -P <pw> -t 'altkleider/#' -v` | zeigt mit, was die Geräte veröffentlichen |
+| `docker compose logs -f mosquitto` | zeigt abgewiesene Anmeldungen – falsches Passwort, unbekannter Benutzer |
+
+Die häufigste Ursache für „der Broker sieht nichts": das Gerät veröffentlicht
+auf einem anderen Thema, als die Zugriffsregel erlaubt. Der Broker verwirft das
+**still** – MQTT sieht für eine abgewiesene Veröffentlichung keine Rückmeldung
+an den Absender vor. Im Protokoll des Brokers steht es trotzdem.
+
+Zweithäufigste Ursache: Seriennummer in der Geräteaufnahme und Benutzername am
+Broker stimmen nicht überein. Dann kommt die Meldung an und der Annahmeweg
+antwortet mit `404` samt der gesuchten Kennungen – im Protokoll der Brücke
+nachzulesen.
 
 ---
 
