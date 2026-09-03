@@ -126,6 +126,10 @@ Zweiter Annahmeweg für gekaufte Geräte, die unser Signaturverfahren nicht
 können – etwa den Milesight EM400-TLD (NB-IoT). Ausführlich in
 [em400-tld.md](em400-tld.md).
 
+Diese Geräte rufen den Endpunkt **nicht selbst** auf: der EM400 spricht kein
+HTTP, sondern MQTT, TCP oder UDP. Den Aufruf macht der MQTT-Broker, an den das
+Gerät meldet.
+
 ```
 X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>
 { "sn": "6746D3486383", "data": { "battery": 96, "distance": 812, "temperature": 14.2 } }

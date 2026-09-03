@@ -11,11 +11,15 @@ Fällen dieselbe. Sie hängt an der Messung, nicht daran, wie sie hereinkam.
 
 | | Eigenbau | EM400-TLD |
 |---|---|---|
-| Adresse | `POST /api/ingest` | `POST /api/ingest/webhook` |
-| Ausweis | HMAC-SHA256 je Gerät | gemeinsamer Schlüssel in der Kopfzeile |
+| Weg | Gerät → `POST /api/ingest` | Gerät → MQTT-Broker → `POST /api/ingest/webhook` |
+| Ausweis | HMAC-SHA256 je Gerät | Benutzer/Passwort je Gerät am Broker, dahinter ein gemeinsamer Schlüssel |
 | Erkennung | Geräte-ID | Seriennummer, IMEI oder ICCID |
 | Batterie | Volt | Prozent |
 | Einrichtung | Firmware flashen | NFC-App |
+
+Der Umweg über den Broker ist keine Umständlichkeit, sondern eine Eigenschaft
+des Geräts: es spricht **kein HTTP** (Abschnitt 4). Wer das übersieht, sucht in
+der NFC-App nach einem Feld für die Serveradresse und findet keines.
 
 ---
 
@@ -45,14 +49,19 @@ weitsichtiger – es lässt nur Werte gelten, die es ohnehin nicht liefert.
 ## 2. Einen Schlüssel für den Annahmeweg erzeugen
 
 Der zweite Annahmeweg weist sich mit einem gemeinsamen Schlüssel aus, nicht mit
-einem je Gerät. Das ist schwächer, und das soll hier so dastehen: wer ihn hat,
-kann für jedes angelernte Gerät Messwerte einreichen. Ein Gerät übernehmen kann
-er damit nicht, und schlimmstenfalls steht ein falscher Füllstand in der Liste,
-den die nächste echte Meldung überschreibt.
+einem je Gerät. Wer ihn hat, kann für jedes angelernte Gerät Messwerte
+einreichen. Ein Gerät übernehmen kann er damit nicht, und schlimmstenfalls steht
+ein falscher Füllstand in der Liste, den die nächste echte Meldung überschreibt.
 
-Mehr gibt die Sache nicht her, solange das Gerät vom Hersteller kommt: es kann
-nur eine feste Kopfzeile mitschicken. Deshalb gilt: **die Adresse gehört nicht
-in Handbücher, und der Schlüssel ist lang und zufällig.**
+Diesen Schlüssel kennt allerdings **nicht das Gerät**, sondern nur der Broker
+(Abschnitt 4): das Gerät spricht kein HTTP und kann gar keine Kopfzeile setzen.
+Er sichert damit nur die kurze Strecke Broker → Anwendung, während sich das
+Gerät am Broker mit **eigenem Benutzernamen und Passwort** ausweist. Unterm
+Strich ist das besser als ursprünglich geplant – jedes Gerät hat wieder sein
+eigenes Geheimnis.
+
+Trotzdem gilt: **die Adresse gehört nicht in Handbücher, und der Schlüssel ist
+lang und zufällig.**
 
 ```bash
 node scripts/schluessel-erzeugen.mjs
@@ -93,19 +102,61 @@ wie gar keine Prüfung, nur schwerer zu bemerken.
 
 Mit der App *Milesight ToolBox* (Android/iOS), Handy an das Gehäuse halten.
 
-| Einstellung | Wert |
+### Das Gerät kann kein HTTP
+
+**Wichtig, und in einer früheren Fassung dieser Anleitung stand es falsch:** die
+NB-IoT-Ausführung des EM400 bietet unter *Application Mode* genau vier
+Betriebsarten an – **MQTT, AWS, TCP, UDP**. HTTP ist nicht darunter, und
+folglich gibt es auch **kein Feld für eine Serveradresse mit Pfad und keines
+für eine eigene Kopfzeile**. Wer danach sucht, sucht vergeblich.
+
+Damit lässt sich `/api/ingest/webhook` **nicht unmittelbar vom Gerät aus
+erreichen**. Zwischen Gerät und Anwendung gehört ein Stück Vermittlung – ein
+MQTT-Broker oder ein Empfänger für TCP/UDP –, das die Meldung entgegennimmt und
+als HTTP-Aufruf weiterreicht.
+
+### Was die vier Betriebsarten für uns bedeuten
+
+| Modus | Was das Gerät tut | Was wir dafür brauchen |
+|---|---|---|
+| **MQTT** | veröffentlicht auf einem Broker, mit Benutzer/Passwort je Gerät und TLS | einen Broker, der die Nachricht an unseren Webhook weiterreicht |
+| AWS | dasselbe, aber fest gegen AWS IoT Core, mit Zertifikat je Gerät | ein AWS-Konto samt IoT-Core-Regel |
+| TCP | roher Datenstrom an Host:Port | einen dauerhaft laufenden Empfänger mit offenem Port |
+| UDP | einzelne Datagramme an Host:Port | dasselbe, ohne Zustellgarantie |
+
+**Empfohlen wird MQTT.** Nicht nur, weil es die Betriebsart ist, die Milesight
+am besten unterstützt, sondern wegen eines Nebeneffekts, der die Sache
+*sicherer* macht als der ursprüngliche Entwurf: MQTT kennt **Benutzername und
+Passwort je Gerät**. Damit wird aus dem gemeinsamen Schlüssel, dessen Schwäche
+in Abschnitt 2 offen dasteht, wieder ein Geheimnis je Gerät – so, wie es beim
+Eigenbau ohnehin ist. Der gemeinsame Schlüssel sichert dann nur noch die
+kurze, nicht öffentlich bekannte Strecke Broker → Anwendung.
+
+TCP und UDP sind nicht falsch, verlangen aber einen Dienst, der Tag und Nacht
+läuft und einen Port ins Internet offen hat. Beim Betrieb auf Vercel und
+Supabase gibt es keinen solchen Prozess – das wäre ein Bruch in der
+Architektur, denselben, den [sensor-entscheidung.md](sensor-entscheidung.md)
+in Abschnitt 5 unter Weg B beschreibt.
+
+### Einstellungen im Gerät (MQTT)
+
+Erst ausfüllbar, wenn der Broker steht – die Adresse kommt von dort.
+
+| Feld in der ToolBox | Wert |
 |---|---|
+| Application Mode | MQTT |
+| Broker Address | Adresse des Brokers (**ohne** `/api/...`-Pfad – MQTT kennt keine Pfade) |
+| Broker Port | 8883 mit TLS, 1883 ohne |
+| Client ID | die Seriennummer des Geräts |
+| Topic | ein fester Pfad je Gerät, z. B. `altkleider/<Seriennummer>` |
+| User Credentials | **ein** – Benutzername und Passwort je Gerät |
+| TLS | **ein**, sobald der Broker es kann |
 | Reporting Interval | 360 min (viermal am Tag) |
 | Data Storage / Retransmission | ein – Meldungen aus Funklöchern kommen nach |
-| Protokoll | HTTP(S) POST, alternativ MQTT über eine Brücke |
-| Server | `https://<ihre-adresse>/api/ingest/webhook` |
-| Kopfzeile | `X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>` |
-| Nutzlastformat | JSON (Werkseinstellung) oder HEX – beides wird gelesen |
 
-Kann die Firmwarefassung keine eigene Kopfzeile setzen, führt der Weg über die
-Herstellerwolke, die per Webhook weiterreicht
-([sensor-entscheidung.md](sensor-entscheidung.md), Abschnitt 5, Weg C). Der
-Annahmeweg hier ist derselbe – die Wolke muss nur dieselbe Kopfzeile setzen.
+Ein Feld für das Nutzlastformat gibt es je nach Firmwarestand gar nicht; die
+NB-IoT-Reihe meldet ab Werk JSON. Falls Ihre Fassung die Wahl lässt, ist beides
+recht – der Dekoder liest JSON und HEX (Abschnitt 5).
 
 ---
 
