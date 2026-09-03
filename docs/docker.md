@@ -156,22 +156,65 @@ sonst wandern die Messwerte im Klartext durchs Mobilfunknetz.
    docker compose up -d --build
    ```
 
-3. Davor einen Reverse Proxy mit Zertifikat setzen, etwa Caddy:
-
-   ```
-   fuellstand.brk-mill.de {
-       reverse_proxy localhost:8080
-   }
-   ```
-
-   Caddy holt das Let's-Encrypt-Zertifikat von selbst. Genauso gehen nginx mit
-   Certbot oder ein vorhandener Proxy im Haus.
+3. Das Zertifikat holen – siehe nächster Abschnitt.
 
 4. In der Firmware `SERVER_HOST` auf denselben Namen setzen.
 
 > Wer die Adresse ändert und **nicht** neu baut, bekommt eine Oberfläche, die
 > weiterhin `http://localhost:8080` anspricht. Das ist der häufigste Stolperstein
 > bei diesem Aufbau.
+
+---
+
+## Eigene Adresse mit HTTPS
+
+Ein zusätzlicher Reverse Proxy ist nicht nötig: der Torwächter bringt HTTPS
+selbst mit, der Dienst `certbot` hält das Zertifikat gültig. Nur das *erste*
+Zertifikat wird von Hand geholt – vorher gibt es keines, und nginx würde einen
+443-Block mit fehlenden Dateien nicht annehmen.
+
+**Voraussetzung:** Der A-Record der Adresse zeigt auf diesen Server, und Port 80
+ist von außen erreichbar. Let's Encrypt prüft darüber, wem die Adresse gehört.
+
+```bash
+# 1. Erst ohne Folgen proben - schützt vor der Ratenbegrenzung
+docker compose run --rm --entrypoint certbot certbot certonly \
+  --webroot -w /var/www/acme \
+  -d altkleider.tech -d www.altkleider.tech \
+  --email name@brk.de --agree-tos --no-eff-email --non-interactive --dry-run
+
+# 2. Wenn das durchläuft, dasselbe ohne --dry-run
+```
+
+Danach den verschlüsselten Zugang einschalten:
+
+```bash
+cp docker/gateway/tls-vorlage/altkleider.conf docker/gateway/tls/
+docker compose up -d --force-recreate gateway
+```
+
+> `--force-recreate` und nicht `nginx -s reload`: Einzelne eingehängte Dateien
+> ersetzen manche Editoren beim Speichern vollständig. Der Container hängt dann
+> weiter an der alten Fassung und lädt beim Neuladen unbemerkt nichts Neues.
+
+Die Erneuerung läuft von selbst: `certbot` prüft zweimal täglich, der
+Torwächter liest seine Konfiguration alle sechs Stunden neu ein. Der Pfad
+`/.well-known/acme-challenge/` bleibt deshalb dauerhaft unverschlüsselt
+erreichbar – ohne ihn scheitert jede Erneuerung.
+
+### Was bewusst nicht nach außen zeigt
+
+Sobald der Server eine öffentliche Adresse hat, gilt: alles ohne Anmeldung
+gehört auf `127.0.0.1`. Betroffen sind der Mailfänger (8025) und die
+Datenbankoberfläche (8000) – beide kennen keinen Passwortschutz. Wer sie sehen
+will, baut einen Tunnel:
+
+```bash
+ssh -L 8025:127.0.0.1:8025 root@altkleider.tech
+```
+
+Offen bleiben nur 80 und 443 sowie 1883 für die Sensoren; letzterer überträgt
+im Klartext, ist aber durch Benutzernamen und Passwort geschützt.
 
 ---
 

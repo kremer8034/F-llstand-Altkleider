@@ -158,14 +158,56 @@ services:
       - auth
       - rest
     ports:
+      # 80 und 443 für den Betrieb unter der eigenen Adresse; 8080 bleibt
+      # zusätzlich bestehen, damit alte Lesezeichen und lokale Tests weiter
+      # funktionieren.
+      - "80:80"
+      - "443:443"
       - "${PORT_EXTERN:-8080}:80"
     volumes:
       - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Was hier liegt, bindet nginx zusätzlich ein. Das Verzeichnis ist
+      # anfangs leer: der 443-Block darf erst hinein, wenn das Zertifikat
+      # wirklich existiert - sonst verweigert nginx den Start.
+      - ./docker/gateway/tls:/etc/nginx/tls:ro
+      - ./docker/gateway/zertifikate:/etc/letsencrypt:ro
+      # Ablage für die Nachweisdateien von Let's Encrypt.
+      - ./docker/gateway/acme:/var/www/acme
+    # Alle sechs Stunden die Konfiguration neu einlesen, damit ein frisch
+    # erneuertes Zertifikat ohne Zutun übernommen wird.
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        while :; do sleep 6h & wait $${!}; nginx -s reload; done &
+        nginx -g 'daemon off;'
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # ------------------------------------------------------ Zertifikatsverwalter
+  # Hält das Let's-Encrypt-Zertifikat gültig. Er beantragt nichts von selbst -
+  # das erste Zertifikat wird einmalig von Hand geholt (docs/docker.md,
+  # Abschnitt "Eigene Adresse mit HTTPS"). Danach prüft er zweimal am Tag, ob
+  # eine Erneuerung ansteht; der Torwächter liest die Dateien ohnehin alle
+  # sechs Stunden neu ein.
+  certbot:
+    image: certbot/certbot:v2.11.0
+    restart: unless-stopped
+    volumes:
+      - ./docker/gateway/zertifikate:/etc/letsencrypt
+      - ./docker/gateway/acme:/var/www/acme
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        trap exit TERM;
+        while :; do
+        certbot renew --webroot -w /var/www/acme --quiet;
+        sleep 12h & wait $${!};
+        done
 
   # ------------------------------------------- Stündliche Überwachung (Cron)
   # Ersetzt den Vercel-Cron-Eintrag: ruft einmal pro Stunde denselben Endpunkt
@@ -211,8 +253,9 @@ services:
     ports:
       # 1883 überträgt im Klartext – nur im eigenen Netz freigeben.
       - "${PORT_MQTT:-1883}:1883"
-      # WebSockets, für Browser-Werkzeuge zur Fehlersuche.
-      - "${PORT_MQTT_WS:-9001}:9001"
+      # WebSockets, für Browser-Werkzeuge zur Fehlersuche. Nur vom Server
+      # selbst erreichbar - von außen führt der Weg über einen SSH-Tunnel.
+      - "127.0.0.1:${PORT_MQTT_WS:-9001}:9001"
     volumes:
       - ./docker/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./docker/mqtt/start.sh:/start.sh:ro
@@ -239,7 +282,12 @@ services:
     restart: unless-stopped
     profiles: ["dev"]
     ports:
-      - "${PORT_MAIL:-8025}:8025"
+      # Bewusst nur auf 127.0.0.1: Mailpit kennt keine Anmeldung und zeigt
+      # jede abgefangene Mail - darunter Einladungen und Links zum
+      # Passwortzurücksetzen. Auf einem Server mit öffentlicher Adresse wäre
+      # das ein offenes Tor. Ansehen über einen SSH-Tunnel:
+      #   ssh -L 8025:127.0.0.1:8025 root@altkleider.tech
+      - "127.0.0.1:${PORT_MAIL:-8025}:8025"
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
@@ -267,7 +315,9 @@ services:
     depends_on:
       - meta
     ports:
-      - "${PORT_STUDIO:-8000}:3000"
+      # Ebenfalls nur lokal: die Datenbankoberfläche hat keinen Passwortschutz
+      # und darf niemals offen im Netz stehen (SSH-Tunnel wie bei mail).
+      - "127.0.0.1:${PORT_STUDIO:-8000}:3000"
     environment:
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

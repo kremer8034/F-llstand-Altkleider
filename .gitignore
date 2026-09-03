@@ -10,6 +10,14 @@ build/
 next-env.d.ts
 .DS_Store
 
+# HTTPS: Zertifikate und private Schlüssel gehören dem einzelnen Server und
+# niemals ins Repository. Ebenso die Nachweisdateien von Let's Encrypt.
+docker/gateway/zertifikate/
+docker/gateway/acme/
+# Der eingeschaltete 443-Block ist Sache der jeweiligen Maschine: ohne
+# passendes Zertifikat startet nginx damit nicht. Die Vorlage wird versioniert.
+docker/gateway/tls/*.conf
+
 # PlatformIO
 firmware/**/.pio/
 firmware/**/.vscode/
