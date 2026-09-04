@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { GERAETEARTEN, STANDARD_BAUART, geraeteart } from "@/lib/geraetearten";
+import { Nfceinstellungen } from "../Nfceinstellungen";
 import { sensorAnlegen, type AnlageErgebnis } from "../aktionen";
 
 export function Geraeteaufnahme() {
@@ -23,7 +24,6 @@ export function Geraeteaufnahme() {
   }
 
   if (ergebnis?.ok) {
-    const fertig = geraeteart(ergebnis.bauart)?.annahme === "webhook";
     const konfiguration = [
       "// include/geheimnisse.h  -  nicht ins Repository einchecken!",
       "#pragma once",
@@ -42,16 +42,14 @@ export function Geraeteaufnahme() {
             </p>
           ) : (
             <p className="mt-1 text-sm text-ink-2">
-              Für dieses Gerät gibt es keinen Schlüssel und keine Firmware. Stellen Sie es per
-              NFC-App auf die Adresse des Annahmewegs ein – wie das geht, steht in{" "}
-              <span className="zahl">docs/em400-tld.md</span>. Danach hier weiter mit dem
-              Anlerncode.
+              Weiter mit der NFC-App: Handy an das Gehäuse halten und die Werte unten eintragen.
+              Danach den Anlerncode auf den Aufkleber.
             </p>
           )}
 
           <dl className="mt-4 space-y-3 text-sm">
             <div>
-              <dt className="text-xs text-ink-3">Geräte-ID</dt>
+              <dt className="text-xs text-ink-3">{eigenbau ? "Geräte-ID" : "Seriennummer"}</dt>
               <dd className="zahl text-lg font-semibold">{ergebnis.geraete_id}</dd>
             </div>
             <div>
@@ -95,7 +93,12 @@ export function Geraeteaufnahme() {
           </div>
         </div>
 
-        {fertig ? (
+        {/* Beim Fertiggeraet steht hier der eigentliche naechste Handgriff.
+            Die Werte bleiben ueber "Sensoren -> Einstellungen" erreichbar -
+            anders als der Geraeteschluessel sind sie kein Einmalgeheimnis. */}
+        {ergebnis.nfc && <Nfceinstellungen daten={ergebnis.nfc} />}
+
+        {ergebnis.nfc ? (
           <p className="text-xs text-ink-3">
             Die erste Meldung des Geräts wird auch ohne Anlernen protokolliert – sie taucht nach
             dem Koppeln rückwirkend am Container auf und liefert dort gleich den Leerwert.
@@ -136,7 +139,7 @@ export function Geraeteaufnahme() {
                 <span className="block text-sm font-medium">{g.name}</span>
                 <span className="block text-xs text-ink-3">
                   {g.messprinzip} · {g.mess_min_mm}–{g.mess_max_mm} mm ·{" "}
-                  {g.annahme === "eigenbau" ? "eigene Firmware" : "meldet an den Webhook"}
+                  {g.annahme === "eigenbau" ? "eigene Firmware" : "meldet über MQTT"}
                 </span>
               </span>
             </label>
@@ -169,37 +172,6 @@ export function Geraeteaufnahme() {
           </div>
 
           <div>
-            <label htmlFor="imei" className="mb-1 block text-sm font-medium">
-              IMEI
-            </label>
-            <input id="imei" name="imei" className="feld zahl" inputMode="numeric" />
-            {!eigenbau && (
-              <p className="mt-1 text-xs text-ink-3">Zweiter Suchweg, falls die Meldung keine SN trägt.</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="iccid" className="mb-1 block text-sm font-medium">
-              ICCID (SIM)
-            </label>
-            <input id="iccid" name="iccid" className="feld zahl" inputMode="numeric" />
-          </div>
-
-          <div>
-            <label htmlFor="mobilfunkanbieter" className="mb-1 block text-sm font-medium">
-              Mobilfunkanbieter
-            </label>
-            <input id="mobilfunkanbieter" name="mobilfunkanbieter" className="feld" placeholder="z. B. 1NCE" />
-          </div>
-
-          <div>
-            <label htmlFor="hardware_rev" className="mb-1 block text-sm font-medium">
-              Hardwarestand
-            </label>
-            <input id="hardware_rev" name="hardware_rev" className="feld" placeholder="z. B. v1.0" />
-          </div>
-
-          <div>
             <label htmlFor="montage_offset_mm" className="mb-1 block text-sm font-medium">
               Montageversatz (mm)
             </label>
@@ -210,7 +182,10 @@ export function Geraeteaufnahme() {
               defaultValue={0}
               className="feld zahl"
             />
-            <p className="mt-1 text-xs text-ink-3">Abstand Sensorunterkante zur Deckelinnenseite.</p>
+            <p className="mt-1 text-xs text-ink-3">
+              Abstand Sensorunterkante zur Deckelinnenseite. 0 lassen, wenn der Sensor direkt unter
+              dem Deckel sitzt.
+            </p>
           </div>
 
           <div>
@@ -226,57 +201,56 @@ export function Geraeteaufnahme() {
             />
             <p className="mt-1 text-xs text-ink-3">
               {eigenbau
-                ? "360 Minuten = vier Meldungen pro Tag."
-                : "360 Minuten = vier Meldungen pro Tag. Beim Fertiggerät nur zur Notiz – eingestellt wird es in der NFC-App."}
+                ? "360 Minuten = vier Meldungen pro Tag. Die Firmware holt sich diesen Wert ab."
+                : "360 Minuten = vier Meldungen pro Tag. Steht gleich als „Reporting Interval“ in der NFC-Anleitung."}
             </p>
           </div>
-
-          {/* Messbereich: Vorgabe der Bauart, im Einzelfall änderbar. Der
-              Schlüssel steckt im key – ohne ihn behielte das Feld beim
-              Umschalten der Bauart den Wert der vorigen. */}
-          <div>
-            <label htmlFor="mess_min_mm" className="mb-1 block text-sm font-medium">
-              Kleinster Messwert (mm)
-            </label>
-            <input
-              key={`min-${art.kennung}`}
-              id="mess_min_mm"
-              name="mess_min_mm"
-              type="number"
-              defaultValue={art.mess_min_mm}
-              className="feld zahl"
-            />
-            <p className="mt-1 text-xs text-ink-3">Blindzone – näher gemessene Werte gelten als ungültig.</p>
-          </div>
-
-          <div>
-            <label htmlFor="mess_max_mm" className="mb-1 block text-sm font-medium">
-              Größter Messwert (mm)
-            </label>
-            <input
-              key={`max-${art.kennung}`}
-              id="mess_max_mm"
-              name="mess_max_mm"
-              type="number"
-              defaultValue={art.mess_max_mm}
-              className="feld zahl"
-            />
-            {art.kennung === "milesight_em400_tld" && (
-              <p className="mt-1 text-xs" style={{ color: "var(--ernst)" }}>
-                Der EM400-TLD misst laut Datenblatt bis 2 m. Ist der Container innen höher, meldet
-                er bei leerem Container keinen Wert – dann fehlt der Leerwert für die Kalibrierung.
-                Vor der Bestellung an einem Container nachmessen.
-              </p>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <label htmlFor="bemerkung" className="mb-1 block text-sm font-medium">
-              Bemerkung
-            </label>
-            <input id="bemerkung" name="bemerkung" className="feld" />
-          </div>
         </div>
+
+        {/* Messbereich wird nicht mehr abgefragt: er steht im Datenblatt und
+            nicht im Ermessen dessen, der das Gerät aufnimmt. */}
+        <p className="mt-4 text-xs text-ink-3">
+          Messbereich <span className="zahl">{art.mess_min_mm}–{art.mess_max_mm} mm</span> und
+          Annahmeweg ergeben sich aus der Bauart.
+          {art.kennung === "milesight_em400_tld" && (
+            <>
+              {" "}
+              <span style={{ color: "var(--ernst)" }}>
+                Der EM400-TLD misst nur bis 2 m – ist der Container innen höher, fehlt bei leerem
+                Container der Wert für die Kalibrierung. Vorher nachmessen.
+              </span>
+            </>
+          )}
+        </p>
+
+        {/* IMEI und ICCID sind Rückfallwege, keine Pflicht: das Gerät meldet
+            sich normalerweise mit seiner Seriennummer. Weil es für Sensoren
+            keine Bearbeitungsmaske gibt, bleiben sie hier erreichbar - nur
+            nicht mehr im Weg. */}
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm text-ink-2">
+            Weitere Kennungen (IMEI, ICCID) – nur selten nötig
+          </summary>
+          <p className="mt-2 text-xs text-ink-3">
+            Nur eintragen, wenn das Gerät sich nicht mit seiner Seriennummer meldet. Woran das zu
+            erkennen ist: unter <span className="zahl">Sensoren → Einstellungen</span> steht, was in
+            den bisherigen Meldungen als Kennung ankam.
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="imei" className="mb-1 block text-sm font-medium">
+                IMEI
+              </label>
+              <input id="imei" name="imei" className="feld zahl" inputMode="numeric" />
+            </div>
+            <div>
+              <label htmlFor="iccid" className="mb-1 block text-sm font-medium">
+                ICCID (SIM)
+              </label>
+              <input id="iccid" name="iccid" className="feld zahl" inputMode="numeric" />
+            </div>
+          </div>
+        </details>
       </fieldset>
 
       {ergebnis?.fehler && (

@@ -91,7 +91,8 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   aus dem Anstieg im laufenden Zyklus und dem bisherigen Leerungsrhythmus
 - Leerungserkennung aus dem Verlauf
 - Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst;
-  die stündliche Signalprüfung läuft als Datenbank-Job (pg_cron)
+  die stündliche Signalprüfung läuft im Docker-Betrieb als eigener Dienst
+  (`cron`), bei Vercel als Cron-Eintrag
 - Sendeintervall der Geräte aus der Oberfläche steuerbar, ohne neu zu flashen
 
 ## Aufbau
@@ -103,7 +104,7 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 | `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser, Offline-Warteschlange |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
-| `docker/` | Torwächter, Datenbankstart, Schema-Einspieler |
+| `docker/` | Torwächter, Datenbankstart, Schema-Einspieler, MQTT-Broker und die Brücke zur Anwendung |
 | `docs/` | Hardware, Einkaufsliste, Anlernprozess, Schnittstellen, Betrieb |
 
 Technik: Next.js 16 · React 19 · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
@@ -122,6 +123,7 @@ einem eigenen Server – ohne Abhängigkeit von einem Anbieter.
 ```bash
 cp .env.docker.example .env
 node scripts/schluessel-erzeugen.mjs >> .env
+sh scripts/geraete-zertifikate.sh
 docker compose --profile dev up -d --build
 ```
 

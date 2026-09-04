@@ -1,0 +1,11 @@
+{
+  "name": "fuellstand-mqtt-bruecke",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reicht MQTT-Meldungen der Sensoren an /api/ingest/webhook weiter.",
+  "main": "bruecke.mjs",
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}

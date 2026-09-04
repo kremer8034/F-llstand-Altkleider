@@ -51,6 +51,14 @@ const zeilen = [
   `INGEST_WEBHOOK_TOKEN=${randomBytes(32).toString("hex")}`,
   `CRON_SECRET=${passwort()}`,
   "",
+  "# --- MQTT ---",
+  "# Konto der Bruecke (liest mit) und gemeinsames Konto der Sensoren. Das",
+  "# Sensorpasswort zeigt die Oberflaeche beim Aufnehmen eines Geraets an -",
+  "# es gehoert per NFC-App ins Geraet (docs/mqtt.md).",
+  "MQTT_BENUTZER=bruecke",
+  `MQTT_PASSWORT=${randomBytes(24).toString("hex")}`,
+  `MQTT_SENSOR_PASSWORT=${randomBytes(24).toString("hex")}`,
+  "",
 ];
 
 process.stdout.write(zeilen.join("\n"));

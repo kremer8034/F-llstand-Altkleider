@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { SITZUNGS_COOKIE, istKonfiguriert, supabaseAdresseServer } from "@/lib/supabase/adresse";
 
 /**
  * Haelt die Supabase-Sitzung frisch. Der eigentliche Zugriffsschutz sitzt in
@@ -12,12 +13,6 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   let antwort = NextResponse.next({ request: { headers: request.headers } });
 
-  // Geprueft wird genau das, was hier gleich verwendet wird - nicht die
-  // allgemeine Konfigurationsabfrage: die laesst auch SUPABASE_INTERNAL_URL
-  // gelten, und mit der allein kaeme diese Schicht nicht weit.
-  const adresse = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const schluessel = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   // Ohne Zugangsdaten gibt es keine Sitzung, die aufzufrischen waere.
   //
   // Ohne diese Abfrage wirft createServerClient hier, und zwar bevor die Seite
@@ -26,12 +21,15 @@ export async function proxy(request: NextRequest) {
   // statt mit der vorgesehenen Erklaerung, was zu tun ist. Die oeffentliche
   // Karte und die Anmeldeseite fangen den Fall ausdruecklich ab - diese
   // Schicht lief ihnen nur zuvor.
-  if (!adresse || !schluessel) return antwort;
+  if (!istKonfiguriert()) return antwort;
 
   const supabase = createServerClient(
-    adresse,
-    schluessel,
+    // Diese Schicht laeuft im Container, also ueber die interne Adresse.
+    supabaseAdresseServer(),
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Muss zum Browser passen, siehe SITZUNGS_COOKIE.
+      cookieOptions: { name: SITZUNGS_COOKIE },
       cookies: {
         get(name: string) {
           return request.cookies.get(name)?.value;

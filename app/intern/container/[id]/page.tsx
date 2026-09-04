@@ -7,6 +7,7 @@ import { Verlaufskurve } from "@/components/Verlaufskurve";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
+import { istFertiggeraet } from "@/lib/geraetearten";
 import { STUFEN, adresse, alterText, formatDatum, formatDatumZeit, stufeVon } from "@/lib/fuellstand";
 import type {
   Alarm,
@@ -109,6 +110,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   const prognose = prognoseAntwort.data as ContainerPrognose | null;
   const rhythmus = rhythmusAntwort.data as ContainerRhythmus | null;
 
+  const kalibrierFenster = zahlAusEinstellung(werte, "kalibrier_fenster_stunden", 6);
   const schwelleVoll = zahlAusEinstellung(werte, "schwelle_voll", 90);
   const schwelleTour = zahlAusEinstellung(werte, "schwelle_warnung", 75);
   const stufe = stufeVon(zustand?.fuellstand_prozent);
@@ -299,7 +301,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
           <div className="karte-flaeche p-4">
             <h2 className="mb-1 font-semibold">Kalibrierung</h2>
             <p className="mb-3 text-xs text-ink-3">
-              Leerwert = gemessener Abstand bei leerem Container. Vollwert = Abstand, ab dem 100 % gilt.
+              Leerwert = Abstand von der Deckelinnenseite bis zum Boden (der Montageversatz des Sensors ist eingerechnet). Vollwert = Abstand, ab dem 100 % gilt.
             </p>
 
             <form action={kalibrieren} className="space-y-3">
@@ -339,9 +341,16 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
               <button type="submit" className="knopf-primaer w-full">
                 Kalibrierung speichern
               </button>
+              {/* Das Fenster steht als Einstellung und war hier bis 0009 fest
+                  mit einer Stunde angegeben; der Taster gilt nur für den
+                  Eigenbau. Beides stand hier falsch. */}
               <p className="text-xs text-ink-3">
-                Beide Felder leer lassen und speichern: der Leerwert wird aus den Messungen der letzten
-                Stunde übernommen (Container muss leer sein, Taster am Sensor drücken).
+                Beide Felder leer lassen und speichern: der Leerwert wird aus den gültigen Messungen
+                der letzten <span className="zahl">{kalibrierFenster}</span> Stunden übernommen – der
+                Container muss dabei leer sein.
+                {sensor && istFertiggeraet(sensor.bauart)
+                  ? " Dieses Gerät meldet nur nach seinem Sendeintervall; liegt keine Messung im Fenster, den Leerwert von Hand eintragen."
+                  : " Beim Eigenbau lässt sich mit dem Taster am Gehäuse sofort eine Messung auslösen."}
               </p>
             </form>
           </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { QrScanner } from "@/components/QrScanner";
+import { istFertiggeraet } from "@/lib/geraetearten";
 import { kalibrierungSetzen, sensorKoppeln, type KopplungErgebnis } from "../aktionen";
 
 export interface Anlerncontainer {
@@ -342,14 +343,39 @@ export function Anlernvorgang({
             </p>
           </div>
 
-          <ol className="space-y-2 rounded-lg border p-3 text-sm text-ink-2">
-            <li>1. Container muss leer sein und der Deckel geschlossen.</li>
-            <li>
-              2. Taster am Sensorgehäuse einmal drücken – das Gerät sendet sofort eine Messung
-              (Quittung: die LED blinkt zweimal grün).
-            </li>
-            <li>3. Kurz warten und dann unten auf „Leerwert übernehmen“ tippen.</li>
-          </ol>
+          {/* Die Handgriffe unterscheiden sich je Bauart. Der Eigenbau hat
+              einen Taster außen; ein EM400 hat außen nichts - sein Taster
+              sitzt im Gehäuse und kann nur neu starten und zurücksetzen. */}
+          {istFertiggeraet(ergebnis?.bauart) ? (
+            <ol className="space-y-2 rounded-lg border p-3 text-sm text-ink-2">
+              <li>1. Container muss leer sein und der Deckel geschlossen.</li>
+              <li>
+                2. Dieses Gerät hat außen <strong>keinen Taster</strong>. Es meldet von selbst nach
+                seinem Sendeintervall – bei 360 Minuten kann das dauern. Zwei Wege, das abzukürzen:
+              </li>
+              <li className="ml-4">
+                <strong>a)</strong> In der ToolBox-App unter <em>Device → General</em> das
+                Reporting Interval auf <span className="zahl">1</span> stellen, <em>Write</em>,
+                die Meldung abwarten, danach wieder auf <span className="zahl">360</span> stellen
+                und erneut <em>Write</em>.
+              </li>
+              <li className="ml-4">
+                <strong>b)</strong> Ohne Warten: In der ToolBox unter <em>Calibration</em> steht
+                „Current Value“. Diesen Wert in <strong>Millimetern</strong> unten eintragen –
+                1,45 m sind 1450.
+              </li>
+              <li>3. Dann auf „Leerwert übernehmen“ tippen.</li>
+            </ol>
+          ) : (
+            <ol className="space-y-2 rounded-lg border p-3 text-sm text-ink-2">
+              <li>1. Container muss leer sein und der Deckel geschlossen.</li>
+              <li>
+                2. Taster am Sensorgehäuse einmal drücken – das Gerät sendet sofort eine Messung
+                (Quittung: die LED blinkt zweimal grün).
+              </li>
+              <li>3. Kurz warten und dann unten auf „Leerwert übernehmen“ tippen.</li>
+            </ol>
+          )}
 
           <div>
             <label htmlFor="leerwert" className="mb-1 block text-sm font-medium">
@@ -361,11 +387,13 @@ export function Anlernvorgang({
               onChange={(e) => setLeerwert(e.target.value)}
               type="number"
               inputMode="numeric"
-              placeholder="Innenhöhe, z. B. 1450"
+              placeholder="Deckelinnenseite bis Boden, z. B. 1450"
               className="feld zahl"
             />
             <p className="mt-1 text-xs text-ink-3">
               Leer lassen, um den Median der letzten Messungen zu übernehmen.
+              {istFertiggeraet(ergebnis?.bauart) &&
+                " Solange keine Messung angekommen ist, führt nur dieser Weg weiter."}
             </p>
           </div>
 

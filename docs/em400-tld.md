@@ -97,7 +97,7 @@ Mit der App *Milesight ToolBox* (Android/iOS), Handy an das Gehäuse halten.
 |---|---|
 | Reporting Interval | 360 min (viermal am Tag) |
 | Data Storage / Retransmission | ein – Meldungen aus Funklöchern kommen nach |
-| Protokoll | HTTP(S) POST, alternativ MQTT über eine Brücke |
+| Protokoll | HTTP(S) POST, alternativ MQTT ([mqtt.md](mqtt.md)) |
 | Server | `https://<ihre-adresse>/api/ingest/webhook` |
 | Kopfzeile | `X-Ingest-Schluessel: <INGEST_WEBHOOK_TOKEN>` |
 | Nutzlastformat | JSON (Werkseinstellung) oder HEX – beides wird gelesen |

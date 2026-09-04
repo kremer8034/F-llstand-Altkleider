@@ -61,6 +61,34 @@ const kurz = ausBytefolge("03822c01" + "0175");
 pruefe("Bytefolge: abgeschnitten - Gelesenes gilt", kurz.abstand_mm, 300);
 pruefe("Bytefolge: abgeschnitten - Rest bleibt leer", kurz.batterie_prozent, null);
 
+// --- Die NB-Fassung belegt die Kanaele anders herum -------------------------
+//
+// EM400-TLD (LoRaWAN):  Abstand 03 82, Temperatur 04 67
+// EM400-MUD (NB-IoT):   Temperatur 03 67, Abstand 04 82
+//
+// Ein Dekoder, der auf die Kanalnummer prueft, liest genau eine der beiden
+// Reihen und bricht bei der anderen gleich nach der Batterie ab. Deshalb
+// entscheidet der Typ, nicht der Kanal - und deshalb steht das hier.
+// Beispiel woertlich aus dem NB-Handbuch, Abschnitt "Periodic Report".
+const nb = ausBytefolge("017564" + "0367f800" + "04820101" + "050000");
+pruefe("NB-Fassung: Batterie", nb.batterie_prozent, 100);
+pruefe("NB-Fassung: Temperatur auf Kanal 03", nb.temperatur_c, 24.8);
+pruefe("NB-Fassung: Abstand auf Kanal 04", nb.abstand_mm, 257);
+pruefe("NB-Fassung: Lage", nb.lage, "normal");
+
+// fffd meldet das Geraet, wenn es nichts im Messbereich sieht. Der Wert wird
+// durchgereicht, nicht verschluckt: die Datenbank markiert die Messung anhand
+// der Messgrenzen als ungueltig, und ein Lebenszeichen bleibt ein
+// Lebenszeichen.
+pruefe("NB-Fassung: ausserhalb des Messbereichs", ausBytefolge("0482fdff").abstand_mm, 65533);
+
+// Der GNSS-Block ist neun Byte lang und interessiert hier nicht. Weil seine
+// Laenge bekannt ist, laesst er sich ueberspringen, ohne den Lesezeiger zu
+// verlieren - was dahinter steht, wird noch gelesen.
+const mitGnss = ausBytefolge("017564" + "0688" + "73c177019cff080722" + "04820101");
+pruefe("GNSS wird uebersprungen - Abstand dahinter gilt", mitGnss.abstand_mm, 257);
+pruefe("GNSS wird uebersprungen - Batterie davor gilt", mitGnss.batterie_prozent, 100);
+
 // ---------------------------------------------------------------------------
 // b) JSON, wie es die NB-IoT-Reihe schickt
 // ---------------------------------------------------------------------------
