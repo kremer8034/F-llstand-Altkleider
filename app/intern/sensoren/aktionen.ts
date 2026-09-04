@@ -136,7 +136,11 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
     // erspart den Weg ueber eine zweite Seite.
     nfc:
       art.annahme === "webhook"
-        ? nfceinstellungen(sensor.geraete_id, Number(feld(formular, "intervall_minuten") ?? 360) || 360)
+        ? nfceinstellungen(
+            sensor.id,
+            sensor.geraete_id,
+            Number(feld(formular, "intervall_minuten") ?? 360) || 360,
+          )
         : undefined,
   };
 }

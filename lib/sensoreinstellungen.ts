@@ -20,14 +20,23 @@
 export const CA_DATEI = "/zertifikate/isrg-root.pem";
 
 /**
- * Client-Zertifikat und -Schluessel der Sensoren. Anders als die Wurzeln oben
- * sind das Zugangsmittel: sie gehen nur ueber einen angemeldeten Abruf raus
- * (app/intern/sensoren/zertifikat/route.ts), niemals ueber public/.
+ * Client-Zertifikat und -Schluessel EINES Geraets. Anders als die Wurzeln
+ * oben sind das Zugangsmittel: sie gehen nur ueber einen angemeldeten Abruf
+ * raus (app/intern/sensoren/[id]/zertifikat/route.ts), niemals ueber public/.
+ *
+ * Je Geraet eine eigene Datei, benannt nach der Seriennummer. Nur so laesst
+ * sich ein gestohlenes Geraet aussperren, ohne alle anderen neu einzustellen
+ * (scripts/geraet-sperren.sh).
  */
-export const ZERTIFIKATSDATEIEN = {
-  client: "sensor.pem",
-  schluessel: "sensor-key.pem",
-} as const;
+export function zertifikatsdateien(geraeteId: string) {
+  // Derselbe Zuschnitt wie im Skript: alles Ungewoehnliche wird ersetzt,
+  // damit aus einer Seriennummer kein Pfad werden kann.
+  const sauber = geraeteId.replace(/[^A-Za-z0-9._-]/g, "_");
+  return {
+    client: `${sauber}.pem`,
+    schluessel: `${sauber}-key.pem`,
+  } as const;
+}
 
 export interface Nfceinstellung {
   /** Beschriftung, so wie sie in der ToolBox-App steht. */
@@ -65,8 +74,13 @@ function rechnername(): string {
  * `geraeteId` ist die Seriennummer - sie steckt im Thema und macht die
  * Meldungen zuordenbar, auch wenn die Nutzlast selbst keine Kennung traegt.
  */
-export function nfceinstellungen(geraeteId: string, intervallMinuten: number): Sensoreinstellungen {
+export function nfceinstellungen(
+  sensorId: string,
+  geraeteId: string,
+  intervallMinuten: number,
+): Sensoreinstellungen {
   const host = rechnername();
+  const dateien = zertifikatsdateien(geraeteId);
   const port = process.env.MQTT_PORT_TLS || "8883";
   const passwort = process.env.MQTT_SENSOR_PASSWORT || "";
 
@@ -103,14 +117,15 @@ export function nfceinstellungen(geraeteId: string, intervallMinuten: number): S
       },
       {
         feld: "Client Certificate",
-        wert: "sensor.pem",
-        datei: "/intern/sensoren/zertifikat?art=client",
-        hinweis: "Der Ausweis des Geräts gegenüber dem Broker. Ohne ihn kommt es auf 8883 nicht herein.",
+        wert: dateien.client,
+        datei: `/intern/sensoren/${sensorId}/zertifikat?art=client`,
+        hinweis:
+          "Der Ausweis dieses Geräts gegenüber dem Broker – er gilt nur für dieses eine. Geht das Gerät verloren, lässt es sich damit einzeln aussperren.",
       },
       {
         feld: "Client Key",
-        wert: "sensor-key.pem",
-        datei: "/intern/sensoren/zertifikat?art=schluessel",
+        wert: dateien.schluessel,
+        datei: `/intern/sensoren/${sensorId}/zertifikat?art=schluessel`,
         hinweis: "Der zugehörige Schlüssel. Gehört ins Gerät und sonst nirgendwohin.",
       },
       {

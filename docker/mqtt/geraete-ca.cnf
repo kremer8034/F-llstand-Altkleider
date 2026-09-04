@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------------------
+# Die eigene Geräte-CA. Nur für `openssl ca` - der Broker liest diese Datei
+# nicht.
+#
+# `openssl ca` statt `openssl x509 -req`, weil nur der Weg über die
+# CA-Buchführung (index.txt) eine Sperrliste erzeugen kann: gesperrt wird eine
+# Seriennummer, und die kennt nur, wer sie beim Ausstellen vergeben hat.
+#
+# Diese Datei gehoert ins Repository. Der Tresor (docker/mqtt/geraete-ca/)
+# ist ignoriert - dort liegen nur Schluessel und Buchfuehrung. Die Skripte
+# rufen openssl mit -config auf und setzen $ENV::CA_DIR auf den Tresor.
+# ---------------------------------------------------------------------------
+
+[ ca ]
+default_ca = geraete_ca
+
+[ geraete_ca ]
+dir               = $ENV::CA_DIR
+database          = $dir/index.txt
+serial            = $dir/serial
+crlnumber         = $dir/crlnumber
+new_certs_dir     = $dir/ausgestellt
+certificate       = $ENV::CA_ZERT
+private_key       = $dir/ca-key.pem
+
+default_md        = sha256
+x509_extensions   = geraet
+copy_extensions   = none
+
+# Zwei Geräte dürfen denselben Namen tragen - etwa wenn ein Sensor ersetzt
+# und der Ausweis neu ausgestellt wird. Ohne das verweigerte openssl den
+# zweiten Ausweis.
+unique_subject    = no
+
+# Nur der Name muss angegeben sein; Land, Ort und dergleichen interessieren
+# hier niemanden.
+policy            = nur_name
+
+# Wird von den Skripten mit -enddate überschrieben (kein Ablauf), steht aber
+# als Rückfall da.
+default_days      = 3650
+
+# Hundert Jahre. Eine abgelaufene Sperrliste wäre die schlimmste Falle: der
+# Broker lehnt dann JEDES Gerät ab, und im Protokoll steht nur, dass die
+# Prüfung fehlschlug.
+default_crl_days  = 36500
+
+[ nur_name ]
+commonName             = supplied
+organizationName       = optional
+countryName            = optional
+stateOrProvinceName    = optional
+localityName           = optional
+organizationalUnitName = optional
+emailAddress           = optional
+
+[ geraet ]
+basicConstraints       = critical, CA:FALSE
+keyUsage               = critical, digitalSignature, keyEncipherment
+extendedKeyUsage       = clientAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always

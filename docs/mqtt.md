@@ -34,9 +34,12 @@ beides bleibt Port 8883 zu:
 
 ```bash
 openssl rand -hex 24          # Wert nach MQTT_SENSOR_PASSWORT in die .env
-sh scripts/geraete-zertifikate.sh
+sh scripts/geraete-zertifikate.sh          # legt die Geräte-CA an
 docker compose restart mqtt
 ```
+
+Den Ausweis je Gerät stellt derselbe Befehl mit der Seriennummer aus – siehe
+Abschnitt 3.
 
 `node scripts/schluessel-erzeugen.mjs` erzeugt `MQTT_SENSOR_PASSWORT` bei
 einer frischen Installation gleich mit.
@@ -46,8 +49,10 @@ schützt nur, wenn es auch eigene Rechte hat. Die Rechte sind aber für jeden
 Sensor dieselben: schreiben ja, lesen nein (Abschnitt 3). Ein Konto je Gerät
 wäre damit Buchhaltung, kein Schutz – und es brächte einen Arbeitsschritt auf
 der Kommandozeile in einen Vorgang, der sonst vollständig in der Oberfläche
-stattfindet. Dasselbe gilt für das Client-Zertifikat: auch davon gibt es
-eines für alle.
+stattfindet.
+
+Beim **Client-Zertifikat** liegt der Fall anders: dort hat jedes Gerät ein
+eigenes, denn nur damit lässt sich ein einzelnes aussperren (Abschnitt 3).
 
 Wer trotzdem eines je Gerät will – etwa um ein einzelnes gestohlenes Gerät
 abschalten zu können, ohne alle anderen neu einzustellen –, trägt es in
@@ -129,7 +134,7 @@ her muss, soll es auch geprüft werden – der Broker steht deshalb auf
 | Datei in der App | Wer weist sich damit aus | Woher |
 |---|---|---|
 | **CA File** | der Server gegenüber dem Gerät | `https://altkleider.tech/zertifikate/isrg-root.pem` |
-| **Client Certificate** | das Gerät gegenüber dem Server | Oberfläche, *Sensoren → Einstellungen* |
+| **Client Certificate** | dieses eine Gerät gegenüber dem Server | Oberfläche, *Sensoren → Einstellungen* |
 | **Client Key** | dasselbe, der geheime Teil | ebenda |
 
 Alle drei stehen in der Oberfläche zum Antippen bereit.
@@ -141,22 +146,49 @@ selbstsignierten Wurzeln von Let's Encrypt. Nicht die Datei aus
 alle drei Monate wechseln – das Gerät müsste dann jedes Mal neu eingestellt
 werden. Die Wurzeln halten Jahre.
 
-**Client Certificate und Key** stammen aus einer eigenen kleinen CA
-(`sh scripts/geraete-zertifikate.sh`). Sie laufen **nicht ab**: als notAfter
-steht der in RFC 5280 dafür vorgesehene Wert `99991231235959Z`. Ein
-Ablaufdatum hieße, an einem Stichtag zu jedem Container zu fahren und per NFC
-neu einzustellen – und wer das versäumt, merkt es daran, dass die Meldungen
-aufhören, ohne dass irgendwo ein Fehler steht. Geprüft werden diese Daten vom
-Broker, der eine richtige Uhr hat. Sie liegen
-bewusst **nicht** unter `public/`, sondern hinter der Anmeldung
-(`/intern/sensoren/zertifikat`): der Schlüssel ist ein Zugangsmittel, kein
-öffentliches Dokument. Der Schlüssel der CA selbst liegt in
-`docker/mqtt/geraete-ca/` und wird in keinen Container eingehängt – wer ihn
-hat, stellt sich beliebige Geräteausweise aus.
+**Client Certificate und Key** stammen aus einer eigenen kleinen CA –
+**je Gerät ein eigener Ausweis**:
 
-Alle Sensoren teilen sich ein Client-Zertifikat, so wie sie sich ein Konto
-teilen. Wer ein einzelnes Gerät ausschließen können muss, erzeugt je Gerät
-eines und trägt eine Sperrliste (`crlfile`) nach.
+```bash
+sh scripts/geraete-zertifikate.sh 6749F17756790021
+sh scripts/geraete-zertifikate.sh --alle     # für alle Sensoren der Datenbank
+```
+
+Sie laufen **nicht ab**: als notAfter steht der in RFC 5280 dafür vorgesehene
+Wert `99991231235959Z`. Ein Ablaufdatum hieße, an einem Stichtag zu jedem
+Container zu fahren und per NFC neu einzustellen – und wer das versäumt, merkt
+es daran, dass die Meldungen aufhören, ohne dass irgendwo ein Fehler steht.
+Geprüft werden diese Daten vom Broker, der eine richtige Uhr hat.
+
+Die Dateien liegen bewusst **nicht** unter `public/`, sondern hinter der
+Anmeldung (`/intern/sensoren/<id>/zertifikat`): der Schlüssel ist ein
+Zugangsmittel, kein öffentliches Dokument. Der Schlüssel der CA selbst liegt
+in `docker/mqtt/geraete-ca/` und wird in keinen Container eingehängt – wer ihn
+hat, stellt sich beliebige Geräteausweise aus. Genau deshalb stellt die
+Oberfläche keine Ausweise aus, sondern zeigt nur den Befehl dafür an.
+
+### Ein einzelnes Gerät aussperren
+
+Wird ein Sensor gestohlen oder verschwindet er:
+
+```bash
+sh scripts/geraet-sperren.sh 6749F17756790021
+docker compose restart mqtt
+```
+
+Danach lässt der Broker genau dieses eine Gerät nicht mehr herein – alle
+anderen melden weiter, und niemand muss zu einem Container fahren. Ausweis und
+Schlüssel wandern in den Tresor, die Seriennummer in die Sperrliste
+(`crl.pem`, eingebunden über `crlfile`).
+
+Taucht das Gerät wieder auf, bekommt es einfach einen neuen Ausweis; die alte
+Sperre bleibt bestehen und trifft nur den alten.
+
+> **Die Sperrliste hat selbst ein Ablaufdatum**, und eine abgelaufene lässt den
+> Broker **jedes** Gerät ablehnen. Deshalb wird sie mit hundert Jahren
+> Laufzeit ausgestellt (`default_crl_days` in
+> `docker/mqtt/geraete-ca/openssl.cnf`). Wer daran dreht, baut sich einen
+> Stichtag ein, an dem die ganze Anlage schweigt.
 
 Nach einer Zertifikatserneuerung (certbot, alle drei Monate):
 
@@ -194,8 +226,8 @@ Zum Schluss **Write** drücken – ohne das bleibt alles beim Alten.
 | TLS | ein |
 | TLS Version | TLS v1.2 |
 | CA File | `isrg-root.pem` |
-| Client Certificate | `sensor.pem` |
-| Client Key | `sensor-key.pem` |
+| Client Certificate | `<Seriennummer>.pem` |
+| Client Key | `<Seriennummer>-key.pem` |
 | Uplink Topic | `sensoren/<SN>/up`, falls es das Feld gibt – sonst egal |
 | QoS | 1, falls einstellbar |
 
@@ -344,8 +376,8 @@ Eine Meldung von Hand einspielen, ohne Gerät:
 ```bash
 docker compose exec mqtt mosquitto_pub \
   -h altkleider.tech -p 8883 --capath /etc/ssl/certs \
-  --cert docker/mqtt/geraete/sensor.pem \
-  --key docker/mqtt/geraete/sensor-key.pem \
+  --cert docker/mqtt/geraete/6746D3486383.pem \
+  --key docker/mqtt/geraete/6746D3486383-key.pem \
   -u sensor -P "$MQTT_SENSOR_PASSWORT" \
   -t 'sensoren/6746D3486383/up' \
   -m '{"sn":"6746D3486383","data":{"battery":96,"distance":812,"temperature":14.2}}'

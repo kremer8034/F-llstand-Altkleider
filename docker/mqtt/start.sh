@@ -17,6 +17,19 @@ set -eu
 
 datei=/mosquitto/config/passwort
 
+# Alles, was dieser Start erzeugt, zuerst wegraeumen.
+#
+# Wichtig fuer `docker compose restart`: dabei bleibt /tmp erhalten, und die
+# Dateien des letzten Starts gehoeren dem Benutzer "mosquitto". Root kann sie
+# hier zwar loeschen, aber nicht ueberschreiben - dieser Container laeuft ohne
+# CAP_DAC_OVERRIDE. Ohne dieses Aufraeumen scheiterte jeder Neustart mit
+# "can't create /tmp/rechte: Permission denied", und der Broker kam in eine
+# Neustartschleife. Aufgefallen ist das erst beim Sperren eines Geraets -
+# genau dem Fall, fuer den in der Anleitung "docker compose restart mqtt"
+# steht.
+rm -f /tmp/rechte
+rm -rf /tmp/zertifikat /tmp/tls
+
 if [ -z "${MQTT_BENUTZER:-}" ] || [ -z "${MQTT_PASSWORT:-}" ]; then
   echo "FEHLER: MQTT_BENUTZER und MQTT_PASSWORT fehlen in der .env."
   echo "        Ohne Konto nimmt der Broker niemanden an (allow_anonymous false)."
@@ -119,16 +132,18 @@ mkdir -p /tmp/tls
 # Geräte prüft. Fehlt die CA, käme mit require_certificate true kein Gerät
 # mehr herein - dann lieber den Port zulassen und es sagen.
 geraete_ca=/geraete/ca.pem
+geraete_crl=/geraete/crl.pem
 
 if [ ! -r "$quelle/privkey.pem" ]; then
   echo "Kein lesbares Zertifikat unter $quelle - Port 8883 bleibt zu."
-elif [ ! -r "$geraete_ca" ]; then
-  echo "Keine Geräte-CA unter $geraete_ca - Port 8883 bleibt zu."
+elif [ ! -r "$geraete_ca" ] || [ ! -r "$geraete_crl" ]; then
+  echo "Geräte-CA oder Sperrliste fehlt unter /geraete - Port 8883 bleibt zu."
   echo "        Erzeugen mit: sh scripts/geraete-zertifikate.sh"
 else
   mkdir -p "$ziel"
   cp "$quelle/chain.pem" "$quelle/fullchain.pem" "$quelle/privkey.pem" "$ziel/"
   cp "$geraete_ca" "$ziel/geraete-ca.pem"
+  cp "$geraete_crl" "$ziel/geraete-crl.pem"
   chown -R mosquitto:mosquitto "$ziel"
   chmod 700 "$ziel"
   chmod 600 "$ziel"/*.pem
