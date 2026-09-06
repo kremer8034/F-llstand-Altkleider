@@ -1,22 +1,22 @@
 #!/bin/sh
 # ---------------------------------------------------------------------------
-# Spielt das Anwendungsschema ein. Läuft einmalig beim ersten Start.
+# Spielt das Anwendungsschema ein - jede Migration genau einmal.
 #
 # Zwei Dinge sind zu beachten und werden hier abgefangen:
 #   1. Der Auslöser auf auth.users setzt voraus, dass die Anmeldeverwaltung
 #      ihre eigenen Tabellen bereits angelegt hat - darauf wird gewartet.
-#   2. Die Grundmigrationen sind nicht mehrfach ausführbar (create type & Co.).
-#      Steht das Schema schon, werden sie übersprungen.
+#   2. Die meisten Migrationen sind NICHT mehrfach ausführbar: "create type",
+#      "create policy" und "add constraint" scheitern beim zweiten Lauf.
 #
-# Die Nachträge ab 0005 bestehen nur aus "create or replace", "revoke/grant" und
-# "insert ... on conflict do nothing" - sie laufen deshalb bei JEDEM Start, auch
-# über ein bestehendes Schema. Vorher endete das Skript bei einer vorhandenen
-# Datenbank sofort, und ein neuer Nachtrag kam nie an; außerdem fehlte 0007 auch
-# bei einer frischen Installation, weshalb der feste Startpunkt der Tour
-# (Einstellung "betriebshof") dort schlicht nicht vorhanden war.
+# Deshalb führt public.schema_migration Buch. Vorher stand hier eine feste
+# Liste von Dateien, die bei jedem Start liefen - alles, was danach dazukam
+# (0009 bis 0020), wurde nie eingespielt. Auf einer laufenden Anlage fehlten
+# damit unter anderem sensor.bauart, die Standorte, die Tourenplanung und die
+# Gruppen: die Oberfläche bot sie an, die Datenbank kannte sie nicht.
 #
-# 0006 bleibt bewusst außen vor: den stündlichen Prüflauf übernimmt hier der
-# Dienst "cron" aus docker-compose.yml, nicht pg_cron.
+# 0004 (Beispieldaten) läuft nur, wenn BEISPIELDATEN=ja gesetzt ist.
+# 0006 bleibt außen vor: den stündlichen Prüflauf übernimmt der Dienst "cron"
+# aus docker-compose.yml, nicht pg_cron.
 # ---------------------------------------------------------------------------
 set -eu
 
@@ -39,31 +39,62 @@ if [ "${vorhanden:-f}" != "t" ]; then
   exit 1
 fi
 
+# --- Buchführung ----------------------------------------------------------
+psql -v ON_ERROR_STOP=1 -q -c "
+  create table if not exists public.schema_migration (
+    datei          text primary key,
+    eingespielt_am timestamptz not null default now()
+  );"
+
+# Eine Anlage, die es vor dieser Buchführung schon gab: die Dateien, die der
+# alte Einspieler ausgeführt hat, gelten als erledigt. Alles Übrige wird
+# gleich nachgezogen.
+bestand=$(psql -tAc "select count(*) from public.schema_migration;")
 schon_da=$(psql -tAc "select to_regclass('public.container') is not null;")
 
-if [ "$schon_da" = "t" ]; then
-  echo "Grundschema besteht bereits - überspringe 0001 bis 0003."
-else
-  for datei in /migrations/0001_schema.sql /migrations/0002_funktionen.sql /migrations/0003_rls.sql; do
-    echo "Spiele ein: $(basename "$datei")"
-    psql -v ON_ERROR_STOP=1 -q -f "$datei"
-  done
-
-  if [ "${BEISPIELDATEN:-nein}" = "ja" ]; then
-    echo "Spiele ein: Beispieldaten"
-    psql -v ON_ERROR_STOP=1 -q -f /migrations/0004_beispieldaten.sql
-  fi
+if [ "$bestand" = "0" ] && [ "$schon_da" = "t" ]; then
+  echo "Bestehende Anlage - die früher eingespielten Migrationen werden vermerkt."
+  psql -v ON_ERROR_STOP=1 -q -c "
+    insert into public.schema_migration (datei) values
+      ('0001_schema.sql'), ('0002_funktionen.sql'), ('0003_rls.sql'),
+      ('0005_funktionsrechte.sql'), ('0007_betriebshof.sql'), ('0008_rollenschutz.sql')
+    on conflict do nothing;"
 fi
 
-# Nachträge - wiederholbar, deshalb bei jedem Start.
-for datei in /migrations/0005_funktionsrechte.sql \
-             /migrations/0007_betriebshof.sql \
-             /migrations/0008_rollenschutz.sql; do
-  echo "Spiele ein: $(basename "$datei")"
-  psql -v ON_ERROR_STOP=1 -q -f "$datei"
+# --- Einspielen -----------------------------------------------------------
+eingespielt=0
+
+for datei in /migrations/*.sql; do
+  name=$(basename "$datei")
+
+  case "$name" in
+    0004_*)
+      # Beispieldaten nur auf ausdrücklichen Wunsch.
+      [ "${BEISPIELDATEN:-nein}" = "ja" ] || continue
+      ;;
+    0006_*)
+      # pg_cron wird hier nicht benutzt - siehe Kopf dieser Datei.
+      continue
+      ;;
+  esac
+
+  fertig=$(psql -tAc "select exists (select 1 from public.schema_migration where datei = '$name');")
+  [ "$fertig" = "t" ] && continue
+
+  echo "Spiele ein: $name"
+  # -1: die ganze Datei in einer Transaktion. Bricht sie ab, ist nichts halb
+  # eingespielt - und der Vermerk unterbleibt, der nächste Start versucht es
+  # erneut.
+  psql -v ON_ERROR_STOP=1 -q -1 -f "$datei"
+  psql -v ON_ERROR_STOP=1 -q -c "insert into public.schema_migration (datei) values ('$name');"
+  eingespielt=$((eingespielt + 1))
 done
 
 # Die Datenschnittstelle kennt die neuen Tabellen sonst noch nicht.
 psql -q -c "notify pgrst, 'reload schema';"
 
-echo "Schema eingespielt."
+if [ "$eingespielt" = "0" ]; then
+  echo "Schema ist aktuell - nichts einzuspielen."
+else
+  echo "Schema eingespielt: $eingespielt Migration(en)."
+fi

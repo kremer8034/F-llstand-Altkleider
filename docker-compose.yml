@@ -142,12 +142,27 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
       NEXT_PUBLIC_SITE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
-      # Innerhalb des Netzwerks führt der Weg über den Torwächter
-      SUPABASE_INTERNAL_URL: http://gateway
+      # Innerhalb des Netzwerks führt der Weg über den Nebeneingang des
+      # Torwächters (Port 8081, nur im Docker-Netz). Port 80 leitet auf HTTPS
+      # um - dieser Umleitung kann ein Container nicht folgen.
+      SUPABASE_INTERNAL_URL: http://gateway:8081
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?SERVICE_ROLE_KEY fehlt}
       GERAETE_PROVISIONIERUNG_SCHLUESSEL: ${GERAETE_PROVISIONIERUNG_SCHLUESSEL:-}
       INGEST_WEBHOOK_TOKEN: ${INGEST_WEBHOOK_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET fehlt}
+      # Für die Anzeige "Einstellungen für die NFC-App": ohne diese Werte
+      # kann die Oberfläche nicht sagen, was ins Gerät gehört. Bewusst ohne
+      # NEXT_PUBLIC_: das Passwort wird auf dem Server gelesen und nur
+      # angemeldeten Benutzern gezeigt, es landet in keinem Browser-Bundle.
+      MQTT_SENSOR_PASSWORT: ${MQTT_SENSOR_PASSWORT:-}
+      MQTT_PORT_TLS: ${PORT_MQTT_TLS:-8883}
+      # Woher die Oberfläche das Client-Zertifikat zum Herunterladen nimmt.
+      GERAETE_ZERTIFIKATE: /geraete
+    volumes:
+      # Client-Zertifikat und -Schlüssel der Sensoren, nur lesend. Sie werden
+      # ausschließlich an angemeldete Benutzer ausgegeben - der Schlüssel darf
+      # deshalb NICHT nach public/ (dort läge er offen im Netz).
+      - ./docker/mqtt/geraete:/geraete:ro
 
   # ------------------------------------------------------------ Torwächter
   gateway:
@@ -228,7 +243,7 @@ services:
           sleep 3600
           if wget -q -O /dev/null \
                --header="Authorization: Bearer $$CRON_SECRET" \
-               http://gateway/api/cron/pruefen; then
+               http://gateway:8081/api/cron/pruefen; then
             echo "$$(date -Iseconds) Prueflauf ok"
           else
             echo "$$(date -Iseconds) Prueflauf fehlgeschlagen"
@@ -249,16 +264,32 @@ services:
     environment:
       MQTT_BENUTZER: ${MQTT_BENUTZER:?MQTT_BENUTZER fehlt}
       MQTT_PASSWORT: ${MQTT_PASSWORT:?MQTT_PASSWORT fehlt}
+      # Gemeinsames Konto der Sensoren - die Oberfläche zeigt es beim
+      # Aufnehmen eines Geräts an (docs/mqtt.md).
+      MQTT_SENSOR_PASSWORT: ${MQTT_SENSOR_PASSWORT:-}
       MQTT_GERAETE: ${MQTT_GERAETE:-}
     ports:
-      # 1883 überträgt im Klartext – nur im eigenen Netz freigeben.
-      - "${PORT_MQTT:-1883}:1883"
+      # 1883 überträgt im Klartext. Deshalb nur auf 127.0.0.1: die Brücke
+      # erreicht den Broker ohnehin über das Docker-Netz, und für die
+      # Fehlersuche von außen gibt es den SSH-Tunnel. Geräte kommen über 8883.
+      - "127.0.0.1:${PORT_MQTT:-1883}:1883"
+      # Verschlüsselt, für Sensoren aus dem Mobilfunknetz.
+      - "${PORT_MQTT_TLS:-8883}:8883"
       # WebSockets, für Browser-Werkzeuge zur Fehlersuche. Nur vom Server
       # selbst erreichbar - von außen führt der Weg über einen SSH-Tunnel.
       - "127.0.0.1:${PORT_MQTT_WS:-9001}:9001"
     volumes:
       - ./docker/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./docker/mqtt/start.sh:/start.sh:ro
+      # Der 8883-Block. start.sh kopiert ihn nur dann in die eingelesene
+      # Konfiguration, wenn das Zertifikat wirklich lesbar ist - sonst
+      # verweigerte Mosquitto den Start, und es käme gar kein Messwert mehr an.
+      - ./docker/mqtt/tls-vorlage:/mosquitto/config/tls-vorlage:ro
+      # Dasselbe Zertifikat wie der Torwächter, nur lesend.
+      - ./docker/gateway/zertifikate:/etc/letsencrypt:ro
+      # Die eigene Geräte-CA - gegen sie werden die Ausweise der Sensoren
+      # geprüft (scripts/geraete-zertifikate.sh).
+      - ./docker/mqtt/geraete:/geraete:ro
       - mqtt-daten:/mosquitto/data
     entrypoint: ["/bin/ash", "/start.sh"]
     healthcheck:
@@ -272,6 +303,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # ------------------------------------------------------------ MQTT-Brücke
+  # Der Broker nimmt entgegen, aber er tut nichts damit. Diese Brücke hört
+  # mit und reicht jede Meldung an /api/ingest/webhook weiter - denselben
+  # Annahmeweg, den auch die Herstellerwolke benutzt. Dadurch gibt es Dekoder,
+  # Gerätesuche und Leerungserkennung nur einmal (docker/bruecke/bruecke.mjs).
+  bruecke:
+    build:
+      context: ./docker/bruecke
+    restart: unless-stopped
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      app:
+        condition: service_started
+    environment:
+      MQTT_ADRESSE: mqtt://mqtt:1883
+      MQTT_BENUTZER: ${MQTT_BENUTZER:?MQTT_BENUTZER fehlt}
+      MQTT_PASSWORT: ${MQTT_PASSWORT:?MQTT_PASSWORT fehlt}
+      # Vorgabe "#": alle Themen. Nicht jede Firmware lässt das Uplink-Thema
+      # einstellen - manche sendet auf einem festen, undokumentierten Thema.
+      # Wer darauf baut, dass es "sensoren/…" heißt, bekommt eine Anlage, die
+      # schweigt, ohne dass jemand sieht warum. Wer das Thema einstellen kann,
+      # nimmt "sensoren/<SN>/up" und setzt hier denselben Filter - dann sind
+      # die Protokolle aufgeräumter.
+      MQTT_THEMA: ${MQTT_THEMA:-#}
+      # Über den Nebeneingang des Torwächters - Port 80 leitet auf HTTPS um,
+      # und dieser Umleitung kann ein Container nicht folgen.
+      INGEST_URL: http://gateway:8081/api/ingest/webhook
+      # Bewusst nicht ":?": ein fehlender Schlüssel ließe sonst den ganzen
+      # Verbund nicht starten - auch Karte und Anmeldung, die damit nichts zu
+      # tun haben. Die Brücke selbst beendet sich mit einer klaren Meldung,
+      # und nur sie steht dann still.
+      INGEST_WEBHOOK_TOKEN: ${INGEST_WEBHOOK_TOKEN:-}
 
   # ------------------------------------------------- E-Mail-Test (Profil dev)
   # Fängt alle ausgehenden Mails ab und zeigt sie unter http://localhost:8025.
@@ -323,7 +388,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DEFAULT_ORGANIZATION_NAME: BRK Miltenberg
       DEFAULT_PROJECT_NAME: Füllstand Altkleidercontainer
-      SUPABASE_URL: http://gateway
+      SUPABASE_URL: http://gateway:8081
       SUPABASE_PUBLIC_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}

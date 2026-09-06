@@ -24,3 +24,18 @@ export function supabaseAdresseServer(): string {
   }
   return adresse;
 }
+
+/**
+ * Name des Sitzungs-Cookies.
+ *
+ * @supabase/ssr leitet ihn sonst aus der Adresse ab - `sb-<erster Teil des
+ * Hostnamens>-auth-token`. Genau das geht hier schief: der Browser spricht
+ * https://altkleider.tech an und schreibt "sb-altkleider-auth-token", der
+ * Server im Container spricht http://gateway an und sucht
+ * "sb-gateway-auth-token". Die Anmeldung gelingt dann, aber der Server sieht
+ * die Sitzung nicht und schickt sofort wieder zur Anmeldeseite.
+ *
+ * Ein fester Name macht beide Seiten unabhaengig von der Adresse. Er gilt
+ * auch fuer das Beiwerk der Mail-Links (<name>-code-verifier).
+ */
+export const SITZUNGS_COOKIE = "sb-fuellstand-auth-token";

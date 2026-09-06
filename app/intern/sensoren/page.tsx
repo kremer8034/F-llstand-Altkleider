@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { bauartText } from "@/lib/geraetearten";
+import { bauartText, istFertiggeraet } from "@/lib/geraetearten";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
@@ -127,6 +127,17 @@ export default async function SensorenSeite() {
                   {code && (
                     <Link href={`/intern/sensoren/${s.id}/etikett`} className="knopf-sekundaer px-3 py-1.5">
                       Etikett · <span className="zahl">{code}</span>
+                    </Link>
+                  )}
+
+                  {/* Was in die NFC-App gehört, bleibt abrufbar - ein
+                      Fertiggerät wird auch mal zurückgesetzt. */}
+                  {bearbeiten && istFertiggeraet(s.bauart) && (
+                    <Link
+                      href={`/intern/sensoren/${s.id}/einstellungen`}
+                      className="knopf-sekundaer px-3 py-1.5"
+                    >
+                      Einstellungen
                     </Link>
                   )}
 

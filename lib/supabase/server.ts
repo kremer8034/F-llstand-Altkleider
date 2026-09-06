@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { supabaseAdresseServer } from "./adresse";
+import { SITZUNGS_COOKIE, supabaseAdresseServer } from "./adresse";
 
 /**
  * Supabase-Client fuer Server Components, Server Actions und Route Handler.
@@ -16,6 +16,8 @@ export async function serverClient() {
     supabaseAdresseServer(),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Muss zum Browser passen, siehe SITZUNGS_COOKIE.
+      cookieOptions: { name: SITZUNGS_COOKIE },
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;

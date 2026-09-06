@@ -146,19 +146,46 @@ function zeitpunkt(wert: unknown): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Die vier Werte, die ein EM400 im HEX-Betrieb sendet:
+ * Bytefolge im Milesight-Format Kanal/Typ/Wert.
  *
- *   01 75 <1>    Batterie in Prozent
- *   03 82 <2>    Abstand in mm, kleinstwertiges Byte zuerst
- *   04 67 <2>    Temperatur in Zehntelgrad, vorzeichenbehaftet
- *   05 00 <1>    Lage: 0 = normal, sonst schief
+ * Gelesen wird nach dem **Typ**, nicht nach dem Kanal - und das ist der
+ * Unterschied zur ersten Fassung, die hier falsch lag:
  *
- * Daneben gibt es Kanaele fuer Alarme und nachgereichte Verlaufssaetze. Die
- * tragen dieselben Messwerte mit einem zusaetzlichen Byte davor oder dahinter;
- * sie werden hier uebersprungen statt geraten - ein falsch ausgerichteter
- * Lesezeiger machte aus dem Rest der Bytefolge Unsinn, und Unsinn mit
- * plausiblen Zahlen ist schlimmer als eine Luecke.
+ *   EM400-TLD (LoRaWAN)   Abstand 03 82, Temperatur 04 67
+ *   EM400-MUD (NB-IoT)    Temperatur 03 67, Abstand 04 82
+ *
+ * Die Kanalnummern sind also zwischen den Bauarten vertauscht. Wer auf sie
+ * prueft, liest genau eine der beiden Reihen und bricht bei der anderen
+ * gleich nach der Batterie ab. Beispiel aus dem NB-Handbuch, Abschnitt
+ * "Periodic Report":
+ *
+ *   01 75 64   03 67 f8 00   04 82 01 01   05 00 00
+ *   Batterie   Temperatur    Abstand       Lage
+ *   100 %      24,8 °C       257 mm        normal
+ *
+ * Der Typ traegt dagegen beides: Bedeutung UND Laenge. Damit bleibt der
+ * Lesezeiger auch dann ausgerichtet, wenn ein Feld nicht interessiert - und
+ * Alarmrahmen (dieselben Typen auf anderen Kanaelen) werden nebenbei mit
+ * gelesen, statt das Lesen abzubrechen.
+ *
+ * Typen, die vorkommen:
+ *
+ *   75  1 Byte   Batterie in Prozent
+ *   67  2 Byte   Temperatur in Zehntelgrad, vorzeichenbehaftet
+ *   82  2 Byte   Abstand in mm (fffd = ausserhalb des Messbereichs)
+ *   00  1 Byte   Lage: 0 = normal, sonst schief
+ *   88  9 Byte   Standort per GNSS - wird uebersprungen, nicht gebraucht
  */
+
+/** Wie viele Bytes hinter einem Typ stehen. */
+const TYPLAENGE: Record<number, number> = {
+  0x75: 1,
+  0x67: 2,
+  0x82: 2,
+  0x00: 1,
+  0x88: 9,
+};
+
 export function ausBytefolge(hex: string): MilesightWerte | null {
   const sauber = hex.trim().replace(/^0x/i, "").replace(/[\s:-]/g, "");
   if (sauber.length === 0 || sauber.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(sauber)) return null;
@@ -171,28 +198,45 @@ export function ausBytefolge(hex: string): MilesightWerte | null {
   while (i + 2 <= bytes.length) {
     const kanal = bytes[i];
     const typ = bytes[i + 1];
-    i += 2;
+    const laenge = TYPLAENGE[typ];
 
-    if (kanal === 0x01 && typ === 0x75 && i + 1 <= bytes.length) {
-      werte.batterie_prozent = bytes[i];
-      i += 1;
-      etwasGefunden = true;
-    } else if (kanal === 0x03 && typ === 0x82 && i + 2 <= bytes.length) {
-      werte.abstand_mm = bytes.readUInt16LE(i);
-      i += 2;
-      etwasGefunden = true;
-    } else if (kanal === 0x04 && typ === 0x67 && i + 2 <= bytes.length) {
-      werte.temperatur_c = bytes.readInt16LE(i) / 10;
-      i += 2;
-      etwasGefunden = true;
-    } else if (kanal === 0x05 && typ === 0x00 && i + 1 <= bytes.length) {
-      werte.lage = bytes[i] === 0 ? "normal" : "tilt";
-      i += 1;
-      etwasGefunden = true;
-    } else {
-      // Unbekannter Kanal: hier bricht das Lesen ab. Was bis hierher
-      // erkannt wurde, gilt; der Rest steht unveraendert in messung.roh.
-      break;
+    // Unbekannter Typ: hier bricht das Lesen ab. Ohne seine Laenge waere
+    // jeder weitere Schritt geraten, und Unsinn mit plausiblen Zahlen ist
+    // schlimmer als eine Luecke. Was bis hierher erkannt wurde, gilt; der
+    // Rest steht unveraendert in messung.roh.
+    if (laenge === undefined || i + 2 + laenge > bytes.length) break;
+
+    const wert = i + 2;
+    i = wert + laenge;
+
+    switch (typ) {
+      case 0x75:
+        werte.batterie_prozent = bytes[wert];
+        etwasGefunden = true;
+        break;
+      case 0x67:
+        werte.temperatur_c = bytes.readInt16LE(wert) / 10;
+        etwasGefunden = true;
+        break;
+      case 0x82:
+        // fffd meldet das Geraet, wenn es nichts im Messbereich sieht. Der
+        // Wert bleibt stehen: die Datenbank erkennt ihn an den Messgrenzen
+        // der Bauart und markiert die Messung als ungueltig. Ihn hier zu
+        // verschlucken hiesse, ein Lebenszeichen zu verlieren - und ein
+        // stiller Sensor sieht aus wie ein defekter.
+        werte.abstand_mm = bytes.readUInt16LE(wert);
+        etwasGefunden = true;
+        break;
+      case 0x00:
+        // Typ 00 ist allgemein; als Lage gilt er nur auf Kanal 05.
+        if (kanal === 0x05) {
+          werte.lage = bytes[wert] === 0 ? "normal" : "tilt";
+          etwasGefunden = true;
+        }
+        break;
+      default:
+        // Bekannte Laenge, aber nichts, was hier gebraucht wird (GNSS).
+        break;
     }
   }
 

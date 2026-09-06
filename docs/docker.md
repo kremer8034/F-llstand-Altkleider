@@ -46,9 +46,14 @@ cd F-llstand-Altkleider
 
 cp .env.docker.example .env
 node scripts/schluessel-erzeugen.mjs >> .env    # Schlüssel und Passwörter
+sh scripts/geraete-zertifikate.sh              # Ausweise für die Sensoren
 
 docker compose --profile dev up -d --build
 ```
+
+Ohne den zweiten Aufruf bleibt der verschlüsselte MQTT-Zugang (8883) zu – die
+übrige Anwendung läuft, nur melden dann keine Sensoren
+([mqtt.md](mqtt.md)).
 
 Der erste Start dauert ein paar Minuten – Images laden, Anwendung bauen, Schema
 einspielen. Danach:
@@ -213,8 +218,11 @@ will, baut einen Tunnel:
 ssh -L 8025:127.0.0.1:8025 root@altkleider.tech
 ```
 
-Offen bleiben nur 80 und 443 sowie 1883 für die Sensoren; letzterer überträgt
-im Klartext, ist aber durch Benutzernamen und Passwort geschützt.
+Offen bleiben nur 80 und 443 sowie **8883** für die Sensoren – der
+verschlüsselte MQTT-Zugang. Dort kommt nur herein, wer ein Client-Zertifikat
+aus der eigenen Geräte-CA vorweist (`sh scripts/geraete-zertifikate.sh`). Der
+unverschlüsselte 1883 hört nur auf `127.0.0.1` und im Docker-Netz;
+Einzelheiten in [mqtt.md](mqtt.md).
 
 ---
 
@@ -246,25 +254,31 @@ git pull
 docker compose up -d --build
 ```
 
-Das Grundschema (`0001` bis `0003`) legt der `migrate`-Dienst nur einmal an – er
-erkennt am Vorhandensein der Tabelle `container`, dass es schon steht. Die
-**wiederholbaren Nachträge** (`0005`, `0007`, `0008`) spielt er dagegen bei jedem
-Start ein; sie bestehen ausschließlich aus `create or replace`, `revoke`/`grant`
-und `insert … on conflict do nothing`. Ein `docker compose up -d --build` genügt
-für diese also.
+Der `migrate`-Dienst spielt bei jedem Start alle Migrationen ein, die noch
+fehlen – jede genau einmal. Was schon gelaufen ist, steht in der Tabelle
+`public.schema_migration`. Eine neue Migration braucht deshalb nichts weiter
+als die Datei unter `supabase/migrations/` und einen Neustart.
 
-Eine **neue** Migration, die das Schema verändert (neue Tabelle, neue Spalte),
-wird von Hand eingespielt und danach in `docker/migrate/einspielen.sh`
-nachgetragen, falls sie wiederholbar ist:
+Nachsehen, was eingespielt ist:
 
 ```bash
-docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 \
-  < supabase/migrations/0009_neue_migration.sql
-docker compose exec db psql -U postgres -c "notify pgrst, 'reload schema';"
+docker compose exec db psql -U postgres \
+  -c "select datei, eingespielt_am from public.schema_migration order by datei;"
 ```
 
-Das letzte `notify` ist wichtig: sonst kennt die Datenschnittstelle die neuen
-Tabellen und Spalten noch nicht.
+> **Vorsicht bei älteren Anlagen.** Bis September 2026 stand hier eine feste
+> Dateiliste, die bei jedem Start lief; alles, was danach dazukam, wurde nie
+> eingespielt. Auf einer betroffenen Anlage fehlten zwölf Migrationen – unter
+> anderem `sensor.bauart`, die Standorte, die Tourenplanung und die Gruppen.
+> Die Oberfläche bot diese Dinge an, die Datenbank kannte sie nicht. Wer eine
+> Anlage aus dieser Zeit übernimmt: einmal die Abfrage oben laufen lassen und
+> mit dem Inhalt von `supabase/migrations/` vergleichen.
+
+`0004` (Beispieldaten) läuft nur mit `BEISPIELDATEN=ja`. `0006` bleibt außen
+vor – den stündlichen Prüflauf übernimmt der Dienst `cron`, nicht pg_cron.
+
+Der Einspieler meldet der Datenschnittstelle anschließend selbst, dass sie ihr
+Schema neu lesen soll – ohne das kennt sie neue Tabellen und Spalten nicht.
 
 ---
 

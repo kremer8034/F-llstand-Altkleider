@@ -7,6 +7,7 @@ import { adminClient } from "@/lib/supabase/admin";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { STANDARD_BAUART, geraeteart } from "@/lib/geraetearten";
+import { nfceinstellungen, type Sensoreinstellungen } from "@/lib/sensoreinstellungen";
 
 /** Zeichenvorrat ohne verwechselbare Zeichen (kein 0/O, kein 1/I). */
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -32,6 +33,8 @@ export interface AnlageErgebnis {
   /** Nur beim Eigenbau gesetzt - ein Fertiggeraet kann damit nichts anfangen. */
   geheimnis?: string;
   bauart?: string;
+  /** Nur beim Fertiggeraet: was in die NFC-App gehoert. */
+  nfc?: Sensoreinstellungen;
 }
 
 /**
@@ -80,14 +83,19 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
       geraete_id: geraeteId,
       imei,
       iccid,
-      mobilfunkanbieter: feld(formular, "mobilfunkanbieter"),
-      hardware_rev: feld(formular, "hardware_rev"),
       bauart: art.kennung,
-      mess_min_mm: Number(feld(formular, "mess_min_mm") ?? art.mess_min_mm) || art.mess_min_mm,
-      mess_max_mm: Number(feld(formular, "mess_max_mm") ?? art.mess_max_mm) || art.mess_max_mm,
+      // Messbereich nicht abgefragt, sondern aus der Bauart: er steht im
+      // Datenblatt und nicht im Ermessen dessen, der das Geraet aufnimmt.
+      // Ein Tippfehler hier liesse gueltige Messwerte als ungueltig
+      // durchfallen (0009_geraetevielfalt.sql) - ohne dass jemand merkt,
+      // warum der Container "kein Messwert" zeigt.
+      mess_min_mm: art.mess_min_mm,
+      mess_max_mm: art.mess_max_mm,
       montage_offset_mm: Number(feld(formular, "montage_offset_mm") ?? 0) || 0,
+      // Beim Eigenbau holt sich die Firmware diesen Wert ab (/api/ingest).
+      // Ein Fertiggeraet wird per NFC eingestellt und liest ihn nie - fuer
+      // es ist der Eintrag nur die Notiz, was dort eingestellt wurde.
       intervall_minuten: Number(feld(formular, "intervall_minuten") ?? 360) || 360,
-      bemerkung: feld(formular, "bemerkung"),
       status: "neu",
     })
     .select("id, geraete_id")
@@ -117,7 +125,24 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
 
   revalidatePath("/intern/sensoren");
 
-  return { ok: true, geraete_id: sensor.geraete_id, anlerncode: code, geheimnis, bauart: art.kennung };
+  return {
+    ok: true,
+    geraete_id: sensor.geraete_id,
+    anlerncode: code,
+    geheimnis,
+    bauart: art.kennung,
+    // Beim Fertiggeraet ist das der eigentliche naechste Handgriff: die
+    // Werte gehoeren jetzt per NFC ins Geraet. Sie hier gleich mitzugeben
+    // erspart den Weg ueber eine zweite Seite.
+    nfc:
+      art.annahme === "webhook"
+        ? nfceinstellungen(
+            sensor.id,
+            sensor.geraete_id,
+            Number(feld(formular, "intervall_minuten") ?? 360) || 360,
+          )
+        : undefined,
+  };
 }
 
 export interface KopplungErgebnis {
@@ -127,6 +152,13 @@ export interface KopplungErgebnis {
   container_nummer?: string;
   geraete_id?: string;
   kalibriert?: boolean;
+  /**
+   * Bauart des gekoppelten Geraets. Der Kalibrierschritt erklaert sonst
+   * Handgriffe, die es am Geraet nicht gibt: der Eigenbau hat einen Taster
+   * und eine LED, ein EM400 nicht (dessen Taster sitzt im Gehaeuse und kann
+   * nur neu starten und zuruecksetzen).
+   */
+  bauart?: string;
 }
 
 /** Schritt 2 des Anlernens: Sensor und Container verheiraten. */
@@ -165,12 +197,22 @@ export async function sensorKoppeln(
     kalibriert: boolean;
   };
 
+  // Die Bauart liefert die Datenbankfunktion nicht mit; sie hier nachzuladen
+  // ist billiger als die Funktion zu aendern - und der Kalibrierschritt
+  // braucht sie, um die richtigen Handgriffe zu zeigen.
+  const { data: sensor } = await supabase
+    .from("sensor")
+    .select("bauart")
+    .eq("geraete_id", ergebnis.geraete_id)
+    .maybeSingle();
+
   return {
     ok: true,
     container_id: ergebnis.container_id,
     container_nummer: ergebnis.container_nummer,
     geraete_id: ergebnis.geraete_id,
     kalibriert: ergebnis.kalibriert,
+    bauart: (sensor as { bauart?: string } | null)?.bauart,
   };
 }
 

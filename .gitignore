@@ -22,3 +22,15 @@ docker/gateway/tls/*.conf
 firmware/**/.pio/
 firmware/**/.vscode/
 firmware/**/include/geheimnisse.h
+
+# Datenbanksicherungen - gehoeren nicht ins Repository
+/sicherung/
+
+# Zertifikate der Sensoren. Der CA-Schluessel darf den Server nie verlassen -
+# wer ihn hat, stellt sich beliebige Geraeteausweise aus.
+# Erzeugt von scripts/geraete-zertifikate.sh
+docker/mqtt/geraete/
+docker/mqtt/geraete-ca/
+
+# Persoenliche Einstellungen dieser Maschine (Berechtigungen fuer Claude Code)
+.claude/settings.local.json
