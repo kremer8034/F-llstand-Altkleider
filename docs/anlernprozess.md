@@ -104,7 +104,7 @@ Jetzt lernt das System, welcher Abstand „leer“ bedeutet.
    wartet man den nächsten Sendezeitpunkt ab oder stellt das Intervall für die
    Anlernphase kurz auf fünf Minuten.
 3. In der App auf *Leerwert übernehmen* tippen. Das System nimmt den **Median
-   der letzten fünf gültigen Messungen** als `leer_abstand_mm`. Wie weit es
+   der letzten fünf gültigen Messungen** als `sensor.einbauhoehe_mm`. Wie weit es
    dafür zurückblickt, steht in der Einstellung `kalibrier_fenster_stunden`
    (Standard: sechs Stunden, siehe [betrieb.md](betrieb.md)).
 4. Der Vollwert wird daraus abgeleitet (Standard: 15 % des Leerwerts) und lässt
@@ -124,6 +124,9 @@ Messungen dieses Containers neu** – die Kurve stimmt also rückwirkend.
 ## Rechnung dahinter
 
 ```
+leer_abstand_mm = einbauhoehe_mm + montage_offset_mm     (seit 0022)
+voll_abstand_mm = leer_abstand_mm × voll_abstand_anteil
+
 fuellstand_% = (leer_abstand_mm − gemessener_abstand_mm)
                ─────────────────────────────────────────  × 100
                (leer_abstand_mm − voll_abstand_mm)

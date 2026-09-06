@@ -76,7 +76,7 @@ anpassen.
         │   │                    │
         │   ▼ Ultraschallkegel   │
         │  ／  ＼                 │
-        │ ／     ＼               │   leer_abstand_mm  = Deckel → Boden
+        │ ／     ＼               │   einbauhoehe_mm   = Sensor → Boden
         │        …                │   voll_abstand_mm  = Deckel → „voll“
         └── Füllgut ─────────────┘
 ```

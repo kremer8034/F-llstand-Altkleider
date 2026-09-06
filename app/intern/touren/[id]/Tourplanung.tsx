@@ -31,7 +31,6 @@ export interface Stoppcontainer {
   nummer: string;
   bezeichnung: string | null;
   fuellstand_prozent: number | null;
-  volumen_liter: number;
   /** null = auf dieser Tour noch nicht erfasst. */
   geleert: boolean | null;
   grund: string | null;
@@ -52,7 +51,8 @@ export interface Stoppzeile {
   lat: number | null;
   lng: number | null;
   freie_prozent: number | null;
-  ertrag_liter: number | null;
+  /** Ertrag in Behälterfüllungen: drei Behälter zu 80 % sind 2,4 (0022). */
+  ertrag_fuellungen: number | null;
   container_gesamt: number;
   grund: string | null;
   abholung_vereinbart: boolean;
@@ -61,7 +61,8 @@ export interface Stoppzeile {
 }
 
 const KM = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
-const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+/** Behälterfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
+const F = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 const UHR = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 
 /**
@@ -97,7 +98,7 @@ export function Tourplanung({
     hinweis: string | null;
     pflicht: boolean;
     fuellstand_prozent: number | null;
-    ertrag_liter: number | null;
+    ertrag_fuellungen: number | null;
     container_gesamt: number;
   }[];
   fahrer: { id: string; name: string; rolle: string }[];
@@ -205,7 +206,7 @@ export function Tourplanung({
           {
             umwegKm: umwegKm(ohneIhn, start, { lat: z.lat as number, lng: z.lng as number }, rundfahrt),
             containerAnzahl: z.container_gesamt,
-            ertragLiter: Number(z.ertrag_liter ?? 0),
+            ertragFuellungen: Number(z.ertrag_fuellungen ?? 0),
           },
           saetze,
         ),
@@ -222,7 +223,7 @@ export function Tourplanung({
     start,
   );
 
-  const ertragGesamt = zeilen.reduce((s, z) => s + Number(z.ertrag_liter ?? 0), 0);
+  const ertragGesamt = zeilen.reduce((s, z) => s + Number(z.ertrag_fuellungen ?? 0), 0);
   const pflichtOffen = kandidaten.filter((k) => k.pflicht).length;
 
   return (
@@ -276,7 +277,7 @@ export function Tourplanung({
                 <div className="text-xs text-ink-3">Schnitt {kennzahlText(schnitt)}</div>
               )}
               {ertragGesamt > 0 && (
-                <div className="text-xs text-ink-3">{L.format(ertragGesamt)} l zu holen</div>
+                <div className="text-xs text-ink-3">{F.format(ertragGesamt)} Füllungen zu holen</div>
               )}
             </div>
           )}
@@ -533,7 +534,7 @@ export function Tourplanung({
                     prozent={z.freie_prozent === null ? null : Math.round(100 - z.freie_prozent)}
                   />
                   <div className="mt-1 text-xs text-ink-3">
-                    {z.ertrag_liter !== null && `${L.format(z.ertrag_liter)} l`}
+                    {z.ertrag_fuellungen !== null && `${F.format(z.ertrag_fuellungen)} Füllungen`}
                     {etappe !== undefined && etappe > 0 && ` · ${KM.format(etappe)} km`}
                     {z.erledigt_am && ` · ${UHR.format(new Date(z.erledigt_am))} Uhr`}
                   </div>
@@ -542,7 +543,7 @@ export function Tourplanung({
                 <div className="w-full text-xs sm:w-32 sm:text-right">
                   {k && (
                     <>
-                      <div className="text-ink-2">{kennzahlText(k.euroJe100Liter)}</div>
+                      <div className="text-ink-2">{kennzahlText(k.euroJeFuellung)}</div>
                       <div className="text-ink-3">{euroText(k.kosten)}</div>
                     </>
                   )}
@@ -623,7 +624,7 @@ export function Tourplanung({
                 unterzeile: [
                   k.ort,
                   `${k.container_gesamt} Container`,
-                  k.ertrag_liter ? `${L.format(k.ertrag_liter)} l zu holen` : null,
+                  k.ertrag_fuellungen ? `${F.format(k.ertrag_fuellungen)} Füllungen zu holen` : null,
                 ]
                   .filter(Boolean)
                   .join(" · "),

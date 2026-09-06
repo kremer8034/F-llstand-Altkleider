@@ -11,7 +11,22 @@ import type { TourFortschritt } from "@/lib/typen";
 import { GRUND_TEXT, TOURSTATUS_TEXT, type Tourzeile } from "./planungstypen";
 import { stoppsHinzufuegen, tourAnlegen } from "./aktionen";
 
-const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+/** Behälterfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
+const F = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
+
+/**
+ * Was an einem Platz zu holen ist, in Behälterfüllungen.
+ *
+ * Seit 0022 führen wir kein Volumen je Behälter mehr - gerechnet wird aus der
+ * Belegung mal der Zahl der GEMESSENEN Behälter. Ungemessene bleiben draußen:
+ * sie sind unbekannt, nicht leer.
+ */
+function fuellungenText(z: Tourzeile): string | null {
+  if (z.belegt_prozent === null) return null;
+  const gemessen = z.container_gesamt - z.container_ohne_wert;
+  if (gemessen <= 0) return null;
+  return `${F.format((gemessen * Number(z.belegt_prozent)) / 100)} Füllungen`;
+}
 const DATUM_LANG = new Intl.DateTimeFormat("de-DE", {
   weekday: "long",
   day: "2-digit",
@@ -334,8 +349,7 @@ export function Tagesuebersicht({
                     id: z.standort_id,
                     titel: `${z.name}${z.zustand === "pflicht" ? " · Pflicht" : ""}`,
                     unterzeile: `${adresse(z) || "ohne Adresse"} · ${GRUND_TEXT[z.grund]}`,
-                    hinweis:
-                      z.ertrag_liter !== null ? `${L.format(z.ertrag_liter)} l` : null,
+                    hinweis: fuellungenText(z),
                     suchtext: z.zustand,
                   }))}
                 />
@@ -390,7 +404,7 @@ export function Tagesuebersicht({
                       prozent={z.freie_prozent === null ? null : Math.round(100 - z.freie_prozent)}
                     />
                     <div className="mt-1 text-xs text-ink-3">
-                      {z.ertrag_liter !== null && `${L.format(z.ertrag_liter)} l holen`}
+                      {fuellungenText(z) && `${fuellungenText(z)} holen`}
                     </div>
                   </div>
                 </div>

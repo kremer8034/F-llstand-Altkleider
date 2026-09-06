@@ -48,7 +48,7 @@ export default async function StandorteSeite({
     supabase.from("standort_zustand").select("*"),
     supabase
       .from("container")
-      .select("id, nummer, bezeichnung, standort_id, volumen_liter, status")
+      .select("id, nummer, bezeichnung, standort_id, status")
       .order("nummer"),
     supabase
       .from("container")
@@ -68,7 +68,7 @@ export default async function StandorteSeite({
 
   const alleContainer = (containerAntwort.data ?? []) as (Pick<
     Container,
-    "id" | "nummer" | "bezeichnung" | "volumen_liter" | "status"
+    "id" | "nummer" | "bezeichnung" | "status"
   > & { standort_id: string | null })[];
 
   // Füllstände nur für die aufgeklappten Zeilen zu laden wäre eine Abfrage je
@@ -196,16 +196,16 @@ export default async function StandorteSeite({
               id: z.id,
               nummer: z.nummer,
               bezeichnung: z.bezeichnung,
-              strasse: z.strasse,
-              plz: z.plz,
-              ort: z.ort,
+              strasse: z.standort?.strasse ?? null,
+              plz: z.standort?.plz ?? null,
+              ort: z.standort?.ort ?? null,
               status: z.status,
               oeffentlich: z.oeffentlich,
               aufstelldatum: z.aufstelldatum,
               fuellstand_prozent: z.zustand?.fuellstand_prozent ?? null,
               gemessen_am: z.zustand?.gemessen_am ?? null,
               sensor_geraete_id: z.sensor?.geraete_id ?? null,
-              kalibriert: z.leer_abstand_mm !== null,
+              kalibriert: z.sensor?.einbauhoehe_mm != null,
               tage_bis_tour: z.prognose?.tage_bis_tour ?? null,
               prognose_tour_am: z.prognose?.prognose_tour_am ?? null,
               mittel_tage: z.rhythmus?.mittel_tage ?? null,
@@ -237,10 +237,10 @@ export default async function StandorteSeite({
               aktiv: s.aktiv,
               container_gesamt: z?.container_gesamt ?? eigene.length,
               container_voll: z?.container_voll ?? 0,
-              kapazitaet_liter: z?.kapazitaet_liter ?? null,
-              freie_liter: z?.freie_liter ?? null,
+              container_ohne_wert: z?.container_ohne_wert ?? 0,
+              belegt_prozent: z?.belegt_prozent ?? null,
               freie_prozent: z?.freie_prozent ?? null,
-              zufluss_liter_je_tag: z?.zufluss_liter_je_tag ?? null,
+              zufluss_prozent_je_tag: z?.zufluss_prozent_je_tag ?? null,
               offene_meldungen: z?.offene_meldungen ?? 0,
               hat_entsorger: s.entsorger_id !== null,
               gruppe_id: s.gruppe_id,
@@ -250,7 +250,6 @@ export default async function StandorteSeite({
                 id: c.id,
                 nummer: c.nummer,
                 bezeichnung: c.bezeichnung,
-                volumen_liter: c.volumen_liter,
                 fuellstand_prozent: cZustaende.get(c.id)?.fuellstand_prozent ?? null,
                 gemessen_am: cZustaende.get(c.id)?.gemessen_am ?? null,
               })),

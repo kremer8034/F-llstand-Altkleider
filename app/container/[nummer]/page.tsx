@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
-import type { OeffentlicherContainer, OeffentlicherStandort } from "@/lib/typen";
+import type { OeffentlicherBehaelter, OeffentlicherStandort } from "@/lib/typen";
 import { Containeransicht } from "./Containeransicht";
 
 // Wie die öffentliche Karte: aktuell, aber nicht bei jedem Aufruf frisch.
@@ -19,16 +19,20 @@ export default async function Containerseite({ params }: { params: Promise<{ num
   // Beide Listen kommen vollständig vom Server, und sortiert wird erst im
   // Browser. Das ist der Grund, warum die Position des Bürgers das Gerät nie
   // verlässt: es gibt keinen Endpunkt, an den sie zu schicken wäre.
-  const [containerAntwort, standortAntwort] = supabase
+  const [behaelterAntwort, standortAntwort] = supabase
     ? await Promise.all([
-        supabase.from("oeffentliche_container").select("*").order("nummer"),
+        // Nur die Zuordnung Aufkleber -> Platz. Angezeigt wird der Zustand des
+        // Platzes; der einzelne Kuebel traegt seit 0022 keine eigene Anschrift
+        // und keinen eigenen oeffentlichen Messwert mehr.
+        supabase.from("oeffentlicher_behaelter").select("*").order("nummer"),
         supabase.from("oeffentliche_standorte").select("*").order("name"),
       ])
     : [null, null];
 
-  const alleContainer = (containerAntwort?.data ?? []) as OeffentlicherContainer[];
+  const behaelter = (behaelterAntwort?.data ?? []) as OeffentlicherBehaelter[];
   const plaetze = (standortAntwort?.data ?? []) as OeffentlicherStandort[];
-  const dieser = alleContainer.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
+  const dieser = behaelter.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
+  const hier = dieser ? (plaetze.find((p) => p.standort_id === dieser.standort_id) ?? null) : null;
 
   // Einen Fehler nicht als leere Liste durchreichen.
   //
@@ -59,12 +63,12 @@ export default async function Containerseite({ params }: { params: Promise<{ num
           </p>
         </div>
       ) : (
-        <Containeransicht dieser={dieser} plaetze={plaetze} listeGestoert={listeGestoert} />
+        <Containeransicht dieser={dieser} hier={hier} plaetze={plaetze} listeGestoert={listeGestoert} />
       )}
 
       <footer className="mt-8 border-t pt-4 text-sm">
         <Link href="/" className="underline underline-offset-2">
-          Alle Container auf der Karte
+          Alle Abgabestellen auf der Karte
         </Link>
       </footer>
     </main>

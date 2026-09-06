@@ -92,6 +92,11 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
       mess_min_mm: art.mess_min_mm,
       mess_max_mm: art.mess_max_mm,
       montage_offset_mm: Number(feld(formular, "montage_offset_mm") ?? 0) || 0,
+      // Einbauhoehe: Sensorunterkante bis Boden bei leerem Behaelter. Traegt
+      // seit 0022 die Kalibrierung, die vorher am Container stand. Leer heisst
+      // null und nicht 0 - "noch nicht bekannt" ist etwas anderes als "steht
+      // auf dem Boden".
+      einbauhoehe_mm: Number(feld(formular, "einbauhoehe_mm") ?? 0) || null,
       // Beim Eigenbau holt sich die Firmware diesen Wert ab (/api/ingest).
       // Ein Fertiggeraet wird per NFC eingestellt und liest ihn nie - fuer
       // es ist der Eintrag nur die Notiz, was dort eingestellt wurde.
@@ -217,27 +222,34 @@ export async function sensorKoppeln(
 }
 
 /** Schritt 3: Leerwert uebernehmen oder von Hand setzen. */
+/**
+ * Kalibrieren heisst seit 0022: die Einbauhoehe des Sensors festlegen.
+ *
+ * Leer gelassen bedeutet "aus den letzten Messungen ermitteln" - der rohe
+ * Abstand eines leeren Behaelters IST die Einbauhoehe. Der Vollwert ergibt
+ * sich als fester Anteil und ist keine Eingabe mehr.
+ */
 export async function kalibrierungSetzen(
-  _vorher: { ok: boolean; fehler?: string; leer?: number; voll?: number } | null,
+  _vorher: { ok: boolean; fehler?: string; hoehe?: number; leer?: number } | null,
   formular: FormData,
 ) {
   const containerId = feld(formular, "container_id");
   if (!containerId) return { ok: false, fehler: "Kein Container ausgewählt." };
 
-  const leer = feld(formular, "leer_abstand_mm");
+  const hoehe = feld(formular, "einbauhoehe_mm");
   const supabase = await serverClient();
 
   const { data, error } = await supabase.rpc("container_kalibrieren", {
     p_container_id: containerId,
-    p_leer_abstand_mm: leer ? Number(leer) : null,
-    p_voll_abstand_mm: null,
+    p_einbauhoehe_mm: hoehe ? Number(hoehe) : null,
   });
 
   if (error) return { ok: false, fehler: error.message };
 
   revalidatePath(`/intern/container/${containerId}`);
-  const werte = data as { leer_abstand_mm: number; voll_abstand_mm: number };
-  return { ok: true, leer: werte.leer_abstand_mm, voll: werte.voll_abstand_mm };
+  revalidatePath("/intern/sensoren");
+  const werte = data as { einbauhoehe_mm: number; leer_abstand_mm: number };
+  return { ok: true, hoehe: werte.einbauhoehe_mm, leer: werte.leer_abstand_mm };
 }
 
 export async function sensorEntkoppeln(formular: FormData) {

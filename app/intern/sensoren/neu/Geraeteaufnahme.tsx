@@ -189,6 +189,26 @@ export function Geraeteaufnahme() {
           </div>
 
           <div>
+            <label htmlFor="einbauhoehe_mm" className="mb-1 block text-sm font-medium">
+              Einbauhöhe (mm)
+            </label>
+            <input
+              id="einbauhoehe_mm"
+              name="einbauhoehe_mm"
+              type="number"
+              min={100}
+              max={6000}
+              className="feld zahl"
+              placeholder="z. B. 1450"
+            />
+            <p className="mt-1 text-xs text-ink-3">
+              Sensorunterkante bis Boden bei leerem Behälter – daraus entsteht der Leerwert der
+              Füllstandsrechnung. Leer lassen ist in Ordnung: nach dem Anlernen lässt sich die Höhe
+              aus den ersten Messungen ermitteln.
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="intervall_minuten" className="mb-1 block text-sm font-medium">
               Sendeintervall (Minuten)
             </label>

@@ -6,20 +6,18 @@ import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 
 export interface Importzeile {
-  nummer: string;
-  externe_id?: string | null;
-  bezeichnung?: string | null;
+  /** Name des Platzes - der Schluessel, ueber den abgeglichen wird. */
+  name: string;
+  kuerzel?: string | null;
   strasse?: string | null;
   plz?: string | null;
   ort?: string | null;
   lat?: number | null;
   lng?: number | null;
-  typ?: string | null;
-  volumen_liter?: number | null;
-  aufstelldatum?: string | null;
+  zufahrt?: string | null;
   bemerkung?: string | null;
-  /** Name des Standorts. Unbekannte Namen legen einen Standort an. */
-  standort?: string | null;
+  /** Wie viele Behaelter hier stehen. Leer heisst: nicht anfassen. */
+  anzahl_container?: number | null;
 }
 
 export interface Importergebnis {
@@ -27,103 +25,42 @@ export interface Importergebnis {
   fehler?: string;
   neu?: number;
   aktualisiert?: number;
-  standorte_neu?: number;
-  standorte_zugeordnet?: number;
+  behaelter_angelegt?: number;
+  behaelter_stillgelegt?: number;
+  behaelter_geloescht?: number;
+  ohne_koordinaten?: number;
 }
 
 /**
- * Container aus einem Export der Dienstleistungsdatenbank uebernehmen.
+ * Standorte einspielen.
  *
- * Abgeglichen wird ueber die Containernummer: bekannte Nummern werden
- * aktualisiert, unbekannte neu angelegt. Kalibrierung, Status und die
- * Sensorzuordnung bleiben dabei unangetastet - die pflegen wir selbst.
+ * Bis 0022 wurden hier Container importiert - mit Anschrift, Koordinaten und
+ * Volumen je Behaelter. Das war die Quelle der Dopplung, die dieser Umbau
+ * beseitigt: dieselbe Adresse stand am Platz und an jedem Kuebel darauf.
  *
- * Die optionale Spalte "standortname" traegt die Clusterzuordnung mit. Sie nimmt
- * der Zuordnung von Hand nichts ab - es entscheidet weiterhin ein Mensch,
- * welche Container zusammengehoeren - erspart bei mehreren hundert Containern
- * aber die Klickarbeit. Ohne die Spalte aendert sich am Import nichts.
+ * Jetzt ist der Platz die Einheit. Die Behaelter entstehen aus einer Zahl -
+ * "hier stehen sechs" - und bekommen ihre Nummern aus dem Kuerzel des Platzes.
+ * Was ein einzelner Behaelter an Eigenem traegt (Status, Sensor, Geschichte),
+ * ruehrt der Import nicht an; das pflegen wir selbst und wuerden es uns mit
+ * jedem Einspielen ueberschreiben.
+ *
+ * Abgeglichen wird ueber den Namen, ohne Gross- und Kleinschreibung und ohne
+ * fuehrende Leerzeichen - sonst legt eine Tabelle mit "Netto Parkplatz" und
+ * "netto parkplatz " zwei Plaetze an.
  */
-export async function containerImportieren(zeilen: Importzeile[]): Promise<Importergebnis> {
+export async function standorteImportieren(zeilen: Importzeile[]): Promise<Importergebnis> {
   const benutzer = await angemeldeterBenutzer();
   if (!benutzer) redirect("/login");
   if (!darfBearbeiten(benutzer.profil.rolle)) return { ok: false, fehler: "Keine Berechtigung." };
 
-  const gueltige = zeilen.filter((z) => z.nummer && z.nummer.trim() !== "");
-  if (gueltige.length === 0) return { ok: false, fehler: "Keine Zeile mit Containernummer gefunden." };
-  if (gueltige.length > 2000) return { ok: false, fehler: "Bitte höchstens 2000 Zeilen auf einmal importieren." };
-
-  const supabase = await serverClient();
-
-  const { data: vorhanden } = await supabase
-    .from("container")
-    .select("nummer")
-    .in(
-      "nummer",
-      gueltige.map((z) => z.nummer),
-    );
-
-  const bekannt = new Set((vorhanden ?? []).map((c) => c.nummer as string));
-
-  const { error } = await supabase.from("container").upsert(
-    gueltige.map((z) => ({
-      nummer: z.nummer.trim(),
-      externe_id: z.externe_id ?? null,
-      bezeichnung: z.bezeichnung ?? null,
-      strasse: z.strasse ?? null,
-      plz: z.plz ?? null,
-      ort: z.ort ?? null,
-      lat: z.lat ?? null,
-      lng: z.lng ?? null,
-      typ: z.typ || "Depotcontainer",
-      volumen_liter: z.volumen_liter ?? null,
-      aufstelldatum: z.aufstelldatum ?? null,
-      bemerkung: z.bemerkung ?? null,
-    })),
-    { onConflict: "nummer", ignoreDuplicates: false },
-  );
-
-  if (error) return { ok: false, fehler: error.message };
-
-  const standorte = await standorteZuordnen(supabase, gueltige);
-
-  revalidatePath("/intern/container");
-  revalidatePath("/intern/standorte");
-  revalidatePath("/intern/karte");
-  revalidatePath("/");
-
-  const aktualisiert = gueltige.filter((z) => bekannt.has(z.nummer)).length;
-  return {
-    ok: true,
-    neu: gueltige.length - aktualisiert,
-    aktualisiert,
-    ...standorte,
-  };
-}
-
-/**
- * Standorte aus der Standortspalte anlegen und die Container zuordnen.
- *
- * In der Importdatei heisst die Spalte "standortname" (oder "cluster",
- * "platz", "containerstandort", "sammelstelle") - NICHT "standort": so heisst
- * im Export der Dienstleistungsdatenbank die Bezeichnung des einzelnen
- * Containers. Die Zuordnung der Spaltennamen steht in Importbereich.tsx; hier
- * kommt sie als Feld `standort` der Importzeile an.
- *
- * Verglichen wird ueber den Namen, ohne Gross- und Kleinschreibung und ohne
- * fuehrende Leerzeichen - sonst legt eine Tabelle mit "Netto Parkplatz" und
- * "netto parkplatz " zwei Standorte an.
- */
-async function standorteZuordnen(
-  supabase: Awaited<ReturnType<typeof serverClient>>,
-  zeilen: Importzeile[],
-): Promise<{ standorte_neu: number; standorte_zugeordnet: number }> {
-  const mitStandort = zeilen.filter((z) => z.standort && z.standort.trim() !== "");
-  if (mitStandort.length === 0) return { standorte_neu: 0, standorte_zugeordnet: 0 };
+  const gueltige = zeilen.filter((z) => z.name && z.name.trim() !== "");
+  if (gueltige.length === 0) return { ok: false, fehler: "Keine Zeile mit Standortnamen gefunden." };
+  if (gueltige.length > 2000) {
+    return { ok: false, fehler: "Bitte höchstens 2000 Zeilen auf einmal importieren." };
+  }
 
   const schluessel = (name: string) => name.trim().toLowerCase();
-
-  const gewuenscht = new Map<string, string>();
-  mitStandort.forEach((z) => gewuenscht.set(schluessel(z.standort!), z.standort!.trim()));
+  const supabase = await serverClient();
 
   const { data: vorhanden } = await supabase.from("standort").select("id, name");
   const nachName = new Map<string, string>();
@@ -131,52 +68,81 @@ async function standorteZuordnen(
     nachName.set(schluessel(s.name), s.id),
   );
 
-  const fehlend = [...gewuenscht.entries()].filter(([k]) => !nachName.has(k));
+  let neu = 0;
+  let aktualisiert = 0;
+  let angelegt = 0;
+  let stillgelegt = 0;
+  let geloescht = 0;
+  let ohneKoordinaten = 0;
 
-  if (fehlend.length > 0) {
-    const { data: angelegt, error } = await supabase
-      .from("standort")
-      .insert(
-        fehlend.map(([, name]) => {
-          const zeile = mitStandort.find((z) => schluessel(z.standort!) === schluessel(name));
-          return {
-            name,
-            strasse: zeile?.strasse ?? null,
-            plz: zeile?.plz ?? null,
-            ort: zeile?.ort ?? null,
-            lat: zeile?.lat ?? null,
-            lng: zeile?.lng ?? null,
-          };
-        }),
-      )
-      .select("id, name");
+  for (const z of gueltige) {
+    const name = z.name.trim();
+    const vorhandeneId = nachName.get(schluessel(name));
 
-    if (error) throw new Error(error.message);
-    ((angelegt ?? []) as { id: string; name: string }[]).forEach((s) =>
-      nachName.set(schluessel(s.name), s.id),
-    );
+    // Nur setzen, was in der Datei steht. Eine leere Zelle heisst "nicht
+    // angegeben" und nicht "loeschen" - sonst raeumt ein Teilexport gepflegte
+    // Angaben ab, ohne dass es jemand merkt.
+    const daten: Record<string, unknown> = { name };
+    if (z.kuerzel != null && z.kuerzel !== "") daten.kuerzel = z.kuerzel.trim().toUpperCase();
+    if (z.strasse != null) daten.strasse = z.strasse;
+    if (z.plz != null) daten.plz = z.plz;
+    if (z.ort != null) daten.ort = z.ort;
+    if (z.lat != null) daten.lat = z.lat;
+    if (z.lng != null) daten.lng = z.lng;
+    if (z.zufahrt != null) daten.zufahrt = z.zufahrt;
+    if (z.bemerkung != null) daten.bemerkung = z.bemerkung;
+
+    let standortId = vorhandeneId;
+
+    if (standortId) {
+      const { error } = await supabase.from("standort").update(daten).eq("id", standortId);
+      if (error) return { ok: false, fehler: error.message };
+      aktualisiert += 1;
+    } else {
+      if (!daten.kuerzel) {
+        const { data: vorschlag } = await supabase.rpc("standort_kuerzel_vorschlag", {
+          p_name: name,
+          p_id: null,
+        });
+        if (typeof vorschlag === "string") daten.kuerzel = vorschlag;
+      }
+      const { data: erzeugt, error } = await supabase
+        .from("standort")
+        .insert(daten)
+        .select("id")
+        .single();
+      if (error) return { ok: false, fehler: error.message };
+      standortId = erzeugt.id as string;
+      nachName.set(schluessel(name), standortId);
+      neu += 1;
+    }
+
+    if (z.lat == null || z.lng == null) ohneKoordinaten += 1;
+
+    if (z.anzahl_container != null && z.anzahl_container >= 0) {
+      const { data: bilanz, error } = await supabase.rpc("standort_container_setzen", {
+        p_standort_id: standortId,
+        p_anzahl: Math.round(z.anzahl_container),
+      });
+      if (error) return { ok: false, fehler: error.message };
+      const b = bilanz as { angelegt?: number; stillgelegt?: number; geloescht?: number } | null;
+      angelegt += b?.angelegt ?? 0;
+      stillgelegt += b?.stillgelegt ?? 0;
+      geloescht += b?.geloescht ?? 0;
+    }
   }
 
-  // Je Standort ein Aufruf statt je Container - bei 300 Containern an 40
-  // Standorten sind das 40 Anfragen statt 300.
-  const jeStandort = new Map<string, string[]>();
-  mitStandort.forEach((z) => {
-    const id = nachName.get(schluessel(z.standort!));
-    if (!id) return;
-    const liste = jeStandort.get(id) ?? [];
-    liste.push(z.nummer.trim());
-    jeStandort.set(id, liste);
-  });
+  revalidatePath("/intern/standorte");
+  revalidatePath("/intern/karte");
+  revalidatePath("/");
 
-  let zugeordnet = 0;
-  for (const [standortId, nummern] of jeStandort) {
-    const { error, count } = await supabase
-      .from("container")
-      .update({ standort_id: standortId }, { count: "exact" })
-      .in("nummer", nummern);
-    if (error) throw new Error(error.message);
-    zugeordnet += count ?? nummern.length;
-  }
-
-  return { standorte_neu: fehlend.length, standorte_zugeordnet: zugeordnet };
+  return {
+    ok: true,
+    neu,
+    aktualisiert,
+    behaelter_angelegt: angelegt,
+    behaelter_stillgelegt: stillgelegt,
+    behaelter_geloescht: geloescht,
+    ohne_koordinaten: ohneKoordinaten,
+  };
 }

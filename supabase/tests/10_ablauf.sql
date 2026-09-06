@@ -17,8 +17,14 @@ set test.uid = '11111111-1111-1111-1111-111111111111';
 select public.aktuelle_rolle() as rolle, public.ist_admin() as admin, public.ist_mindestens_dispo() as dispo;
 
 \echo '=== 2. Container und Sensor anlegen ==='
-insert into public.container (nummer, bezeichnung, ort, lat, lng, aufstelldatum)
-values ('T-001', 'Testplatz', 'Grossheubach', 49.7333, 9.2167, current_date - 400);
+-- Seit 0022 traegt der Platz Anschrift und Koordinaten, und ohne Platz gibt es
+-- keinen Behaelter.
+insert into public.standort (name, kuerzel, strasse, plz, ort, lat, lng)
+values ('Testplatz', 'TEST', 'Hauptstrasse 1', '63920', 'Grossheubach', 49.7333, 9.2167);
+
+insert into public.container (nummer, bezeichnung, standort_id, aufstelldatum)
+values ('T-001', 'Testplatz',
+        (select id from public.standort where name='Testplatz'), current_date - 400);
 
 insert into public.sensor (geraete_id, montage_offset_mm) values ('ALT-9001', 50);
 insert into public.sensor_geheimnis (sensor_id, geheimnis)
@@ -38,7 +44,10 @@ from public.sensor s where s.geraete_id = 'ALT-9001';
 \echo '=== 4. Zweite Kopplung ohne "ersetzen" muss scheitern ==='
 insert into public.anlerncode (sensor_id, code)
 select id, 'ZWEI-CODE' from public.sensor where geraete_id = 'ALT-9001';
-insert into public.container (nummer, ort) values ('T-002', 'Kleinheubach');
+insert into public.standort (name, kuerzel, ort, lat, lng)
+values ('Zweiter Platz', 'ZWEI', 'Kleinheubach', 49.7200, 9.1900);
+insert into public.container (nummer, standort_id)
+values ('T-002', (select id from public.standort where name='Zweiter Platz'));
 do $$
 begin
   perform public.sensor_koppeln('ZWEI-CODE', (select id from public.container where nummer='T-002'));
@@ -58,7 +67,11 @@ select abstand_mm, fuellstand_prozent, gueltig from public.messung order by geme
 
 \echo '=== 6. Kalibrieren: Median der letzten Messungen, dann Rueckrechnung ==='
 select public.container_kalibrieren((select id from public.container where nummer='T-001'));
-select nummer, leer_abstand_mm, voll_abstand_mm from public.container where nummer='T-001';
+-- Die Kalibrierung steht seit 0022 am Sensor, nicht am Behaelter.
+select s.geraete_id, s.einbauhoehe_mm, k.leer_abstand_mm, k.voll_abstand_mm
+  from public.sensor s
+  cross join lateral public.sensor_kalibrierung(s.id) k
+ where s.container_id = (select id from public.container where nummer='T-001');
 select abstand_mm, fuellstand_prozent from public.messung order by gemessen_am;
 select fuellstand_prozent, abstand_mm from public.container_zustand
 where container_id = (select id from public.container where nummer='T-001');
@@ -118,8 +131,10 @@ select public.pruefe_stille_sensoren() as neue_alarme;
 select typ, text from public.alarm where typ='kein_signal';
 
 \echo '=== 13. Oeffentliche Ansicht ==='
-select nummer, fuellstand_prozent, stufe, standtage > 300 as lange_am_standort
-from public.oeffentliche_container order by nummer;
+-- Ein Eintrag je PLATZ, nicht je Behaelter (0022). Die Belegung ist das Mittel
+-- ueber die gemessenen Behaelter; ungemessene zaehlen nicht als leer.
+select name, container_gesamt, container_gemessen, belegt_prozent, stufe
+from public.oeffentliche_standorte order by name;
 
 \echo '=== 14. Entkoppeln ==='
 select public.sensor_entkoppeln((select id from public.sensor where geraete_id='ALT-9001'), 'Test');
@@ -131,8 +146,11 @@ select count(*) as geschlossene_kopplungen from public.sensor_kopplung where get
 -- ---------------------------------------------------------------------------
 
 \echo '=== 15. Messbereich haengt am Geraet, nicht an einer festen Grenze ==='
-insert into public.container (nummer, bezeichnung, ort, lat, lng, aufstelldatum)
-values ('T-900', 'Zweiter Testplatz', 'Grossheubach', 49.7400, 9.2200, current_date - 10);
+insert into public.standort (name, kuerzel, ort, lat, lng)
+values ('Dritter Platz', 'DRIT', 'Grossheubach', 49.7400, 9.2200);
+insert into public.container (nummer, bezeichnung, standort_id, aufstelldatum)
+values ('T-900', 'Zweiter Testplatz',
+        (select id from public.standort where name='Dritter Platz'), current_date - 10);
 
 -- Ein Geraet mit kleinerem Messbereich, wie ihn ein gekauftes haette
 insert into public.sensor (geraete_id, montage_offset_mm, mess_max_mm)
@@ -176,7 +194,10 @@ end $$;
 select public.sensor_koppeln('ZWEI-9002', (select id from public.container where nummer='T-900'),
                              49.7400, 9.2200, false, 'Zweite Testkopplung');
 select public.container_kalibrieren((select id from public.container where nummer='T-900'));
-select nummer, leer_abstand_mm, voll_abstand_mm from public.container where nummer='T-900';
+select s.geraete_id, s.einbauhoehe_mm, k.leer_abstand_mm, k.voll_abstand_mm
+  from public.sensor s
+  cross join lateral public.sensor_kalibrierung(s.id) k
+ where s.container_id = (select id from public.container where nummer='T-900');
 
 \echo '=== 18. Nachrechnen beruecksichtigt den Montageversatz ==='
 -- In messung.abstand_mm steht der rohe Messwert, bezogen auf die
@@ -197,9 +218,16 @@ begin
     from public.messung m join public.sensor s on s.id = m.sensor_id
    where s.geraete_id='ALT-9002' and m.abstand_mm = 2000;
 
-  -- Erneut mit demselben Leerwert kalibrieren: der Prozentwert darf sich
-  -- dadurch nicht veraendern.
-  perform public.container_kalibrieren(v_container, 4000, 600);
+  -- Erneut mit DEMSELBEN Wert kalibrieren: der Prozentwert darf sich dadurch
+  -- nicht veraendern.
+  --
+  -- Hier stand bis 0022 `container_kalibrieren(v_container, 4000, 600)` - und
+  -- das waren gar nicht dieselben Werte. Abschnitt 17 hatte ueber den Median
+  -- auf leer 4200 / voll 630 kalibriert; mit 4000/600 rechnete der Test also
+  -- absichtslos um und schlug fehl (56 gegen 53). Der Fehler lag im Test, nicht
+  -- im Nachrechnen. Jetzt wird die Einbauhoehe uebergeben, die ohnehin gilt:
+  -- 4000 mm roh, plus 200 mm Versatz ergibt wieder denselben Leerwert.
+  perform public.container_kalibrieren(v_container, 4000);
 
   select m.fuellstand_prozent into v_nach_rechnung
     from public.messung m join public.sensor s on s.id = m.sensor_id

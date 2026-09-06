@@ -18,11 +18,12 @@ export interface Tourzeile {
   lng: number | null;
   container_gesamt: number;
   container_voll: number;
-  kapazitaet_liter: number | null;
-  /** Was hier eingesammelt wird - der gefüllte Anteil. */
-  ertrag_liter: number | null;
-  freie_liter: number | null;
+  /** Behälter ohne Messwert - unbekannt, nicht leer. */
+  container_ohne_wert: number;
+  /** Belegung als Mittel über die gemessenen Behälter (0022). */
+  belegt_prozent: number | null;
   freie_prozent: number | null;
+  zufluss_prozent_je_tag: number | null;
   tage_laengster_voll: number | null;
   offene_meldungen: number;
   tage_bis_reserve: number | null;

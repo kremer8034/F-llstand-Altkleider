@@ -46,15 +46,13 @@ insert into public.standort (name, ort, lat, lng) values
   ('Tourplatz A', 'Miltenberg',   49.7040, 9.2530),
   ('Tourplatz B', 'Grossheubach', 49.7300, 9.2200);
 
-insert into public.container (nummer, bezeichnung, ort, lat, lng,
-                              leer_abstand_mm, voll_abstand_mm, standort_id)
-select 'T-A' || i, 'Tour A ' || i, 'Miltenberg', 49.7040, 9.2530, 1000, 200,
+insert into public.container (nummer, bezeichnung, standort_id)
+select 'T-A' || i, 'Tour A ' || i,
        (select id from public.standort where name = 'Tourplatz A')
 from generate_series(1, 2) i;
 
-insert into public.container (nummer, bezeichnung, ort, lat, lng,
-                              leer_abstand_mm, voll_abstand_mm, standort_id)
-select 'T-B' || i, 'Tour B ' || i, 'Grossheubach', 49.7300, 9.2200, 1000, 200,
+insert into public.container (nummer, bezeichnung, standort_id)
+select 'T-B' || i, 'Tour B ' || i,
        (select id from public.standort where name = 'Tourplatz B')
 from generate_series(1, 2) i;
 
@@ -360,25 +358,32 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
-\echo '=== 10. Container ohne eigene Koordinaten bleibt oeffentlich sichtbar ==='
+\echo '=== 10. Ohne Koordinaten am Platz faellt alles heraus, was dort steht ==='
+-- Frueher pruefte dieser Abschnitt den Rueckfall von der Container- auf die
+-- Standortkoordinate. Seit 0022 gibt es nur noch die eine Koordinate - und
+-- damit ist die wichtigere Frage, ob ihr Fehlen sichtbar wird. Es faellt der
+-- ganze Platz heraus, samt seiner Behaelter; genau davor warnt die
+-- Standortseite im internen Bereich.
 -- ---------------------------------------------------------------------------
 do $$
-declare v_c uuid; v_sichtbar integer; v_lat double precision;
+declare v_s uuid; v_vorher integer; v_nachher integer;
 begin
-  select id into v_c from public.container where nummer = 'T-A1';
-  update public.container set lat = null, lng = null where id = v_c;
+  select id into v_s from public.standort where name = 'Tourplatz A';
 
-  select count(*) into v_sichtbar from public.oeffentliche_container where id = v_c;
-  select lat into v_lat from public.oeffentliche_container where id = v_c;
-
-  if v_sichtbar <> 1 then
-    raise exception 'Der Container ist von der oeffentlichen Karte verschwunden, obwohl sein Standort Koordinaten hat';
-  end if;
-  if v_lat is null then
-    raise exception 'Die Koordinate haette vom Standort kommen muessen';
+  select count(*) into v_vorher from public.oeffentliche_standorte where standort_id = v_s;
+  if v_vorher <> 1 then
+    raise exception 'Tourplatz A war schon vorher nicht oeffentlich sichtbar (%)', v_vorher;
   end if;
 
-  raise notice 'OK: Rueckfall auf die Standortkoordinate greift';
+  update public.standort set lat = null, lng = null where id = v_s;
+  select count(*) into v_nachher from public.oeffentliche_standorte where standort_id = v_s;
+  if v_nachher <> 0 then
+    raise exception 'Platz ohne Koordinaten ist weiterhin oeffentlich sichtbar';
+  end if;
+
+  -- Zustand wiederherstellen, damit die folgenden Abschnitte darauf bauen.
+  update public.standort set lat = 49.7040, lng = 9.2530 where id = v_s;
+  raise notice 'OK: ohne Koordinaten kein oeffentlicher Eintrag';
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -443,14 +448,14 @@ revoke execute on function public.einstellung_zahl(text, numeric) from anon;
 -- erreichbar sind - nicht, was anon gerade an Rechten hat: die uebrigen
 -- Testdateien vergeben grosszuegig Rechte, um Zugriffsregeln statt Rechte zu
 -- pruefen, und damit waere ein Filter ueber has_table_privilege wertlos.
--- Diese beiden Ansichten sind der oeffentliche Vertrag (0003, 0016).
+-- Diese beiden Ansichten sind der oeffentliche Vertrag (0022).
 do $$
 declare
   v_ansicht  text;
   v_funktion text;
   v_treffer  text := '';
 begin
-  foreach v_ansicht in array array['oeffentliche_container', 'oeffentliche_standorte']
+  foreach v_ansicht in array array['oeffentliche_standorte', 'oeffentlicher_behaelter']
   loop
     for v_funktion in
       select p.proname

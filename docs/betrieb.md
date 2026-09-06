@@ -173,10 +173,10 @@ Steuern lässt sich das an drei Stellen:
 > öffentlichen Seite. Das passierte früher lautlos – die Standortseite im
 > internen Bereich weist jetzt darauf hin.
 
-Für die Einbindung in brk-mill.de gibt es zusätzlich
-`GET /api/oeffentlich/container` als JSON (siehe [api.md](api.md)). Diese
-Schnittstelle liefert weiterhin **einzelne Container** – sie ist beschrieben und
-wird außerhalb eingebunden, deshalb bleibt sie unverändert.
+> **Kein öffentliches JSON mehr.** `GET /api/oeffentlich/container` und die
+> Ansicht `oeffentliche_container` sind mit 0022 ersatzlos entfallen. Wer die
+> Daten wieder nach außen geben will, baut den Endpunkt neu – dann aber bewusst
+> und auf Standorten.
 
 > Solange die Karte noch nicht öffentlich sein soll: `oeffentliche_karte` auf
 > `false` setzen. Dann liefert die Ansicht keine Zeilen mehr – ohne dass an der
@@ -209,7 +209,6 @@ Für die Tourenplanung auf Standort-Ebene
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
 | `standort_reserve_prozent` | 20 | unter dieser freien Restkapazität gilt ein Standort als anzufahren |
-| `standard_volumen_liter` | 2500 | Ersatzwert, wenn an einem Container kein Volumen gepflegt ist |
 | `max_tage_ueber_schwelle` | 7 | so lange darf ein Container höchstens voll stehen, dann muss der Stopp mit |
 | `kosten_pro_km` | 0.80 | Sprit, Verschleiß, Reifen, Wartung |
 | `kosten_pro_stunde` | 45.00 | Fahrpersonal einschließlich Nebenkosten |

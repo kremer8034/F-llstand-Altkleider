@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { rolleErzwingen } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/server";
 import { adresse } from "@/lib/fuellstand";
-import type { Container } from "@/lib/typen";
+import type { Container, Standort } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Containeretikett" };
@@ -13,8 +13,8 @@ export const metadata = { title: "Containeretikett" };
  * Der Aufkleber für die Außenseite des Containers – für Bürger, nicht für uns.
  *
  * Der QR-Code führt auf die öffentliche Seite unter /container/<Nummer>. Dort
- * steht, wie voll dieser Container ist, wo der nächste mit Platz steht, und es
- * gibt den Knopf „Container ist voll".
+ * steht, wie voll die Abgabestelle ist, wo die nächste mit Platz liegt, und es
+ * gibt den Knopf „Behälter ist voll".
  *
  * Bewusst die Containernummer in der Adresse und nicht die interne Kennung:
  * der Aufkleber bleibt damit lesbar, und wer die Nummer abtippt, landet auch
@@ -25,9 +25,17 @@ export default async function Containeretikett({ params }: { params: Promise<{ i
   const { id } = await params;
 
   const supabase = await serverClient();
-  const { data } = await supabase.from("container").select("*").eq("id", id).maybeSingle();
+  // Die Anschrift steht seit 0022 am Platz, nicht am Behälter - deshalb kommt
+  // sie hier mit dazu.
+  const { data } = await supabase
+    .from("container")
+    .select("*, standort:standort_id (name, strasse, plz, ort)")
+    .eq("id", id)
+    .maybeSingle();
   if (!data) notFound();
-  const c = data as Container;
+  const c = data as Container & {
+    standort: Pick<Standort, "name" | "strasse" | "plz" | "ort"> | null;
+  };
 
   const basis = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const ziel = `${basis}/container/${encodeURIComponent(c.nummer)}`;
@@ -72,7 +80,7 @@ export default async function Containeretikett({ params }: { params: Promise<{ i
 
         <div className="mt-4 border-t pt-3">
           <div className="zahl text-sm font-medium">{c.nummer}</div>
-          <div className="text-xs text-ink-3">{adresse(c) || c.bezeichnung || ""}</div>
+          <div className="text-xs text-ink-3">{adresse(c.standort ?? {}) || c.standort?.name || ""}</div>
         </div>
       </div>
 

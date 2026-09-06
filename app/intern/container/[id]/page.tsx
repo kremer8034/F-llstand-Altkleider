@@ -96,7 +96,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   const { data: standort } = c.standort_id
     ? await supabase
         .from("standort_zustand")
-        .select("standort_id, name, container_gesamt, freie_prozent")
+        .select("standort_id, name, ort, lat, lng, container_gesamt, freie_prozent")
         .eq("standort_id", c.standort_id)
         .maybeSingle()
     : { data: null };
@@ -130,7 +130,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
           <h1 className="mt-1 text-2xl font-semibold">{c.bezeichnung ?? c.nummer}</h1>
           <p className="mt-1 text-sm text-ink-2">
             <span className="zahl">{c.nummer}</span>
-            {adresse(c) && ` · ${adresse(c)}`}
+            {standort?.ort && ` · ${standort.ort}`}
             {c.aufstelldatum && ` · Standort seit ${formatDatum(c.aufstelldatum)}`}
           </p>
           {standort && (
@@ -143,7 +143,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
               </Link>
               <span className="text-ink-3">
                 {standort.container_gesamt > 1
-                  ? ` · Cluster aus ${standort.container_gesamt} Containern, ${standort.freie_prozent ?? "–"} % frei`
+                  ? ` · einer von ${standort.container_gesamt} Behältern hier, ${standort.freie_prozent ?? "–"} % frei`
                   : " · steht allein an diesem Standort"}
               </span>
             </p>
@@ -151,9 +151,9 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {c.lat && c.lng && (
+          {standort?.lat && standort?.lng && (
             <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}`}
+              href={`https://www.google.com/maps/dir/?api=1&destination=${standort.lat},${standort.lng}`}
               target="_blank"
               rel="noreferrer noopener"
               className="knopf-sekundaer"
@@ -230,8 +230,10 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
               <dd className="zahl font-medium">{zustand?.rssi ? `${zustand.rssi} dBm` : "–"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-ink-3">Volumen</dt>
-              <dd className="zahl font-medium">{c.volumen_liter ? `${c.volumen_liter} l` : "–"}</dd>
+              <dt className="text-xs text-ink-3">Einbauhöhe</dt>
+              <dd className="zahl font-medium">
+                {sensor?.einbauhoehe_mm ? `${sensor.einbauhoehe_mm} mm` : "–"}
+              </dd>
             </div>
           </dl>
 
@@ -307,35 +309,24 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             <form action={kalibrieren} className="space-y-3">
               <input type="hidden" name="container_id" value={c.id} />
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="leer" className="mb-1 block text-xs text-ink-3">
-                    Leer (mm)
-                  </label>
-                  <input
-                    id="leer"
-                    name="leer_abstand_mm"
-                    type="number"
-                    inputMode="numeric"
-                    defaultValue={c.leer_abstand_mm ?? ""}
-                    placeholder="z. B. 1450"
-                    className="feld zahl"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="voll" className="mb-1 block text-xs text-ink-3">
-                    Voll (mm)
-                  </label>
-                  <input
-                    id="voll"
-                    name="voll_abstand_mm"
-                    type="number"
-                    inputMode="numeric"
-                    defaultValue={c.voll_abstand_mm ?? ""}
-                    placeholder="z. B. 220"
-                    className="feld zahl"
-                  />
-                </div>
+              <div>
+                <label htmlFor="einbauhoehe" className="mb-1 block text-xs text-ink-3">
+                  Einbauhöhe (mm)
+                </label>
+                <input
+                  id="einbauhoehe"
+                  name="einbauhoehe_mm"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={sensor?.einbauhoehe_mm ?? ""}
+                  placeholder="z. B. 1450"
+                  className="feld zahl"
+                />
+                <p className="mt-1 text-xs text-ink-3">
+                  Sensorunterkante bis Boden bei leerem Behälter. Leer lassen heißt: aus den
+                  letzten Messungen ermitteln. Der Vollwert ist ein fester Anteil davon und wird
+                  nicht mehr getrennt gepflegt.
+                </p>
               </div>
 
               <button type="submit" className="knopf-primaer w-full">

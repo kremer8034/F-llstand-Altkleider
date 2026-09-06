@@ -53,7 +53,7 @@ reset role;
 \echo '=== C. Ohne Anmeldung ==='
 set test.uid = '';
 set role anon;
-select count(*) as oeffentlich_sichtbar from public.oeffentliche_container;
+select count(*) as oeffentlich_sichtbar from public.oeffentliche_standorte;
 do $$ declare n int; begin
   select count(*) into n from public.container;
   if n > 0 then raise exception 'FEHLER: anon sieht % Container in der Rohtabelle', n; end if;
@@ -77,7 +77,11 @@ reset role;
 \echo '=== D. Administration ==='
 set test.uid = '11111111-1111-1111-1111-111111111111';
 set role authenticated;
-insert into public.container (nummer, ort) values ('T-003', 'Miltenberg') on conflict (nummer) do nothing;
+-- Ein Behaelter braucht seit 0022 einen Platz; hier geht es um das Duerfen,
+-- nicht um das Modell, deshalb einer aus dem Bestand.
+insert into public.container (nummer, standort_id)
+select 'T-003', id from public.standort order by name limit 1
+on conflict (nummer) do nothing;
 select 'ok' as container_angelegt;
 select count(*) as sichtbare_profile from public.benutzerprofil;
 reset role;

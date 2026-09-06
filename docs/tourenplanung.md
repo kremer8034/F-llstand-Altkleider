@@ -112,21 +112,28 @@ Ein Container mit 60 % hat noch 40 % Platz. Gefragt ist nicht, wie viele
 Container voll sind, sondern **wie viel Platz am Standort noch ist**:
 
 ```
-freie_liter = Σ volumen_liter × (100 − Füllstand) / 100
+frei_% = 100 − Mittel der Füllstände über die gemessenen Behälter
 ```
 
-`volumen_liter` steht bereits am Container und wird vom CSV-Import übernommen.
+Bis 0022 wurde nach Volumen gewichtet (`Σ volumen_liter × (100 − Füllstand)`).
+Das Volumen ist entfallen: gepflegt hat es niemand, und alle Behälter zählen
+gleich. Bei gleich großen Behältern sind beide Rechnungen ohnehin identisch –
+das Volumen kürzt sich heraus.
+
+Ein Behälter **ohne Messwert zählt nicht als leer**, sondern gar nicht. Wie
+viele fehlen, steht in `container_ohne_wert`.
 
 ### Das Beispiel des Kreisverbands, durchgerechnet
 
-Sieben Container à 2500 Liter, fünf davon bei 95 %, zwei bei 10 %:
+Sieben Behälter, fünf davon bei 95 %, zwei bei 10 %:
 
-| | Liter |
+| | Prozent |
 |---|---|
-| Gesamtkapazität | 17 500 |
-| frei bei den fünf vollen | 625 |
-| frei bei den zwei freien | 4 500 |
-| **frei gesamt** | **5 125 = 29 %** |
+| Mittel über alle sieben | (5 × 95 + 2 × 10) / 7 = 70,7 belegt |
+| **frei gesamt** | **29,3 %** |
+
+Dieselbe Zahl wie die alte Literrechnung (5 125 von 17 500 l = 29,3 %) – der
+Beweis steht als Zusicherung in `supabase/tests/40_standorte.sql`.
 
 Bei einer Reserve von 20 % also **nicht anfahren** – genau die Intuition aus
 der Praxis, jetzt als Zahl, die sich begründen lässt.
@@ -138,8 +145,8 @@ Tage und die Regeltour kommt erst in zehn, quillt der Standort über. Es braucht
 also auch: **wie lange hält der Standort noch?**
 
 ```
-liter_je_tag   = Σ (Rate_i in %-Punkten/Tag × volumen_liter_i / 100)
-tage_bis_voll  = (freie_liter − Reserve) / liter_je_tag
+zufluss_%_je_tag = Mittel der Raten in %-Punkten/Tag
+tage_bis_reserve = (frei_% − Reserve_%) / zufluss_%_je_tag
 ```
 
 Die Raten je Container liefert die vorhandene Ansicht `container_prognose`.
@@ -165,9 +172,10 @@ Sensor.
 Die Zahl ist also eine **Untergrenze der Nachfrage**, keine Messung davon. Für
 die Planung reicht das – man sollte es nur nicht mit Genauigkeit verwechseln.
 
-Fehlt `volumen_liter`, fällt die Rechnung auf die Containerzahl zurück
-(„zwei von sieben frei"). Das ist gröber, aber nicht falsch. Die Pflege der
-Volumina ist eine Voraussetzung, keine Kür.
+Fehlen Messwerte, fällt die Rechnung auf die Zahl der gemessenen Behälter
+zurück – gröber, aber nicht falsch. Ein Behälter ohne Messwert wird dabei nie
+als leer gezählt; das hätte einen frisch aufgestellten Platz als „100 % frei"
+ausgewiesen.
 
 ---
 
@@ -204,30 +212,32 @@ Einfügekosten-Rechnung darum herum.
 Zeit   = Umweg_km / durchschnitt_kmh × 60 + minuten_je_stopp
          + Anzahl Container × minuten_je_container
 Kosten = Umweg_km × kosten_pro_km + Zeit / 60 × kosten_pro_stunde
-Ertrag = Σ volumen_liter × Füllstand / 100
+Ertrag = Σ Füllstand_i / 100          (in Behälterfüllungen)
 ```
 
-Daraus die Kennzahl, mit der sich Stopps vergleichen lassen:
+Drei Behälter zu 80 % sind 2,4 Füllungen. Daraus die Kennzahl, mit der sich
+Stopps vergleichen lassen:
 
 ```
-Euro je 100 Liter = Kosten / (Ertrag / 100)
+Euro je Füllung = Kosten / Ertrag
 ```
 
 ### Das Gegenbeispiel
 
-| | Cluster an der Route | Einzelcontainer 34 km abseits |
+| | Cluster an der Route | Einzelbehälter 34 km abseits |
 |---|---|---|
-| Container | 3 × 2500 l bei 85 % | 1 × 2500 l bei 95 % |
-| Ertrag | 6 375 l | 2 375 l |
+| Behälter | 3 bei 85 % | 1 bei 95 % |
+| Ertrag | 2,55 Füllungen | 0,95 Füllungen |
 | Umweg | 2 km | 34 km |
 | Fahrzeit | 3 min | 45 min |
 | Standzeit | 20 min | 12 min |
 | Fahrtkosten | 1,60 € | 27,20 € |
 | Zeitkosten | 17,00 € | 43,00 € |
 | **Kosten** | **18,60 €** | **70,20 €** |
-| **je 100 Liter** | **0,29 €** | **2,96 €** |
+| **je Füllung** | **7,29 €** | **73,89 €** |
 
-**Faktor zehn.** Das ist die Zahl, mit der sich im Kreisverband begründen
+**Faktor zehn** – unverändert, denn die Einheit kürzt sich aus dem Verhältnis
+heraus. Das ist die Zahl, mit der sich im Kreisverband begründen
 lässt, warum ein voller Container zwei Tage stehen bleibt – und sie zeigt
 nebenbei, wo die Kosten wirklich sitzen: nicht im Sprit, sondern in der Zeit.
 Selbst beim weit entfernten Stopp sind knapp zwei Drittel der Kosten
@@ -303,13 +313,13 @@ Für jeden Standort, in dieser Reihenfolge:
 4. sonst -> KANN:     erscheint mit Umwegkosten als Vorschlag
 5. Für alle Pflicht-Stopps die Route planen        (lib/route.ts, unverändert)
 6. Für die Kann-Stopps die Umwegkosten gegen diese Route rechnen
-      und nach "Euro je 100 Liter" sortiert anzeigen
+      und nach "Euro je Füllung" sortiert anzeigen
 ```
 
 Drei Zustände statt heute zwei: **Pflicht**, **Kann**, **Ruht**. Die
 Umwegkosten werden für Pflicht *und* Kann angezeigt – bei „Kann" entscheiden
 sie, bei „Pflicht" sind sie Information. Auch die ist nützlich: ein
-Pflicht-Stopp für 4 € je 100 Liter ist ein Argument, die Regeltour für dieses
+Ein Pflicht-Stopp für 70 € je Füllung ist ein Argument, die Regeltour für dieses
 Gebiet zu verdichten.
 
 ---
@@ -324,10 +334,9 @@ Funktionen und einen Nebennutzen.
 Der Bürger kennt die Container seiner Nachbarschaft, aber nicht den nächsten
 freien. Der QR-Code führt auf eine Seite, die genau das zeigt.
 
-**Die Sortierung läuft im Browser.** Die öffentliche Containerliste gibt es
-bereits unter `/api/oeffentlich/container` – gerundete Füllstände, keine
-Sensordaten (siehe [api.md](api.md)). Die Seite lädt sie und sortiert lokal
-nach Entfernung zur Geräteposition.
+**Die Sortierung läuft im Browser.** Die Seite lädt die öffentliche Platzliste
+(`oeffentliche_standorte` – gerundete Belegung, keine Sensordaten) vollständig
+und sortiert lokal nach Entfernung zur Geräteposition.
 
 Damit **verlässt die Position des Bürgers das Gerät nie**. Das ist nicht nur
 datenschutzfreundlich, es spart auch einen Endpunkt und funktioniert ohne
@@ -415,7 +424,7 @@ speichern noch jemandem zuweisen. Sie ist in
 | Stufe | Inhalt | Migration | Oberfläche |
 |---|---|---|---|
 | **1** | Standorte, Zuordnung, Restkapazität | [`0011_standorte.sql`](../supabase/migrations/0011_standorte.sql) | `/intern/standorte` |
-| **2** | Kostenmodell, Umwegkosten, Euro je 100 Liter | – ([`lib/kosten.ts`](../lib/kosten.ts), [`lib/route.ts`](../lib/route.ts)) | `/intern/touren` |
+| **2** | Kostenmodell, Umwegkosten, Euro je Füllung | – ([`lib/kosten.ts`](../lib/kosten.ts), [`lib/route.ts`](../lib/route.ts)) | `/intern/touren` |
 | **3** | Regeltouren, Deckung, drei Zustände | [`0012_regeltouren.sql`](../supabase/migrations/0012_regeltouren.sql) | `/intern/routen` |
 | **4** | Öffentlicher QR-Code | [`0013_buergermeldung.sql`](../supabase/migrations/0013_buergermeldung.sql) | `/container/<Nummer>`, Etikett unter `/intern/container/<id>/etikett` |
 | **5** | Tagestouren, Fahrerablauf, Bauhöfe | [`0014_entsorger.sql`](../supabase/migrations/0014_entsorger.sql), [`0015_touren.sql`](../supabase/migrations/0015_touren.sql), [`0016_adresse_am_standort.sql`](../supabase/migrations/0016_adresse_am_standort.sql) | `/intern/touren`, `/intern/entsorger`, `/fahrer` |
@@ -435,7 +444,7 @@ Nichts davon kommt aus dem Code:
 |---|---|
 | **Kostensätze** – €/km, €/Stunde, Minuten je Stopp und je Container | ohne sie ist die Kennzahl in Abschnitt 3 eine Rechenübung |
 | **Die tatsächlichen Regeltouren** – Name, Wochentag, Abstand, welche Standorte | Abschnitt 5 steht und fällt damit |
-| **Die Volumina der Container** in `volumen_liter` | sonst nur Containerzählung statt Litern |
+| ~~Die Volumina der Container~~ | entfallen mit 0022 – alle Behälter zählen gleich |
 | **Die Standortzuordnung** – welche Container gehören zusammen | Zuordnung von Hand, wie entschieden |
 
 Die ersten drei lassen sich schätzen und später verbessern. Die

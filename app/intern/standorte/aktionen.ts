@@ -45,6 +45,7 @@ export async function standortSpeichern(formular: FormData) {
     ort: text(formular, "ort"),
     lat: zahl(formular, "lat"),
     lng: zahl(formular, "lng"),
+    kuerzel: text(formular, "kuerzel")?.toUpperCase() ?? null,
     zufahrt: text(formular, "zufahrt"),
     bemerkung: text(formular, "bemerkung"),
     entsorger_id: text(formular, "entsorger_id"),
@@ -55,6 +56,17 @@ export async function standortSpeichern(formular: FormData) {
   if (!daten.name) throw new Error("Der Name des Standorts ist ein Pflichtfeld.");
 
   const supabase = await serverClient();
+
+  // Ohne Kuerzel kein Nummernstamm fuer die Behaelter. Leer gelassen heisst
+  // nicht "keins", sondern "schlag mir eins vor" - die Datenbank kennt die
+  // bereits vergebenen und findet ein freies.
+  if (!daten.kuerzel) {
+    const { data: vorschlag } = await supabase.rpc("standort_kuerzel_vorschlag", {
+      p_name: daten.name,
+      p_id: id,
+    });
+    if (typeof vorschlag === "string") daten.kuerzel = vorschlag;
+  }
 
   if (id) {
     const { error } = await supabase.from("standort").update(daten).eq("id", id);
@@ -89,72 +101,40 @@ export async function containerZuordnen(formular: FormData) {
 }
 
 /**
- * Einen neuen Container an diesem Standort anlegen.
+ * Wie viele Behaelter stehen an diesem Platz?
  *
- * Bisher fuehrte der Weg ueber "Neuer Container", das leere Formular und das
- * Abtippen von Adresse und Koordinaten - und danach zurueck zum Standort, um
- * ihn dort zuzuordnen. Drei Schritte fuer einen Vorgang, bei dem die Haelfte
- * der Angaben bereits danebensteht.
+ * Bisher fuehrte der Weg ueber "Neuer Container", ein leeres Formular und das
+ * Abtippen von Adresse und Koordinaten - drei Schritte fuer einen Vorgang, bei
+ * dem die Haelfte der Angaben bereits danebenstand. Seit 0022 traegt der
+ * Behaelter davon nichts mehr, und damit bleibt als Angabe genau eine uebrig:
+ * ihre Zahl.
  *
- * Hier stehen sie ohnehin: Adresse, Ort und Koordinaten kommen vom Standort,
- * die Zuordnung gleich mit. Einzutragen bleibt, was den Container vom Standort
- * unterscheidet - seine Nummer.
- *
- * Die Adresse wird KOPIERT und nicht verwiesen. Das ist Absicht: der Container
- * fuehrt seine eigene Anschrift, weil er den Standort wechseln kann und die
- * Papiere der Dienstleistungsdatenbank an ihm haengen. Wandert er weg, soll
- * seine alte Anschrift nicht ruecklings mitwandern.
+ * Die Arbeit macht public.standort_container_setzen - Nummernvergabe aus dem
+ * Kuerzel, und beim Verringern die Unterscheidung zwischen "hat nie etwas
+ * getan" (loeschen) und "hat Geschichte" (stilllegen). Das gehoert in die
+ * Datenbank, weil dort die acht Fremdschluessel haengen, an denen sich
+ * entscheidet, was ein Loeschen mitreisst.
  */
-export async function containerAnlegenAmStandort(formular: FormData) {
+export async function containerAnzahlSetzen(formular: FormData) {
   await berechtigt();
 
   const standortId = text(formular, "standort_id");
-  const nummer = text(formular, "nummer");
+  const anzahl = zahl(formular, "anzahl");
   if (!standortId) return;
-  if (!nummer) throw new Error("Die Containernummer ist ein Pflichtfeld.");
-
-  const supabase = await serverClient();
-
-  const { data: standort } = await supabase
-    .from("standort")
-    .select("id, name, strasse, plz, ort, lat, lng")
-    .eq("id", standortId)
-    .maybeSingle();
-
-  if (!standort) throw new Error("Diesen Standort gibt es nicht (mehr).");
-
-  const { data, error } = await supabase
-    .from("container")
-    .insert({
-      nummer,
-      bezeichnung: text(formular, "bezeichnung") ?? standort.name,
-      standort_id: standort.id,
-      strasse: standort.strasse,
-      plz: standort.plz,
-      ort: standort.ort,
-      lat: standort.lat,
-      lng: standort.lng,
-      typ: text(formular, "typ") ?? "Depotcontainer",
-      volumen_liter: zahl(formular, "volumen_liter"),
-      status: "aktiv",
-      oeffentlich: formular.get("oeffentlich") === "on",
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    // 23505 = Eindeutigkeitsverletzung. Die Containernummer ist die Kennung,
-    // unter der im Haus ueber den Container gesprochen wird - zweimal
-    // dieselbe waere von da an eine Verwechslung in jedem Anruf.
-    if (error.code === "23505") {
-      throw new Error(`Die Containernummer „${nummer}" gibt es bereits.`);
-    }
-    throw new Error(error.message);
+  if (anzahl === null || anzahl < 0 || anzahl > 50) {
+    throw new Error("Die Anzahl muss zwischen 0 und 50 liegen.");
   }
 
-  alleSeitenNeu(standort.id);
-  revalidatePath(`/intern/container/${data.id}`);
-  redirect(`/intern/container/${data.id}`);
+  const supabase = await serverClient();
+  const { error } = await supabase.rpc("standort_container_setzen", {
+    p_standort_id: standortId,
+    p_anzahl: Math.round(anzahl),
+  });
+
+  if (error) throw new Error(error.message);
+
+  alleSeitenNeu(standortId);
+  revalidatePath("/intern/karte");
 }
 
 /**

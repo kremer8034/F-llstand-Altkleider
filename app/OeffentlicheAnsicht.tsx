@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Kartenansicht } from "@/components/Kartenansicht";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
-import { STUFEN, adresse, alterText } from "@/lib/fuellstand";
+import { STUFEN, adresse, alterText, istVeraltet } from "@/lib/fuellstand";
 import type { Fuellstandsstufe, OeffentlicherStandort } from "@/lib/typen";
 
 type Filter = "alle" | "platz" | "voll";
@@ -12,18 +12,12 @@ type Filter = "alle" | "platz" | "voll";
 /**
  * Nimmt dieser Platz noch etwas auf?
  *
- * Die Stufe kommt aus der Ansicht und stammt vom LEERSTEN Container des
- * Platzes - eine Tuete passt dorthin, wo Platz ist, nicht in den Durchschnitt.
- * "unbekannt" zaehlt hier bewusst NICHT als Platz: unter "Noch Platz" darf nur
- * stehen, was wir auch gemessen haben.
+ * Die Stufe kommt aus der Ansicht und steht fuer den GANZEN Platz - Mittel
+ * ueber die gemessenen Behaelter (0022). "unbekannt" zaehlt bewusst nicht als
+ * Platz: unter "Noch Platz" darf nur stehen, was wir gemessen haben.
  */
 function nimmtAuf(stufe: Fuellstandsstufe): boolean {
   return stufe === "frei" || stufe === "teilweise";
-}
-
-/** Wie voll der Platz insgesamt ist - Gegenstueck zur freien Restkapazitaet. */
-function belegtProzent(platz: OeffentlicherStandort): number | null {
-  return platz.freie_prozent === null ? null : Math.round(100 - platz.freie_prozent);
 }
 
 export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandort[] }) {
@@ -94,21 +88,34 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
           ort: p.ort,
           lat: p.lat,
           lng: p.lng,
-          fuellstand_prozent: belegtProzent(p),
+          fuellstand_prozent: p.belegt_prozent,
           gemessen_am: p.gemessen_am,
         }))}
       />
 
       {/* Liste - auf dem Handy oft schneller als die Karte */}
       <div className="karte-flaeche divide-y overflow-hidden">
-        {gefiltert.length === 0 && (
+        {/*
+         * Zwei verschiedene Gruende fuer eine leere Liste, und der Unterschied
+         * ist fuer den Leser wichtig: Er kann seinen Filter aendern, aber
+         * nichts dagegen tun, dass noch keine Daten da sind.
+         */}
+        {plaetze.length === 0 && (
+          <p className="p-6 text-center text-sm text-ink-3">
+            Für dieses Gebiet liegen noch keine Angaben vor.
+          </p>
+        )}
+
+        {plaetze.length > 0 && gefiltert.length === 0 && (
           <p className="p-6 text-center text-sm text-ink-3">
             Keine Abgabestelle passt zur Auswahl.
           </p>
         )}
 
         {gefiltert.map((p) => {
-          const belegt = belegtProzent(p);
+          const veraltet = istVeraltet(p.gemessen_am);
+          const teilweise = p.container_gemessen > 0 && p.container_gemessen < p.container_gesamt;
+
           return (
             <div key={p.standort_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
               <div className="min-w-[200px] flex-1">
@@ -120,14 +127,23 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
               </div>
 
               <div className="w-full max-w-[220px] shrink-0">
-                <Fuellstandsbalken prozent={belegt} />
+                <Fuellstandsbalken prozent={p.belegt_prozent} />
                 <div className="mt-1 text-xs text-ink-3">
                   {STUFEN[p.stufe].text} · Stand {alterText(p.gemessen_am)}
                 </div>
               </div>
 
-              <div className="w-full text-xs text-ink-3 sm:w-40 sm:text-right">
-                {belegt === null ? "Noch keine Messung" : `insgesamt zu ${belegt} % belegt`}
+              <div className="w-full text-xs text-ink-3 sm:w-44 sm:text-right">
+                {p.belegt_prozent === null
+                  ? "Noch keine Messung"
+                  : `insgesamt zu ${p.belegt_prozent} % belegt`}
+                {/*
+                 * Beides sind Einschraenkungen der Verlaesslichkeit, keine
+                 * Nebensache - wer hinfaehrt, soll wissen, worauf die Zahl
+                 * beruht. Von Containern ist bewusst nicht die Rede.
+                 */}
+                {veraltet && <div className="mt-0.5">Angabe ist älter als ein Tag</div>}
+                {teilweise && <div className="mt-0.5">nicht alles gemessen</div>}
               </div>
 
               {p.lat && p.lng && (
