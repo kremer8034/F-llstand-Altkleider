@@ -1,5 +1,5 @@
 import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
-import type { OeffentlicherContainer } from "@/lib/typen";
+import type { OeffentlicherStandort } from "@/lib/typen";
 import { OeffentlicheAnsicht } from "./OeffentlicheAnsicht";
 
 // Die oeffentliche Karte soll aktuell sein, aber nicht bei jedem Aufruf die
@@ -9,15 +9,19 @@ export const revalidate = 60;
 export default async function Startseite() {
   const supabase = oeffentlicherClient();
 
+  // Ein Eintrag je Platz, nicht je Container. Wer eine Tuete wegbringen will,
+  // faehrt zu einer Adresse - stehen dort sechs Container, ist das trotzdem
+  // eine Anlaufstelle und keine sechs. Die Unterscheidung Container/Standort
+  // ist eine interne Ordnung; nach draussen wuerde sie nur verwirren.
   const antwort = supabase
     ? await supabase
-        .from("oeffentliche_container")
+        .from("oeffentliche_standorte")
         .select("*")
         .order("ort", { ascending: true })
-        .order("nummer", { ascending: true })
+        .order("name", { ascending: true })
     : null;
 
-  const container = (antwort?.data ?? []) as OeffentlicherContainer[];
+  const plaetze = (antwort?.data ?? []) as OeffentlicherStandort[];
   const error = antwort?.error ?? null;
 
   return (
@@ -26,10 +30,11 @@ export default async function Startseite() {
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
           BRK Kreisverband Miltenberg
         </p>
-        <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">Altkleidercontainer – Füllstände</h1>
+        <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">Altkleider – wo ist noch Platz?</h1>
         <p className="mt-2 max-w-2xl text-sm text-ink-2">
-          Die Container melden ihren Füllstand selbst. So sehen Sie vor der Fahrt, welcher Container
-          noch Platz hat. Die Angaben sind Messwerte der letzten Übertragung – keine Garantie.
+          Die Container melden ihren Füllstand selbst. So sehen Sie vor der Fahrt, welche
+          Abgabestelle noch aufnimmt. Die Angaben sind Messwerte der letzten Übertragung – keine
+          Garantie.
         </p>
       </header>
 
@@ -50,11 +55,11 @@ export default async function Startseite() {
         <>
           {error && (
             <div className="karte-flaeche mb-6 p-4 text-sm text-ink-2">
-              Die Containerdaten sind gerade nicht abrufbar. Bitte versuchen Sie es später erneut.
+              Die Daten sind gerade nicht abrufbar. Bitte versuchen Sie es später erneut.
             </div>
           )}
 
-          <OeffentlicheAnsicht container={container} />
+          <OeffentlicheAnsicht plaetze={plaetze} />
         </>
       )}
 

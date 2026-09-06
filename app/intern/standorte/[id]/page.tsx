@@ -162,6 +162,31 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
         </div>
       </div>
 
+      {/* Ohne Koordinaten faellt der Platz lautlos aus der oeffentlichen Karte:
+          beide oeffentlichen Ansichten verlangen lat und lng. Wer den Standort
+          anlegt, merkt davon sonst nichts. */}
+      {(s.lat === null || s.lng === null) && (
+        <div className="karte-flaeche border-l-4 p-4" style={{ borderLeftColor: "var(--warnung)" }}>
+          <h2 className="text-sm font-semibold">Nicht auf der öffentlichen Karte</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-2">
+            Für diesen Standort fehlen die Koordinaten. Ohne sie lässt er sich nicht auf einer Karte
+            zeigen – er fehlt deshalb auf der öffentlichen Seite, samt aller Container, die hier
+            stehen.{" "}
+            {bearbeiten ? (
+              <Link
+                href={`/intern/standorte/${s.id}/bearbeiten`}
+                className="underline underline-offset-2"
+              >
+                Breiten- und Längengrad nachtragen
+              </Link>
+            ) : (
+              "Breiten- und Längengrad kann jemand mit Bearbeitungsrecht nachtragen."
+            )}{" "}
+            – in Google Maps mit einem Rechtsklick auf die Stelle abzulesen.
+          </p>
+        </div>
+      )}
+
       {s.zufahrt && (
         <div className="karte-flaeche p-4">
           <h2 className="text-sm font-semibold text-ink-2">Zufahrt</h2>
