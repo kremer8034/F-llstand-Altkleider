@@ -17,9 +17,26 @@ import { angemeldeterBenutzer } from "@/lib/auth";
  * fuer beliebige Adressen auf fremde Kosten.
  */
 
-/** Eine Anfrage je Sekunde, prozessweit - so steht es in Nominatims Regeln. */
+/**
+ * Eine Anfrage je Sekunde, prozessweit - so steht es in Nominatims Regeln.
+ *
+ * Als blosser Zeitstempel reichte das nicht: zwei gleichzeitige Anfragen lasen
+ * denselben alten Wert, warteten dieselbe Spanne und gingen anschliessend
+ * zusammen raus. Die Bremse griff genau dann nicht, wenn sie gebraucht wurde.
+ * Deshalb eine Warteschlange - jede Anfrage haengt sich an die vorige an.
+ */
 let zuletzt = 0;
 const MINDESTABSTAND_MS = 1100;
+let warteschlange: Promise<void> = Promise.resolve();
+
+function anDerReihe(): Promise<void> {
+  warteschlange = warteschlange.then(async () => {
+    const wartezeit = Math.max(0, zuletzt + MINDESTABSTAND_MS - Date.now());
+    if (wartezeit > 0) await new Promise((fertig) => setTimeout(fertig, wartezeit));
+    zuletzt = Date.now();
+  });
+  return warteschlange;
+}
 
 interface Treffer {
   anzeige: string;
@@ -38,9 +55,7 @@ export async function GET(anfrage: Request) {
     return NextResponse.json({ fehler: "Bitte eine Adresse angeben." }, { status: 400 });
   }
 
-  const wartezeit = Math.max(0, zuletzt + MINDESTABSTAND_MS - Date.now());
-  if (wartezeit > 0) await new Promise((f) => setTimeout(f, wartezeit));
-  zuletzt = Date.now();
+  await anDerReihe();
 
   const ziel = new URL("https://nominatim.openstreetmap.org/search");
   ziel.searchParams.set("q", adresse);

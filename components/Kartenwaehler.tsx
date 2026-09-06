@@ -103,6 +103,12 @@ export function Kartenwaehler({
     }
 
     async function setzeNadel(neuLat: number, neuLng: number, zentrieren: boolean) {
+      // Die Zahlen zuerst, die Nadel danach. Leaflet wird nachgeladen; wer die
+      // Adresssuche antippt, bevor es da ist, bekam sonst gar nichts - keine
+      // Koordinaten, keinen Hinweis, keinen Fehler. Die Felder sind ohnehin
+      // die Wahrheit, die Karte nur das Hilfsmittel dazu.
+      uebernehmen(neuLat, neuLng);
+
       const L = await import("leaflet");
       if (!karte.current) return;
 
@@ -126,7 +132,6 @@ export function Kartenwaehler({
       }
 
       if (zentrieren) karte.current.setView([neuLat, neuLng], 17);
-      uebernehmen(neuLat, neuLng);
     }
 
     // Nach außen sichtbar machen, damit die Trefferliste die Nadel setzen kann.

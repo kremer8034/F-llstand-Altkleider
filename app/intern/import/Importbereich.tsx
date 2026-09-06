@@ -255,7 +255,23 @@ export function Importbereich() {
               )}
             </p>
           ) : (
-            <p style={{ color: "var(--kritisch)" }}>{ergebnis.fehler}</p>
+            <>
+              <p style={{ color: "var(--kritisch)" }}>{ergebnis.fehler}</p>
+              {/*
+                Der Import schreibt Platz für Platz. Bricht er in der Mitte ab,
+                ist die erste Hälfte bereits drin - wer das nicht weiß, spielt
+                dieselbe Datei noch einmal ein.
+              */}
+              {ergebnis.abgebrochen_bei !== undefined && (
+                <p className="mt-2 text-ink-2">
+                  Abgebrochen bei Zeile <strong>{ergebnis.abgebrochen_bei}</strong>. Was davor
+                  stand, ist bereits eingespielt: <strong>{ergebnis.neu ?? 0}</strong> Standorte
+                  neu, <strong>{ergebnis.aktualisiert ?? 0}</strong> aktualisiert,{" "}
+                  <strong>{ergebnis.behaelter_angelegt ?? 0}</strong> Container angelegt. Eine
+                  Wiederholung der ganzen Datei ist gefahrlos – abgeglichen wird über den Namen.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
