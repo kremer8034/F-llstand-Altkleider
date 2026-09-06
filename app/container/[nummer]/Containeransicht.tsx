@@ -3,9 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Kartenansicht } from "@/components/Kartenansicht";
 import { browserClient } from "@/lib/supabase/client";
-import { STUFEN, alterText, stufeVon } from "@/lib/fuellstand";
+import { STUFEN, alterText, istVeraltet } from "@/lib/fuellstand";
 import { entfernungKm } from "@/lib/route";
-import type { OeffentlicherContainer, OeffentlicherStandort } from "@/lib/typen";
+import type {
+  Fuellstandsstufe,
+  OeffentlicherBehaelter,
+  OeffentlicherStandort,
+} from "@/lib/typen";
+
+/** Nimmt dieser Platz noch etwas auf? Stufe des ganzen Platzes (0022). */
+function nimmtAuf(stufe: Fuellstandsstufe): boolean {
+  return stufe === "frei" || stufe === "teilweise";
+}
 
 type Ortung = "laeuft" | "da" | "abgelehnt" | "unmoeglich";
 
@@ -33,8 +42,9 @@ function anschrift(p: { strasse: string | null; plz: string | null; ort: string 
  * muss, gehört nicht auf einen Knopf.
  *
  * **Gezählt wird in Plätzen, nicht in Containern.** Für den Bürger ist ein
- * Parkplatz mit drei Containern eine Antwort, nicht drei. Ein Platz taugt,
- * solange dort mindestens ein Container noch aufnimmt.
+ * Parkplatz mit drei Containern eine Antwort, nicht drei. Seit 0022 kommt das
+ * Wort "Container" hier gar nicht mehr vor: wie viele Kübel an einer Adresse
+ * stehen, ist unsere interne Ordnung und hilft niemandem mit einer Tüte.
  *
  * **Die Position verlässt das Gerät nicht.** Die Platzliste kommt ohnehin
  * vollständig vom Server; sortiert wird hier. Es gibt keinen Endpunkt, an den
@@ -43,10 +53,14 @@ function anschrift(p: { strasse: string | null; plz: string | null; ort: string 
  */
 export function Containeransicht({
   dieser,
+  hier,
   plaetze,
   listeGestoert = false,
 }: {
-  dieser: OeffentlicherContainer | null;
+  /** Der gescannte Behälter - nur Kennung und Platz, ohne eigene Messwerte. */
+  dieser: OeffentlicherBehaelter | null;
+  /** Der Platz, an dem er steht. Das ist es, was angezeigt wird. */
+  hier: OeffentlicherStandort | null;
   plaetze: OeffentlicherStandort[];
   /** Die Platzliste kam nicht durch - dann darf hier nicht "nichts da" stehen. */
   listeGestoert?: boolean;
@@ -83,14 +97,14 @@ export function Containeransicht({
     };
   }, []);
 
-  // Bezugspunkt: die eigene Position, sonst der gescannte Container.
-  const bezug = position ?? (dieser ? { lat: dieser.lat, lng: dieser.lng } : null);
+  // Bezugspunkt: die eigene Position, sonst der gescannte Platz.
+  const bezug = position ?? (hier ? { lat: hier.lat, lng: hier.lng } : null);
 
-  /** Plätze mit freiem Container, nach Entfernung. Der eigene fällt heraus. */
+  /** Plätze, die noch aufnehmen, nach Entfernung. Der eigene fällt heraus. */
   const naechste = useMemo(() => {
     if (!bezug) return [];
     return plaetze
-      .filter((p) => p.container_mit_platz > 0)
+      .filter((p) => nimmtAuf(p.stufe))
       // Der eigene Platz gehört nicht in die Liste der Alternativen.
       .filter((p) => p.standort_id !== dieser?.standort_id)
       .map((p) => ({ platz: p, km: entfernungKm(bezug, { lat: p.lat, lng: p.lng }) }))
@@ -101,17 +115,13 @@ export function Containeransicht({
   const weitere = naechste.slice(1, 5);
 
   /**
-   * Nimmt an DIESEM Platz noch ein anderer Container auf?
+   * Nimmt DIESER Platz insgesamt noch auf?
    *
    * Dann ist das die richtige Antwort, und keine Adresse zwei Kilometer
-   * weiter. Wer vor einem vollen Container steht, sieht den Nachbarcontainer
-   * daneben nicht unbedingt als Möglichkeit - er sieht einen vollen Container.
+   * weiter. Wer vor einem vollen Kübel steht, sieht den daneben nicht
+   * unbedingt als Möglichkeit - er sieht einen vollen Behälter.
    */
-  const hierNochPlatz = dieser?.standort_id
-    ? (plaetze.find((p) => p.standort_id === dieser.standort_id) ?? null)
-    : null;
-  const nebenanFrei =
-    hierNochPlatz && hierNochPlatz.container_mit_platz > 0 ? hierNochPlatz : null;
+  const nebenanFrei = hier && nimmtAuf(hier.stufe) ? hier : null;
 
   async function alsVollMelden() {
     if (!dieser) return;
@@ -126,7 +136,7 @@ export function Containeransicht({
     }
   }
 
-  const stufe = stufeVon(dieser?.fuellstand_prozent);
+  const stufe = hier?.stufe ?? "unbekannt";
 
   return (
     <div className="space-y-5">
@@ -144,10 +154,10 @@ export function Containeransicht({
 
         {nebenanFrei ? (
           <div className="px-5 py-4">
-            <p className="text-xl font-semibold">Hier am Platz ist noch Platz</p>
+            <p className="text-xl font-semibold">Hier ist noch Platz</p>
             <p className="mt-1 text-sm text-ink-2">
-              {nebenanFrei.container_mit_platz} von {nebenanFrei.container_gesamt} Containern an
-              diesem Standort {nebenanFrei.container_mit_platz === 1 ? "nimmt" : "nehmen"} noch auf –
+              Diese Abgabestelle nimmt noch auf
+              {nebenanFrei.freie_prozent !== null && ` – rund ${nebenanFrei.freie_prozent} % frei`}.
               Sie müssen nicht weiterfahren.
             </p>
             {bester && (
@@ -175,10 +185,10 @@ export function Containeransicht({
             </div>
             <p className="mt-1 text-sm text-ink-2">{anschrift(bester.platz)}</p>
             <p className="mt-1 text-sm text-ink-3">
-              {bester.platz.container_mit_platz} von {bester.platz.container_gesamt}{" "}
-              {bester.platz.container_gesamt === 1 ? "Container nimmt" : "Containern nehmen"} noch
-              auf
-              {bester.platz.freie_prozent !== null && ` · rund ${bester.platz.freie_prozent} % frei`}
+              {bester.platz.freie_prozent === null
+                ? "Noch keine Messung"
+                : `rund ${bester.platz.freie_prozent} % frei`}
+              {istVeraltet(bester.platz.gemessen_am) && " · Angabe ist älter als ein Tag"}
             </p>
 
             <a
@@ -240,7 +250,9 @@ export function Containeransicht({
                   <div className="font-medium">{platz.name}</div>
                   <div className="text-sm text-ink-2">{anschrift(platz)}</div>
                   <div className="text-xs text-ink-3">
-                    {platz.container_mit_platz} von {platz.container_gesamt} frei
+                    {platz.freie_prozent === null
+                      ? "noch keine Messung"
+                      : `rund ${platz.freie_prozent} % frei`}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
@@ -265,10 +277,10 @@ export function Containeransicht({
         {dieser ? (
           <>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
-              Dieser Container
+              Diese Abgabestelle
             </p>
-            <h2 className="mt-1 font-semibold">{dieser.bezeichnung ?? dieser.nummer}</h2>
-            <p className="mt-0.5 text-sm text-ink-2">{anschrift(dieser)}</p>
+            <h2 className="mt-1 font-semibold">{hier?.name ?? dieser.nummer}</h2>
+            {hier && <p className="mt-0.5 text-sm text-ink-2">{anschrift(hier)}</p>}
 
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <span
@@ -277,19 +289,17 @@ export function Containeransicht({
                 aria-hidden="true"
               />
               <span className="font-semibold">{STUFEN[stufe].text}</span>
-              {dieser.fuellstand_prozent !== null && (
-                <span className="zahl text-sm text-ink-2">
-                  rund {dieser.fuellstand_prozent} % voll
-                </span>
+              {hier?.belegt_prozent != null && (
+                <span className="zahl text-sm text-ink-2">rund {hier.belegt_prozent} % voll</span>
               )}
-              <span className="text-xs text-ink-3">Messung {alterText(dieser.gemessen_am)}</span>
+              <span className="text-xs text-ink-3">Messung {alterText(hier?.gemessen_am)}</span>
             </div>
 
             <div className="mt-4 border-t pt-4">
-              <h3 className="text-sm font-semibold">Ist dieser Container voll?</h3>
+              <h3 className="text-sm font-semibold">Ist der Behälter vor Ihnen voll?</h3>
               <p className="mt-1 text-sm text-ink-2">
-                Dann sagen Sie es uns – wir nehmen ihn in die nächste Planung auf. Gespeichert wird
-                ausschließlich, dass dieser Container gemeldet wurde, nicht wer gemeldet hat.
+                Dann sagen Sie es uns – wir nehmen ihn in die nächste Planung auf. Gespeichert
+                wird ausschließlich, dass dieser Behälter gemeldet wurde, nicht wer gemeldet hat.
               </p>
 
               {meldung === "danke" ? (
@@ -304,7 +314,7 @@ export function Containeransicht({
                     disabled={meldung === "laeuft"}
                     className="knopf-sekundaer mt-3"
                   >
-                    {meldung === "laeuft" ? "Wird gemeldet …" : "Container ist voll"}
+                    {meldung === "laeuft" ? "Wird gemeldet …" : "Behälter ist voll"}
                   </button>
                   {meldung === "fehler" && (
                     <p className="mt-2 text-sm" style={{ color: "var(--kritisch)" }}>
@@ -317,9 +327,9 @@ export function Containeransicht({
           </>
         ) : (
           <>
-            <h2 className="font-semibold">Container nicht gefunden</h2>
+            <h2 className="font-semibold">Aufkleber nicht zugeordnet</h2>
             <p className="mt-1 text-sm text-ink-2">
-              Zu diesem Aufkleber gibt es keinen freigegebenen Container. Die Plätze oben stimmen
+              Zu diesem Aufkleber gibt es keine freigegebene Abgabestelle. Die Plätze oben stimmen
               trotzdem.
             </p>
           </>

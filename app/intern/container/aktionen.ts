@@ -79,7 +79,13 @@ export async function meldungErledigen(formular: FormData) {
   revalidatePath("/intern/touren");
 }
 
-/** Kalibrierung: Leerwert messen lassen oder von Hand setzen. */
+/**
+ * Kalibrierung: die Einbauhoehe messen lassen oder von Hand setzen.
+ *
+ * Geschrieben wird seit 0022 am SENSOR, nicht am Container - die Hoehe ist
+ * eine Eigenschaft der Montage. Der Vollwert ist ein fester Anteil davon und
+ * damit keine eigene Eingabe mehr.
+ */
 export async function kalibrieren(formular: FormData) {
   const containerId = text(formular, "container_id");
   if (!containerId) return;
@@ -87,8 +93,7 @@ export async function kalibrieren(formular: FormData) {
   const supabase = await serverClient();
   const { error } = await supabase.rpc("container_kalibrieren", {
     p_container_id: containerId,
-    p_leer_abstand_mm: zahl(formular, "leer_abstand_mm"),
-    p_voll_abstand_mm: zahl(formular, "voll_abstand_mm"),
+    p_einbauhoehe_mm: zahl(formular, "einbauhoehe_mm"),
   });
 
   if (error) throw new Error(error.message);
@@ -133,15 +138,7 @@ export async function containerSpeichern(formular: FormData) {
     nummer: text(formular, "nummer") ?? "",
     externe_id: text(formular, "externe_id"),
     bezeichnung: text(formular, "bezeichnung"),
-    strasse: text(formular, "strasse"),
-    plz: text(formular, "plz"),
-    ort: text(formular, "ort"),
-    lat: zahl(formular, "lat"),
-    lng: zahl(formular, "lng"),
     typ: text(formular, "typ") ?? "Depotcontainer",
-    volumen_liter: zahl(formular, "volumen_liter"),
-    leer_abstand_mm: zahl(formular, "leer_abstand_mm"),
-    voll_abstand_mm: zahl(formular, "voll_abstand_mm"),
     status: (text(formular, "status") ?? "aktiv") as "aktiv" | "inaktiv" | "defekt" | "entfernt",
     oeffentlich: formular.get("oeffentlich") === "on",
     aufstelldatum: text(formular, "aufstelldatum"),

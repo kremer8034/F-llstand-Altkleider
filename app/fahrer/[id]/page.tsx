@@ -39,7 +39,7 @@ export default async function FahrerTour({ params }: { params: Promise<{ id: str
     supabase.from("standort").select("*").in("id", standortIds.length ? standortIds : [leerId]),
     supabase
       .from("container")
-      .select("id, nummer, bezeichnung, standort_id, volumen_liter")
+      .select("id, nummer, bezeichnung, standort_id")
       .in("standort_id", standortIds.length ? standortIds : [leerId])
       .eq("status", "aktiv")
       .order("nummer"),
@@ -60,13 +60,12 @@ export default async function FahrerTour({ params }: { params: Promise<{ id: str
 
   const containerJeStandort = new Map<
     string,
-    (Pick<Container, "id" | "nummer" | "bezeichnung" | "volumen_liter"> & { standort_id: string })[]
+    (Pick<Container, "id" | "nummer" | "bezeichnung"> & { standort_id: string })[]
   >();
   (
-    (containerAntwort.data ?? []) as (Pick<
-      Container,
-      "id" | "nummer" | "bezeichnung" | "volumen_liter"
-    > & { standort_id: string })[]
+    (containerAntwort.data ?? []) as (Pick<Container, "id" | "nummer" | "bezeichnung"> & {
+      standort_id: string;
+    })[]
   ).forEach((c) => {
     const liste = containerJeStandort.get(c.standort_id) ?? [];
     liste.push(c);

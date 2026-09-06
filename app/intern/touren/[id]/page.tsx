@@ -80,7 +80,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
     supabase.from("standort_zustand").select("*"),
     supabase
       .from("container")
-      .select("id, nummer, bezeichnung, standort_id, volumen_liter")
+      .select("id, nummer, bezeichnung, standort_id")
       .in("standort_id", standortIds.length ? standortIds : [leerId])
       .eq("status", "aktiv")
       .order("nummer"),
@@ -111,12 +111,11 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
     tcJeStopp.set(tc.stopp_id, liste);
   });
 
-  const containerJeStandort = new Map<string, Pick<Container, "id" | "nummer" | "bezeichnung" | "volumen_liter">[]>();
+  const containerJeStandort = new Map<string, Pick<Container, "id" | "nummer" | "bezeichnung">[]>();
   (
-    (containerAntwort.data ?? []) as (Pick<
-      Container,
-      "id" | "nummer" | "bezeichnung" | "volumen_liter"
-    > & { standort_id: string })[]
+    (containerAntwort.data ?? []) as (Pick<Container, "id" | "nummer" | "bezeichnung"> & {
+      standort_id: string;
+    })[]
   ).forEach((c) => {
     const liste = containerJeStandort.get(c.standort_id) ?? [];
     liste.push(c);
@@ -132,7 +131,6 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
 
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
   const saetze: Kostensaetze = kostensaetzeAus(werte);
-  const standardVolumen = zahlAusEinstellung(werte, "standard_volumen_liter", 2500);
 
   const faelligJeId = new Map(faellig.map((z) => [z.standort_id, z]));
   const schonDrauf = new Set(standortIds);
@@ -140,7 +138,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
   const zeilen: Stoppzeile[] = stopps.map((s) => {
     const st = standortJeId.get(s.standort_id);
     const z = zustandJeId.get(s.standort_id) as
-      | { freie_prozent: number | null; gefuellt_liter: number | null; container_gesamt: number }
+      | { freie_prozent: number | null; container_gesamt: number; container_ohne_wert: number }
       | undefined;
     const container = containerJeStandort.get(s.standort_id) ?? [];
     const erfasst = tcJeStopp.get(s.id) ?? [];
@@ -160,7 +158,10 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
       lat: st?.lat ?? null,
       lng: st?.lng ?? null,
       freie_prozent: z?.freie_prozent ?? null,
-      ertrag_liter: z?.gefuellt_liter ?? null,
+      // Ertrag in Behaelterfuellungen: die gemessenen Fuellstaende aufaddiert.
+      // Genauer als der Mittelwert des Platzes, weil hier die Einzelwerte
+      // ohnehin vorliegen. Ungemessene zaehlen nicht mit - sie sind unbekannt.
+      ertrag_fuellungen: fuellungenAus(container.map((c) => czJeId.get(c.id)?.fuellstand_prozent ?? null)),
       container_gesamt: container.length,
       grund: faelligJeId.get(s.standort_id)?.grund ?? null,
       abholung_vereinbart: entsorgungJeId.get(s.standort_id)?.abholung_vereinbart ?? false,
@@ -172,13 +173,22 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
           nummer: c.nummer,
           bezeichnung: c.bezeichnung,
           fuellstand_prozent: czJeId.get(c.id)?.fuellstand_prozent ?? null,
-          volumen_liter: c.volumen_liter ?? standardVolumen,
           geleert: tc ? tc.geleert : null,
           grund: tc?.grund ?? null,
         };
       }),
     };
   });
+
+  /**
+   * Ertrag in Behälterfüllungen: drei Behälter zu 80 % sind 2,4 Füllungen.
+   * Null Messwerte heißt null - nicht etwa "voll".
+   */
+  function fuellungenAus(werteProzent: (number | null)[]): number | null {
+    const gemessen = werteProzent.filter((w): w is number => w !== null);
+    if (gemessen.length === 0) return null;
+    return gemessen.reduce((summe, w) => summe + w / 100, 0);
+  }
 
   /** Gefüllter Anteil eines Standorts – aus der freien Restkapazität. */
   function gefuelltProzent(standortId: string): number | null {
@@ -205,14 +215,17 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
         pflicht: z.zustand === "pflicht",
         fuellstand_prozent:
           z.freie_prozent == null ? gefuelltProzent(z.standort_id) : Math.round(100 - Number(z.freie_prozent)),
-        ertrag_liter: z.ertrag_liter === null ? null : Number(z.ertrag_liter),
+        ertrag_fuellungen:
+          z.belegt_prozent === null
+            ? null
+            : ((z.container_gesamt - z.container_ohne_wert) * Number(z.belegt_prozent)) / 100,
         container_gesamt: z.container_gesamt,
       })),
     ...alleStandorte
       .filter((s) => !schonDrauf.has(s.id) && !faelligJeId.has(s.id))
       .map((s) => {
         const z = zustandJeId.get(s.id) as
-          | { gefuellt_liter: number | null; container_gesamt: number }
+          | { belegt_prozent: number | null; container_gesamt: number; container_ohne_wert: number }
           | undefined;
         return {
           id: s.id,
@@ -221,7 +234,10 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
           hinweis: null,
           pflicht: false,
           fuellstand_prozent: gefuelltProzent(s.id),
-          ertrag_liter: z?.gefuellt_liter == null ? null : Number(z.gefuellt_liter),
+          ertrag_fuellungen:
+            z?.belegt_prozent == null
+              ? null
+              : ((z.container_gesamt - z.container_ohne_wert) * Number(z.belegt_prozent)) / 100,
           container_gesamt: z?.container_gesamt ?? 0,
         };
       }),

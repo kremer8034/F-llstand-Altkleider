@@ -62,21 +62,29 @@ export interface Stoppkosten {
   zeitkosten: number;
   /** Summe. */
   kosten: number;
-  /** Eingesammelte Menge in Litern. */
-  ertragLiter: number;
+  /**
+   * Eingesammelte Menge in **Behälterfüllungen**.
+   *
+   * Drei Behälter zu 80 % sind 2,4 Füllungen. Seit 0022 führen wir kein
+   * Volumen je Behälter mehr; mit einem Einheitsvolumen weiterzurechnen hätte
+   * eine Genauigkeit vorgetäuscht, die es nie gab. Die Füllung ist die
+   * Einheit, die wir wirklich messen - und für den Vergleich von Stopps tut
+   * sie genau dasselbe wie der Liter.
+   */
+  ertragFuellungen: number;
   /** Die Kennzahl, mit der Stopps vergleichbar werden – null ohne Ertrag. */
-  euroJe100Liter: number | null;
+  euroJeFuellung: number | null;
 }
 
 /**
  * Kosten eines einzelnen Stopps.
  *
- * `ertragLiter` ist die Menge, die dort eingesammelt wird – also der gefüllte
- * Anteil, nicht die Kapazität. Ohne Ertrag gibt es keine Kennzahl: durch null
- * zu teilen wäre eine erfundene Unendlichkeit.
+ * `ertragFuellungen` ist die Menge, die dort eingesammelt wird – also der
+ * gefüllte Anteil, nicht die Kapazität. Ohne Ertrag gibt es keine Kennzahl:
+ * durch null zu teilen wäre eine erfundene Unendlichkeit.
  */
 export function stoppKosten(
-  eingabe: { umwegKm: number; containerAnzahl: number; ertragLiter: number },
+  eingabe: { umwegKm: number; containerAnzahl: number; ertragFuellungen: number },
   saetze: Kostensaetze,
 ): Stoppkosten {
   const umweg = Math.max(0, eingabe.umwegKm);
@@ -94,8 +102,8 @@ export function stoppKosten(
     fahrtkosten,
     zeitkosten,
     kosten,
-    ertragLiter: eingabe.ertragLiter,
-    euroJe100Liter: eingabe.ertragLiter > 0 ? kosten / (eingabe.ertragLiter / 100) : null,
+    ertragFuellungen: eingabe.ertragFuellungen,
+    euroJeFuellung: eingabe.ertragFuellungen > 0 ? kosten / eingabe.ertragFuellungen : null,
   };
 }
 
@@ -110,10 +118,10 @@ export function euroText(wert: number | null | undefined): string {
   return wert === null || wert === undefined || !Number.isFinite(wert) ? "–" : EURO.format(wert);
 }
 
-export function kennzahlText(euroJe100Liter: number | null | undefined): string {
-  return euroJe100Liter === null || euroJe100Liter === undefined || !Number.isFinite(euroJe100Liter)
+export function kennzahlText(euroJeFuellung: number | null | undefined): string {
+  return euroJeFuellung === null || euroJeFuellung === undefined || !Number.isFinite(euroJeFuellung)
     ? "–"
-    : `${EURO_FEIN.format(euroJe100Liter)} je 100 l`;
+    : `${EURO_FEIN.format(euroJeFuellung)} je Füllung`;
 }
 
 /**
@@ -124,12 +132,12 @@ export function kennzahlText(euroJe100Liter: number | null | undefined): string 
  * Gewichtet nach Menge, sonst zieht ein winziger Stopp den Schnitt hoch.
  */
 export function tourdurchschnitt(stopps: Stoppkosten[]): number | null {
-  const brauchbar = stopps.filter((s) => s.euroJe100Liter !== null && s.ertragLiter > 0);
+  const brauchbar = stopps.filter((s) => s.euroJeFuellung !== null && s.ertragFuellungen > 0);
   if (brauchbar.length === 0) return null;
 
   const kosten = brauchbar.reduce((s, k) => s + k.kosten, 0);
-  const liter = brauchbar.reduce((s, k) => s + k.ertragLiter, 0);
-  return liter > 0 ? kosten / (liter / 100) : null;
+  const fuellungen = brauchbar.reduce((s, k) => s + k.ertragFuellungen, 0);
+  return fuellungen > 0 ? kosten / fuellungen : null;
 }
 
 /**
@@ -142,6 +150,6 @@ export function tourdurchschnitt(stopps: Stoppkosten[]): number | null {
 export const TEUER_FAKTOR = 3;
 
 export function istTeuer(stopp: Stoppkosten, durchschnitt: number | null): boolean {
-  if (stopp.euroJe100Liter === null || durchschnitt === null || durchschnitt <= 0) return false;
-  return stopp.euroJe100Liter > durchschnitt * TEUER_FAKTOR;
+  if (stopp.euroJeFuellung === null || durchschnitt === null || durchschnitt <= 0) return false;
+  return stopp.euroJeFuellung > durchschnitt * TEUER_FAKTOR;
 }

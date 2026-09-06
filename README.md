@@ -29,14 +29,14 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 ## Was drin ist
 
 **Öffentlich, ohne Anmeldung**
-- Karte und Liste aller freigegebenen Container mit Füllstand, Alter der Messung
-  und Standzeit; Filter „Noch Platz“; Routenlink ins Navigationsgerät
-- dieselben Daten als JSON unter `/api/oeffentlich/container` – zum Einbinden in
-  brk-mill.de
-- **QR-Code am Container** (`/container/<Nummer>`): nennt zuerst den nächsten
+- Karte und Liste aller freigegebenen **Standorte** mit Belegung und Alter der
+  Messung; Filter „Noch Platz“; Routenlink ins Navigationsgerät. Ein Eintrag je
+  Platz, nicht je Behälter – für den Bürger ist ein Parkplatz mit sechs Kübeln
+  eine Anlaufstelle und keine sechs
+- **QR-Code am Behälter** (`/container/<Nummer>`): nennt zuerst den nächsten
   Platz mit freier Kapazität, mit Entfernung, Routenknopf und Karte. Der
   Standort wird beim Laden abgefragt, nicht auf Knopfdruck; er bleibt dabei auf
-  dem Gerät. Nimmt außerdem die Meldung „Container ist voll" entgegen. Das
+  dem Gerät. Nimmt außerdem die Meldung „Behälter ist voll" entgegen. Das
   druckbare Etikett dazu liegt unter `/intern/container/<id>/etikett`
 
 **Intern, mit Anmeldung**

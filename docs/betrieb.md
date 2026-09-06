@@ -149,18 +149,34 @@ egal ob die Adresse im System steht oder nicht.
 
 ## 4. Öffentliche Karte
 
-Die Startseite `/` ist ohne Anmeldung erreichbar und zeigt Standort,
-Füllstandsstufe, das Alter der letzten Messung und die Standzeit des Containers.
+Die Startseite `/` ist ohne Anmeldung erreichbar und zeigt **einen Eintrag je
+Standort** – nicht je Container. Wer eine Tüte wegbringen will, fährt zu einer
+Adresse; stehen dort sechs Container, ist das trotzdem eine Anlaufstelle und
+keine sechs. Die Unterscheidung Container/Standort ist eine interne Ordnung und
+kommt nach außen nicht vor.
+
+Je Platz erscheinen Name, Anschrift, die Stufe des leersten Containers
+(*nimmt hier überhaupt noch etwas auf?*), die insgesamt belegte Kapazität und
+das Alter der letzten Messung.
 
 Steuern lässt sich das an drei Stellen:
 
-* **je Container**: Häkchen *„Auf der öffentlichen Karte anzeigen“*
+* **je Container**: Häkchen *„Auf der öffentlichen Karte anzeigen“* – ein
+  ausgeschalteter Container zählt für seinen Platz nicht mit
 * **insgesamt**: Einstellung `oeffentliche_karte` in der Tabelle `einstellung`
-* **inhaltlich**: die Datenbankansicht `oeffentliche_container` in
-  `0003_rls.sql` – sie legt fest, welche Felder überhaupt nach außen gehen
+* **inhaltlich**: die Datenbankansicht `oeffentliche_standorte` in
+  `0018_oeffentliche_standorte_ohne_funktion.sql` – sie legt fest, welche
+  Felder überhaupt nach außen gehen
 
-Für die Einbindung in brk-mill.de gibt es zusätzlich
-`GET /api/oeffentlich/container` als JSON (siehe [api.md](api.md)).
+> **Ohne Koordinaten kein Eintrag.** Die Ansicht verlangt `lat` und `lng` am
+> Standort; fehlen sie, fällt der Platz samt aller seiner Container aus der
+> öffentlichen Seite. Das passierte früher lautlos – die Standortseite im
+> internen Bereich weist jetzt darauf hin.
+
+> **Kein öffentliches JSON mehr.** `GET /api/oeffentlich/container` und die
+> Ansicht `oeffentliche_container` sind mit 0022 ersatzlos entfallen. Wer die
+> Daten wieder nach außen geben will, baut den Endpunkt neu – dann aber bewusst
+> und auf Standorten.
 
 > Solange die Karte noch nicht öffentlich sein soll: `oeffentliche_karte` auf
 > `false` setzen. Dann liefert die Ansicht keine Zeilen mehr – ohne dass an der
@@ -193,7 +209,6 @@ Für die Tourenplanung auf Standort-Ebene
 | Schlüssel | Standard | Bedeutung |
 |---|---|---|
 | `standort_reserve_prozent` | 20 | unter dieser freien Restkapazität gilt ein Standort als anzufahren |
-| `standard_volumen_liter` | 2500 | Ersatzwert, wenn an einem Container kein Volumen gepflegt ist |
 | `max_tage_ueber_schwelle` | 7 | so lange darf ein Container höchstens voll stehen, dann muss der Stopp mit |
 | `kosten_pro_km` | 0.80 | Sprit, Verschleiß, Reifen, Wartung |
 | `kosten_pro_stunde` | 45.00 | Fahrpersonal einschließlich Nebenkosten |

@@ -9,11 +9,15 @@ export default async function ImportSeite() {
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Container importieren</h1>
+        <h1 className="text-2xl font-semibold">Standorte importieren</h1>
         <p className="mt-1 text-sm text-ink-2">
-          Für den Export aus der DRK-Dienstleistungsdatenbank. Abgeglichen wird über die
-          Containernummer: bekannte Nummern werden aktualisiert, unbekannte neu angelegt.
-          Kalibrierung, Status und Sensorzuordnung bleiben unverändert.
+          Eine Zeile je Standort. Abgeglichen wird über den Namen: bekannte werden aktualisiert,
+          unbekannte neu angelegt. Eine Spalte <span className="zahl">Anzahl</span> legt die
+          Behälter gleich mit an – ihre Nummern entstehen aus dem Kürzel des Standorts.
+        </p>
+        <p className="mt-2 text-sm text-ink-3">
+          Sensoren, Status und Geschichte einzelner Behälter rührt der Import nicht an. Leere
+          Zellen bedeuten „nicht angegeben“ und löschen nichts.
         </p>
       </div>
 

@@ -171,36 +171,6 @@ Gerät kommt **409** – der Schlüssel wurde bereits ausgegeben.
 
 ---
 
-## GET /api/oeffentlich/container – öffentliche Liste
-
-Ohne Anmeldung abrufbar, `Access-Control-Allow-Origin: *`, eine Minute
-zwischengespeichert. Gedacht zum Einbinden in **brk-mill.de**.
-
-```json
-{
-  "stand": "2026-08-21T08:12:00.000Z",
-  "anzahl": 42,
-  "container": [
-    {
-      "id": "…", "nummer": "MIL-014", "bezeichnung": "Netto Parkplatz",
-      "strasse": "Miltenberger Str. 22", "plz": "63920", "ort": "Großheubach",
-      "lat": 49.7333, "lng": 9.2167,
-      "fuellstand_prozent": 90, "stufe": "voll",
-      "gemessen_am": "2026-08-21T06:00:12Z", "stunden_seit_messung": 2.2
-    }
-  ]
-}
-```
-
-Enthält bewusst **keine** Sensordaten, Batteriewerte, Rohabstände oder
-Meldungen, und der Füllstand ist auf 10er-Schritte gerundet. Über die
-Datenbankansicht `oeffentliche_container` lässt sich das jederzeit weiter
-einschränken; einzelne Container schaltet man über das Häkchen
-*„Auf der öffentlichen Karte anzeigen“* aus, die ganze Karte über die
-Einstellung `oeffentliche_karte`.
-
----
-
 ## GET /api/cron/pruefen – Überwachung
 
 Legt Alarme für Sensoren an, die zu lange nichts gemeldet haben. Geschützt über

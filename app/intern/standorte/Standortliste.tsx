@@ -10,7 +10,6 @@ export interface Standortcontainer {
   id: string;
   nummer: string;
   bezeichnung: string | null;
-  volumen_liter: number | null;
   fuellstand_prozent: number | null;
   gemessen_am: string | null;
 }
@@ -24,10 +23,11 @@ export interface Standortzeile {
   aktiv: boolean;
   container_gesamt: number;
   container_voll: number;
-  kapazitaet_liter: number | null;
-  freie_liter: number | null;
+  /** Behälter ohne Messwert - unbekannt, nicht leer. */
+  container_ohne_wert: number;
+  belegt_prozent: number | null;
   freie_prozent: number | null;
-  zufluss_liter_je_tag: number | null;
+  zufluss_prozent_je_tag: number | null;
   offene_meldungen: number;
   hat_entsorger: boolean;
   /** Betreuende Bereitschaft - null heißt gemeinsame Zuständigkeit. */
@@ -41,7 +41,6 @@ export interface Standortzeile {
 type Sortierung = "kapazitaet" | "name" | "ort" | "groesse";
 type Filter = "alle" | "cluster" | "ungedeckt" | "ohne_bauhof";
 
-const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
 
 /**
  * Die Standortliste.
@@ -288,9 +287,11 @@ export function Standortliste({
                 <div className="w-full max-w-[220px]">
                   <Fuellstandsbalken prozent={gefuellt} />
                   <div className={`mt-1 text-xs ${knapp ? "font-medium text-ink" : "text-ink-3"}`}>
-                    {z.freie_liter === null
+                    {z.freie_prozent === null
                       ? "kein Messwert"
-                      : `${L.format(z.freie_liter)} l frei (${z.freie_prozent} %)`}
+                      : `${z.freie_prozent} % frei`}
+                    {z.container_ohne_wert > 0 &&
+                      ` · ${z.container_ohne_wert} ohne Messwert`}
                   </div>
                 </div>
 
@@ -301,8 +302,8 @@ export function Standortliste({
                       : "keiner voll"}
                   </div>
                   <div>
-                    {z.zufluss_liter_je_tag
-                      ? `${L.format(z.zufluss_liter_je_tag)} l am Tag`
+                    {z.zufluss_prozent_je_tag
+                      ? `+${z.zufluss_prozent_je_tag} % am Tag`
                       : "Zufluss unbekannt"}
                   </div>
                 </div>
@@ -321,9 +322,6 @@ export function Standortliste({
                         <span className="min-w-[160px] flex-1">
                           <span className="font-medium">{c.bezeichnung ?? c.nummer}</span>
                           <span className="zahl ml-2 text-xs text-ink-3">{c.nummer}</span>
-                        </span>
-                        <span className="text-xs text-ink-3">
-                          {c.volumen_liter ? `${L.format(c.volumen_liter)} l` : "Volumen fehlt"}
                         </span>
                         <span className="text-xs text-ink-3">{alterText(c.gemessen_am)}</span>
                         <span className="zahl w-14 text-right">

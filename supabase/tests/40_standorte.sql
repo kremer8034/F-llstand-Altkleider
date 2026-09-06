@@ -5,13 +5,15 @@
 -- Standorte, Kosten, Deckung und Buergermeldung
 -- (0011_standorte.sql, 0012_regeltouren.sql, 0013_buergermeldung.sql)
 --
--- Kalibrierung wie in 30_prognose.sql: leer 1000 mm, voll 200 mm, Versatz 0,
--- also fuellstand_% = (1000 - abstand_mm) / 8. Damit sind
+-- Kalibrierung wie in 30_prognose.sql: Einbauhoehe 1000 mm, Versatz 0. Der
+-- Vollwert ist seit 0022 ein Anteil des Leerwerts (voll_abstand_anteil); damit
+-- die Rechnung dieselbe bleibt wie im Konzeptpapier, wird er hier auf 0,2
+-- gesetzt - also voll ab 200 mm und fuellstand_% = (1000 - abstand_mm) / 8:
 --
 --     240 mm =  95 %      920 mm = 10 %
 --
--- Volumen 2500 l je Container (Ersatzwert aus standard_volumen_liter),
--- Reserve 20 %.
+-- Kein Volumen mehr: alle Behaelter zaehlen gleich, die Belegung ist das
+-- arithmetische Mittel. Reserve 20 %.
 -- ===========================================================================
 
 grant all on all tables in schema public to anon, authenticated;
@@ -30,14 +32,17 @@ set test.uid = '44444444-4444-4444-4444-444444444444';
 insert into public.standort (name, ort, lat, lng)
 values ('Cluster Wertstoffhof', 'Miltenberg', 49.7040, 9.2530);
 
-insert into public.container (nummer, bezeichnung, ort, lat, lng,
-                              leer_abstand_mm, voll_abstand_mm, standort_id)
-select 'C-' || lpad(i::text, 3, '0'), 'Cluster ' || i, 'Miltenberg', 49.7040, 9.2530,
-       1000, 200, (select id from public.standort where name='Cluster Wertstoffhof')
+insert into public.einstellung (schluessel, wert)
+values ('voll_abstand_anteil', '0.2'::jsonb)
+on conflict (schluessel) do update set wert = excluded.wert;
+
+insert into public.container (nummer, bezeichnung, standort_id)
+select 'C-' || lpad(i::text, 3, '0'), 'Cluster ' || i,
+       (select id from public.standort where name='Cluster Wertstoffhof')
 from generate_series(1, 7) i;
 
-insert into public.sensor (geraete_id, container_id, status, montage_offset_mm)
-select 'CS-' || c.nummer, c.id, 'angelernt', 0
+insert into public.sensor (geraete_id, container_id, status, montage_offset_mm, einbauhoehe_mm)
+select 'CS-' || c.nummer, c.id, 'angelernt', 0, 1000
 from public.container c where c.nummer like 'C-0%';
 
 -- Fuenf bei 95 %, zwei bei 10 %. Genau eine Messung je Container: ohne zweite
@@ -49,21 +54,25 @@ select s.id, s.container_id, now(),
 from public.sensor s join public.container c on c.id = s.container_id
 where s.geraete_id like 'CS-C-0%';
 
-select name, container_gesamt, container_voll, kapazitaet_liter, gefuellt_liter,
-       freie_liter, freie_prozent
+select name, container_gesamt, container_voll, container_ohne_wert,
+       belegt_prozent, freie_prozent
 from public.standort_zustand where name = 'Cluster Wertstoffhof';
 
 do $$
-declare v_kap numeric; v_frei numeric; v_proz numeric; v_voll integer; v_zustand text;
+declare v_belegt numeric; v_proz numeric; v_voll integer; v_zustand text;
 begin
-  select kapazitaet_liter, freie_liter, freie_prozent, container_voll
-    into v_kap, v_frei, v_proz, v_voll
+  select belegt_prozent, freie_prozent, container_voll
+    into v_belegt, v_proz, v_voll
     from public.standort_zustand where name = 'Cluster Wertstoffhof';
 
-  if v_kap  <> 17500 then raise exception 'FEHLER: Kapazitaet % statt 17500 l', v_kap;  end if;
-  if v_frei <>  5125 then raise exception 'FEHLER: frei % statt 5125 l', v_frei;        end if;
+  -- Fuenf bei 95 %, zwei bei 10 %: (5*95 + 2*10) / 7 = 70,7 % belegt.
+  -- Dieselbe Zahl wie die volumengewichtete Rechnung frueher - bei gleich
+  -- grossen Behaeltern sind beide identisch.
+  if round(v_belegt, 1) <> 70.7 then
+    raise exception 'FEHLER: % Prozent belegt statt 70,7', v_belegt;
+  end if;
   if round(v_proz, 1) <> 29.3 then raise exception 'FEHLER: % Prozent frei statt 29,3', v_proz; end if;
-  if v_voll <> 5 then raise exception 'FEHLER: % volle Container statt 5', v_voll;      end if;
+  if v_voll <> 5 then raise exception 'FEHLER: % volle Behaelter statt 5', v_voll;      end if;
 
   -- 29,3 % frei liegt ueber der Reserve von 20 % - der Stopp kann warten.
   -- Das ist die Aussage, um die es dem Auftraggeber ging.
@@ -163,30 +172,27 @@ update public.meldung set erledigt_am = now()
 where container_id = (select id from public.container where nummer = 'C-001');
 
 -- ---------------------------------------------------------------------------
-\echo '=== 5. Ein Container ohne Standort faellt aus der Planung ==='
--- Kein Fehler, sondern eine Eigenschaft des Modells - die Planung geht vom
--- Standort aus. Die Oberflaeche weist unter /intern/standorte darauf hin.
+\echo '=== 5. Ein Behaelter ohne Platz kommt gar nicht mehr zustande ==='
+-- Frueher liess sich einer anlegen; er fiel dann still aus jeder Planung, weil
+-- die vom Standort ausgeht. Seit 0022 ist standort_id Pflicht - der Fehler
+-- passiert nicht mehr leise beim Planen, sondern laut beim Anlegen.
 -- ---------------------------------------------------------------------------
-insert into public.container (nummer, bezeichnung, ort, lat, lng, leer_abstand_mm, voll_abstand_mm)
-values ('C-900', 'Ohne Standort', 'Amorbach', 49.64, 9.20, 1000, 200);
-
 do $$
-declare v integer;
 begin
-  select count(*) into v
-    from public.standort_zustand z
-    join public.container c on c.standort_id = z.standort_id
-   where c.nummer = 'C-900';
-  if v <> 0 then raise exception 'FEHLER: C-900 hat keinen Standort, taucht aber % mal auf', v; end if;
-  raise notice 'korrekt: Container ohne Standort erscheint in keiner Planung';
+  begin
+    insert into public.container (nummer, bezeichnung) values ('C-900', 'Ohne Platz');
+    raise exception 'FEHLER: Behaelter ohne Standort liess sich anlegen';
+  exception when not_null_violation then
+    raise notice 'korrekt abgelehnt: ohne Platz kein Behaelter';
+  end;
 end $$;
 
 -- ---------------------------------------------------------------------------
 \echo '=== 6. Buergermeldung ueber den QR-Code ==='
 -- ---------------------------------------------------------------------------
 insert into public.standort (name, ort, lat, lng) values ('Buergerplatz', 'Kleinheubach', 49.72, 9.19);
-insert into public.container (nummer, bezeichnung, ort, lat, lng, standort_id)
-values ('C-800', 'Am Buergerplatz', 'Kleinheubach', 49.72, 9.19,
+insert into public.container (nummer, bezeichnung, standort_id)
+values ('C-800', 'Am Buergerplatz',
         (select id from public.standort where name='Buergerplatz'));
 
 do $$
@@ -320,8 +326,8 @@ end $$;
 do $$
 declare v integer;
 begin
-  select count(*) into v from public.oeffentliche_container;
-  raise notice 'korrekt: anon sieht % oeffentliche Container', v;
+  select count(*) into v from public.oeffentliche_standorte;
+  raise notice 'korrekt: anon sieht % oeffentliche Plaetze', v;
 end $$;
 
 reset role;

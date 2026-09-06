@@ -20,16 +20,33 @@ values ('33333333-3333-3333-3333-333333333333', 'dispo@brk-mill.de', '{"name":"D
 on conflict do nothing;
 set test.uid = '33333333-3333-3333-3333-333333333333';
 
-\echo '=== Aufbau: drei Container mit Sensor und Kalibrierung ==='
-insert into public.container (nummer, bezeichnung, ort, lat, lng, leer_abstand_mm, voll_abstand_mm)
+\echo '=== Aufbau: vier Plaetze mit je einem Behaelter und Sensor ==='
+-- Seit 0022 traegt der Platz die Anschrift, der Sensor die Kalibrierung, und
+-- ohne Platz gibt es keinen Behaelter.
+insert into public.standort (name, kuerzel, ort, lat, lng)
 values
-  ('P-001', 'Gleichmaessig alle 20 Tage', 'Miltenberg',   49.70, 9.25, 1000, 200),
-  ('P-002', 'Haeufig, ungleichmaessig',   'Erlenbach',    49.80, 9.16, 1000, 200),
-  ('P-003', 'Wird demnaechst faellig',    'Klingenberg',  49.78, 9.18, 1000, 200),
-  ('P-004', 'Noch keine Daten',           'Amorbach',     49.64, 9.20, 1000, 200);
+  ('Platz P-001', 'PA', 'Miltenberg',  49.70, 9.25),
+  ('Platz P-002', 'PB', 'Erlenbach',   49.80, 9.16),
+  ('Platz P-003', 'PC', 'Klingenberg', 49.78, 9.18),
+  ('Platz P-004', 'PD', 'Amorbach',    49.64, 9.20);
 
-insert into public.sensor (geraete_id, container_id, status, montage_offset_mm)
-select 'PS-' || c.nummer, c.id, 'angelernt', 0 from public.container c where c.nummer like 'P-00%';
+insert into public.container (nummer, bezeichnung, standort_id)
+values
+  ('P-001', 'Gleichmaessig alle 20 Tage', (select id from public.standort where name='Platz P-001')),
+  ('P-002', 'Haeufig, ungleichmaessig',   (select id from public.standort where name='Platz P-002')),
+  ('P-003', 'Wird demnaechst faellig',    (select id from public.standort where name='Platz P-003')),
+  ('P-004', 'Noch keine Daten',           (select id from public.standort where name='Platz P-004'));
+
+-- Der Vollwert ist seit 0022 ein Anteil des Leerwerts. Damit die Rechnung
+-- dieselbe bleibt wie vorher (voll 200 bei leer 1000), wird der Anteil hier
+-- auf 0,2 gesetzt: fuellstand_% = (1000 - abstand_mm) / 8.
+insert into public.einstellung (schluessel, wert)
+values ('voll_abstand_anteil', '0.2'::jsonb)
+on conflict (schluessel) do update set wert = excluded.wert;
+
+insert into public.sensor (geraete_id, container_id, status, montage_offset_mm, einbauhoehe_mm)
+select 'PS-' || c.nummer, c.id, 'angelernt', 0, 1000
+  from public.container c where c.nummer like 'P-00%';
 
 \echo '=== 1. Leerungen: gleichmaessig 20 Tage gegen ungleichmaessig 10/15 Tage ==='
 -- P-001: -60, -40, -20  -> Abstaende 20 und 20 Tage
@@ -142,14 +159,8 @@ end $$;
 --                   -> ( 750 - 500) / 125 = 2 Tage bis zur Reserve
 --
 -- Bei einem Vorlauf von drei Tagen muss P-003 auf die Tour und P-001 nicht.
-insert into public.standort (name, ort, lat, lng)
-select 'Platz ' || c.nummer, c.ort, c.lat, c.lng
-from public.container c where c.nummer like 'P-00%';
-
-update public.container c
-   set standort_id = s.id
-  from public.standort s
- where s.name = 'Platz ' || c.nummer;
+-- Plaetze und Zuordnung stehen schon oben - seit 0022 geht es gar nicht mehr
+-- anders herum, weil standort_id Pflicht ist.
 
 select name, freie_prozent, round(tage_bis_reserve, 1) as tage_bis_reserve, gedeckt, zustand, grund
 from public.standort_planung where name like 'Platz P-00%' order by name;

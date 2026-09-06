@@ -11,11 +11,26 @@ import type {
   ContainerRhythmus,
   ContainerZustand,
   Sensor,
+  Standort,
 } from "./typen";
 
+/** Was ein Behaelter ueber seinen Platz erbt - Anschrift und Koordinaten. */
+export type ContainerPlatz = Pick<
+  Standort,
+  "id" | "name" | "strasse" | "plz" | "ort" | "lat" | "lng"
+>;
+
 export interface ContainerZeile extends Container {
+  /**
+   * Der Platz, an dem der Behaelter steht. Seit 0022 die EINZIGE Quelle fuer
+   * Anschrift und Koordinaten - der Behaelter selbst traegt keine mehr.
+   */
+  standort: ContainerPlatz | null;
   zustand: ContainerZustand | null;
-  sensor: Pick<Sensor, "id" | "geraete_id" | "status" | "letzte_meldung_am" | "batterie_v"> | null;
+  sensor: Pick<
+    Sensor,
+    "id" | "geraete_id" | "status" | "letzte_meldung_am" | "batterie_v" | "einbauhoehe_mm"
+  > | null;
   prognose: ContainerPrognose | null;
   rhythmus: ContainerRhythmus | null;
 }
@@ -28,13 +43,19 @@ export interface ContainerZeile extends Container {
  * unabhaengig davon, wie PostgREST die Beziehungen aufloest.
  */
 export async function containerMitZustand(supabase: SupabaseClient): Promise<ContainerZeile[]> {
-  const [container, zustaende, sensoren, prognosen, rhythmen] = await Promise.all([
+  const [container, zustaende, sensoren, prognosen, rhythmen, standorte] = await Promise.all([
     supabase.from("container").select("*").order("nummer"),
     supabase.from("container_zustand").select("*"),
-    supabase.from("sensor").select("id, geraete_id, status, letzte_meldung_am, batterie_v, container_id"),
+    supabase
+      .from("sensor")
+      .select("id, geraete_id, status, letzte_meldung_am, batterie_v, einbauhoehe_mm, container_id"),
     supabase.from("container_prognose").select("*"),
     supabase.from("container_rhythmus").select("*"),
+    supabase.from("standort").select("id, name, strasse, plz, ort, lat, lng"),
   ]);
+
+  const platzJeId = new Map<string, ContainerPlatz>();
+  (standorte.data ?? []).forEach((s) => platzJeId.set(s.id, s as ContainerPlatz));
 
   const zustandJeContainer = new Map<string, ContainerZustand>();
   (zustaende.data ?? []).forEach((z) => zustandJeContainer.set(z.container_id, z as ContainerZustand));
@@ -56,13 +77,22 @@ export async function containerMitZustand(supabase: SupabaseClient): Promise<Con
     sensor: sensorJeContainer.get(c.id) ?? null,
     prognose: prognoseJeContainer.get(c.id) ?? null,
     rhythmus: rhythmusJeContainer.get(c.id) ?? null,
+    standort: platzJeId.get((c as Container).standort_id) ?? null,
   }));
 }
 
-export async function offeneAlarme(supabase: SupabaseClient): Promise<(Alarm & { container: Pick<Container, "id" | "nummer" | "bezeichnung" | "ort"> | null })[]> {
+export async function offeneAlarme(
+  supabase: SupabaseClient,
+): Promise<
+  (Alarm & {
+    container:
+      | (Pick<Container, "id" | "nummer" | "bezeichnung"> & { standort: { ort: string | null } | null })
+      | null;
+  })[]
+> {
   const { data } = await supabase
     .from("alarm")
-    .select("*, container:container_id (id, nummer, bezeichnung, ort)")
+    .select("*, container:container_id (id, nummer, bezeichnung, standort:standort_id (ort))")
     .is("geschlossen_am", null)
     .order("ausgeloest_am", { ascending: false })
     .limit(100);

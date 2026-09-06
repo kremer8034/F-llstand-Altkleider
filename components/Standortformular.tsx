@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { standortSpeichern } from "@/app/intern/standorte/aktionen";
 import type { Entsorger, Gruppe, Standort } from "@/lib/typen";
+import { Kartenwaehler } from "@/components/Kartenwaehler";
 
 /** Ein Formular für Anlegen und Bearbeiten - Unterschied ist nur die id. */
 export function Standortformular({
@@ -61,34 +62,25 @@ export function Standortformular({
           </div>
 
           <div>
-            <label htmlFor="lat" className="mb-1 block text-sm font-medium">
-              Breitengrad
+            <label htmlFor="kuerzel" className="mb-1 block text-sm font-medium">
+              Kürzel
             </label>
             <input
-              id="lat"
-              name="lat"
-              defaultValue={s?.lat ?? ""}
+              id="kuerzel"
+              name="kuerzel"
+              defaultValue={s?.kuerzel ?? ""}
               className="feld zahl"
-              placeholder="49.7333"
+              placeholder="wird vorgeschlagen"
+              maxLength={8}
             />
+            <p className="mt-1 text-xs text-ink-3">
+              Stamm der Behälternummern hier – aus <span className="zahl">RKL</span> wird{" "}
+              <span className="zahl">RKL-1</span>, <span className="zahl">RKL-2</span> … Leer
+              lassen genügt, dann wird eines vorgeschlagen.
+            </p>
           </div>
 
-          <div>
-            <label htmlFor="lng" className="mb-1 block text-sm font-medium">
-              Längengrad
-            </label>
-            <input
-              id="lng"
-              name="lng"
-              defaultValue={s?.lng ?? ""}
-              className="feld zahl"
-              placeholder="9.2167"
-            />
-          </div>
-
-          <p className="text-xs text-ink-3 sm:col-span-2">
-            Ohne Koordinaten nimmt die Tourenplanung den Mittelwert der Container an diesem Platz.
-          </p>
+          <Kartenwaehler lat={s?.lat ?? null} lng={s?.lng ?? null} />
         </div>
       </fieldset>
 

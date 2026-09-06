@@ -21,17 +21,13 @@ export interface Container {
   nummer: string;
   externe_id: string | null;
   bezeichnung: string | null;
-  strasse: string | null;
-  plz: string | null;
-  ort: string | null;
-  lat: number | null;
-  lng: number | null;
   typ: string;
-  volumen_liter: number | null;
-  standort_id: string | null;
+  /**
+   * Pflicht seit 0022. Anschrift und Koordinaten stehen am Platz, die
+   * Kalibrierung am Sensor - der Behaelter ist nur noch die Zaehleinheit.
+   */
+  standort_id: string;
   betreiber: string;
-  leer_abstand_mm: number | null;
-  voll_abstand_mm: number | null;
   status: ContainerStatus;
   oeffentlich: boolean;
   aufstelldatum: string | null;
@@ -60,6 +56,11 @@ export interface Sensor {
   status: SensorStatus;
   bauart: string;
   montage_offset_mm: number;
+  /**
+   * Sensorunterkante bis Boden bei leerem Behaelter, in Millimetern. Daraus
+   * plus montage_offset_mm ergibt sich der Leerwert (0022).
+   */
+  einbauhoehe_mm: number | null;
   mess_min_mm: number;
   mess_max_mm: number;
   intervall_minuten: number;
@@ -110,27 +111,6 @@ export interface Alarm {
   geschlossen_am: string | null;
 }
 
-/** Zeile der oeffentlichen Kartenansicht (ohne Anmeldung abrufbar). */
-export interface OeffentlicherContainer {
-  id: string;
-  nummer: string;
-  /** Der Platz, zu dem dieser Container gehoert. */
-  standort_id: string | null;
-  bezeichnung: string | null;
-  strasse: string | null;
-  plz: string | null;
-  ort: string | null;
-  lat: number;
-  lng: number;
-  typ: string;
-  aufstelldatum: string | null;
-  standtage: number | null;
-  fuellstand_prozent: number | null;
-  stufe: Fuellstandsstufe;
-  gemessen_am: string | null;
-  stunden_seit_messung: number | null;
-}
-
 export type Prognosegrundlage = "messung_und_historie" | "messung" | "historie" | "keine";
 
 /** Hochrechnung je Container - Ansicht public.container_prognose. */
@@ -179,6 +159,8 @@ export interface Standort {
   lat: number | null;
   lng: number | null;
   zufahrt: string | null;
+  /** Stamm der Containernummern hier, z. B. RKL fuer RKL-1 bis RKL-6. */
+  kuerzel: string | null;
   bemerkung: string | null;
   /** Zustaendiger Bauhof. Nicht gesetzt heisst: der Muell wird mitgenommen. */
   entsorger_id: string | null;
@@ -199,12 +181,13 @@ export interface StandortZustand {
   container_gesamt: number;
   container_mit_sensor: number;
   container_ohne_wert: number;
-  kapazitaet_liter: number | null;
-  gefuellt_liter: number | null;
-  freie_liter: number | null;
-  freie_prozent: number | null;
-  zufluss_liter_je_tag: number | null;
+  /** Behaelter mit Sensor, dem die Einbauhoehe fehlt. */
+  container_unkalibriert: number;
   container_voll: number;
+  /** Mittel ueber die GEMESSENEN Behaelter - ungemessene sind unbekannt, nicht leer. */
+  belegt_prozent: number | null;
+  freie_prozent: number | null;
+  zufluss_prozent_je_tag: number | null;
   tage_laengster_voll: number | null;
   offene_meldungen: number;
 }
@@ -236,11 +219,10 @@ export interface StandortPlanung {
   lng: number | null;
   container_gesamt: number;
   container_voll: number;
-  kapazitaet_liter: number | null;
-  gefuellt_liter: number | null;
-  freie_liter: number | null;
+  container_ohne_wert: number;
+  belegt_prozent: number | null;
   freie_prozent: number | null;
-  zufluss_liter_je_tag: number | null;
+  zufluss_prozent_je_tag: number | null;
   tage_laengster_voll: number | null;
   offene_meldungen: number;
   naechster_planbesuch_am: string | null;
@@ -365,6 +347,19 @@ export interface TourFortschritt {
  * Ein Platz auf der oeffentlichen Karte. Fuer den Buerger ist ein Parkplatz
  * mit drei Containern eine Antwort, nicht drei.
  */
+/**
+ * Ansicht public.oeffentlicher_behaelter - Zuordnung Aufkleber zu Platz.
+ *
+ * Bewusst ohne Messwerte: angezeigt wird der Zustand des PLATZES. Die Kennung
+ * steht drin, weil eine Buergermeldung sich auf genau den Behaelter bezieht,
+ * vor dem jemand steht.
+ */
+export interface OeffentlicherBehaelter {
+  id: string;
+  nummer: string;
+  standort_id: string;
+}
+
 export interface OeffentlicherStandort {
   standort_id: string;
   name: string;
@@ -374,7 +369,13 @@ export interface OeffentlicherStandort {
   lat: number;
   lng: number;
   container_gesamt: number;
-  container_mit_platz: number;
+  /**
+   * Wie viele davon einen Messwert haben. Der Rest ist unbekannt, nicht leer -
+   * die Belegung ist das Mittel ueber die gemessenen (0022).
+   */
+  container_gemessen: number;
+  /** Belegung des ganzen Platzes in Zehnerschritten, null ohne jede Messung. */
+  belegt_prozent: number | null;
   freie_prozent: number | null;
   stufe: Fuellstandsstufe;
   gemessen_am: string | null;

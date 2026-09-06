@@ -20,7 +20,7 @@ import type {
   StandortZustand,
 } from "@/lib/typen";
 import {
-  containerAnlegenAmStandort,
+  containerAnzahlSetzen,
   containerLoesen,
   containerZuordnen,
   entsorgerZuordnen,
@@ -30,7 +30,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
 const DATUM = new Intl.DateTimeFormat("de-DE", {
   weekday: "short",
   day: "2-digit",
@@ -67,7 +66,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
     // brauchen es aber am dringendsten, weil sie in keiner Tour auftauchen.
     supabase
       .from("container")
-      .select("id, nummer, bezeichnung, strasse, plz, ort, standort_id, volumen_liter")
+      .select("id, nummer, bezeichnung, standort_id")
       .or(`standort_id.is.null,standort_id.neq.${id}`)
       .eq("status", "aktiv")
       .order("nummer")
@@ -84,7 +83,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
   const eigene = (eigeneAntwort.data ?? []) as Container[];
   const kandidaten = (kandidatenAntwort.data ?? []) as (Pick<
     Container,
-    "id" | "nummer" | "bezeichnung" | "strasse" | "plz" | "ort" | "volumen_liter"
+    "id" | "nummer" | "bezeichnung"
   > & { standort_id: string | null })[];
   const andere = (andereAntwort.data ?? []) as { id: string; name: string; ort: string | null }[];
   const routen = (routenAntwort.data ?? []) as Route[];
@@ -110,9 +109,11 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
 
   const gefuellt = z?.freie_prozent == null ? null : Math.round(100 - z.freie_prozent);
   const knapp = z?.freie_prozent != null && z.freie_prozent < reserve;
+  // Dieselbe Rechnung wie frueher, nur ohne Volumen: kuerzt man es heraus,
+  // bleibt (freier Anteil - Reserve) / Zufluss in Prozentpunkten (0022).
   const tageBisVoll =
-    z?.freie_liter != null && z.zufluss_liter_je_tag
-      ? (z.freie_liter - (z.kapazitaet_liter ?? 0) * (reserve / 100)) / z.zufluss_liter_je_tag
+    z?.freie_prozent != null && z.zufluss_prozent_je_tag
+      ? (z.freie_prozent - reserve) / z.zufluss_prozent_je_tag
       : null;
 
   // Die Regeltouren dieses Standorts, nach dem nächsten Termin sortiert.
@@ -162,6 +163,31 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
         </div>
       </div>
 
+      {/* Ohne Koordinaten faellt der Platz lautlos aus der oeffentlichen Karte:
+          beide oeffentlichen Ansichten verlangen lat und lng. Wer den Standort
+          anlegt, merkt davon sonst nichts. */}
+      {(s.lat === null || s.lng === null) && (
+        <div className="karte-flaeche border-l-4 p-4" style={{ borderLeftColor: "var(--warnung)" }}>
+          <h2 className="text-sm font-semibold">Nicht auf der öffentlichen Karte</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-2">
+            Für diesen Standort fehlen die Koordinaten. Ohne sie lässt er sich nicht auf einer Karte
+            zeigen – er fehlt deshalb auf der öffentlichen Seite, samt aller Container, die hier
+            stehen.{" "}
+            {bearbeiten ? (
+              <Link
+                href={`/intern/standorte/${s.id}/bearbeiten`}
+                className="underline underline-offset-2"
+              >
+                Breiten- und Längengrad nachtragen
+              </Link>
+            ) : (
+              "Breiten- und Längengrad kann jemand mit Bearbeitungsrecht nachtragen."
+            )}{" "}
+            – in Google Maps mit einem Rechtsklick auf die Stelle abzulesen.
+          </p>
+        </div>
+      )}
+
       {s.zufahrt && (
         <div className="karte-flaeche p-4">
           <h2 className="text-sm font-semibold text-ink-2">Zufahrt</h2>
@@ -184,9 +210,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
           </div>
 
           <p className="mt-2 text-lg font-semibold">
-            {z?.freie_liter == null
-              ? "Kein Messwert"
-              : `${L.format(z.freie_liter)} Liter frei (${z.freie_prozent} %)`}
+            {z?.freie_prozent == null ? "Kein Messwert" : `${z.freie_prozent} % frei`}
           </p>
           {knapp && (
             <p className="text-sm text-ink-2">
@@ -196,21 +220,17 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
 
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>
-              <dt className="text-xs text-ink-3">Kapazität</dt>
-              <dd className="zahl font-medium">
-                {z?.kapazitaet_liter ? `${L.format(z.kapazitaet_liter)} l` : "–"}
-              </dd>
+              <dt className="text-xs text-ink-3">Behälter</dt>
+              <dd className="zahl font-medium">{z?.container_gesamt ?? 0}</dd>
             </div>
             <div>
-              <dt className="text-xs text-ink-3">darin</dt>
-              <dd className="zahl font-medium">
-                {z?.gefuellt_liter != null ? `${L.format(z.gefuellt_liter)} l` : "–"}
-              </dd>
+              <dt className="text-xs text-ink-3">ohne Messwert</dt>
+              <dd className="zahl font-medium">{z?.container_ohne_wert ?? 0}</dd>
             </div>
             <div>
               <dt className="text-xs text-ink-3">Zufluss</dt>
               <dd className="zahl font-medium">
-                {z?.zufluss_liter_je_tag ? `${L.format(z.zufluss_liter_je_tag)} l/Tag` : "–"}
+                {z?.zufluss_prozent_je_tag ? `+${z.zufluss_prozent_je_tag} %/Tag` : "–"}
               </dd>
             </div>
             <div>
@@ -219,7 +239,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
             </div>
           </dl>
 
-          {z?.zufluss_liter_je_tag ? (
+          {z?.zufluss_prozent_je_tag ? (
             <p className="mt-3 border-t pt-3 text-xs text-ink-3">
               Der gemessene Zufluss ist eine Untergrenze: volle Container nehmen nichts mehr auf, und
               wer keinen Platz findet, nimmt seine Sachen wieder mit. Das sieht kein Sensor.
@@ -349,11 +369,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
                   <Link href={`/intern/container/${c.id}`} className="min-w-[160px] flex-1">
                     <span className="font-medium">{c.bezeichnung ?? c.nummer}</span>
                     <span className="zahl ml-2 text-xs text-ink-3">{c.nummer}</span>
-                    <span className="block text-xs text-ink-3">
-                      {c.volumen_liter ? `${L.format(c.volumen_liter)} l` : "Volumen nicht gepflegt"}
-                      {" · "}
-                      {alterText(cz?.gemessen_am)}
-                    </span>
+                    <span className="block text-xs text-ink-3">{alterText(cz?.gemessen_am)}</span>
                   </Link>
                   <span className="zahl w-16 text-right text-sm">
                     {prozentText(cz?.fuellstand_prozent)}
@@ -374,74 +390,48 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
         )}
       </section>
 
-      {/* Neuen Container anlegen – mit den Angaben dieses Platzes */}
+      {/* Wie viele Behälter stehen hier? */}
       {bearbeiten && (
         <section className="karte-flaeche p-4">
-          <h2 className="font-semibold">Neuen Container hier aufstellen</h2>
+          <h2 className="font-semibold">Behälter an diesem Platz</h2>
           <p className="mt-1 max-w-3xl text-sm text-ink-2">
-            Adresse, Ort und Koordinaten dieses Standorts werden übernommen – einzutragen bleibt
-            die Nummer. Alles Weitere (Leerwert, Sensor, Aufstelldatum) steht danach auf der Seite
-            des Containers.
+            Sagen Sie einfach, wie viele hier stehen. Die Nummern entstehen aus dem Kürzel des
+            Platzes – <span className="zahl">{s.kuerzel ?? "?"}-1</span>,{" "}
+            <span className="zahl">{s.kuerzel ?? "?"}-2</span> und so weiter. Anschrift und
+            Koordinaten trägt der Platz, kalibriert wird am Sensor.
           </p>
           <p className="mt-1 text-sm text-ink-3">
-            Wird übernommen: {adresse(s) || "keine Adresse hinterlegt"}
-            {s.lat !== null && s.lng !== null
-              ? ` · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`
-              : " · keine Koordinaten – die Tourenplanung nimmt dann den Mittelwert der übrigen Container"}
+            Beim Verringern verschwindet nur, was nie etwas getan hat. Behälter mit Messungen,
+            Leerungen, Meldungen oder Sensor werden stillgelegt – ihre Geschichte bleibt
+            auswertbar.
           </p>
 
-          <form action={containerAnlegenAmStandort} className="mt-3 grid gap-3 sm:grid-cols-4">
+          <form action={containerAnzahlSetzen} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="standort_id" value={s.id} />
             <div>
-              <label htmlFor="neu_nummer" className="mb-1 block text-xs font-medium text-ink-2">
-                Containernummer *
-              </label>
-              <input id="neu_nummer" name="nummer" required className="feld zahl" />
-            </div>
-            <div>
-              <label htmlFor="neu_bezeichnung" className="mb-1 block text-xs font-medium text-ink-2">
-                Bezeichnung
+              <label htmlFor="anzahl" className="mb-1 block text-xs font-medium text-ink-2">
+                Anzahl
               </label>
               <input
-                id="neu_bezeichnung"
-                name="bezeichnung"
-                className="feld"
-                placeholder={s.name}
-              />
-            </div>
-            <div>
-              <label htmlFor="neu_typ" className="mb-1 block text-xs font-medium text-ink-2">
-                Typ
-              </label>
-              <input id="neu_typ" name="typ" defaultValue="Depotcontainer" className="feld" />
-            </div>
-            <div>
-              <label htmlFor="neu_volumen" className="mb-1 block text-xs font-medium text-ink-2">
-                Volumen (Liter)
-              </label>
-              <input
-                id="neu_volumen"
-                name="volumen_liter"
+                id="anzahl"
+                name="anzahl"
                 type="number"
-                className="feld zahl"
-                placeholder="2500"
+                min={0}
+                max={50}
+                required
+                defaultValue={eigene.filter((c) => c.status === "aktiv").length}
+                className="feld zahl w-24"
               />
             </div>
-            <div className="sm:col-span-4 flex flex-wrap items-center gap-4">
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input type="checkbox" name="oeffentlich" defaultChecked />
-                Auf der öffentlichen Karte anzeigen
-              </label>
-              <button type="submit" className="knopf-primaer">
-                Anlegen und öffnen
-              </button>
-              <Link
-                href={`/intern/container/neu?standort=${s.id}`}
-                className="text-sm text-ink-3 underline underline-offset-2"
-              >
-                Lieber gleich alle Felder ausfüllen
-              </Link>
-            </div>
+            <button type="submit" className="knopf-primaer">
+              Übernehmen
+            </button>
+            <Link
+              href={`/intern/container/neu?standort=${s.id}`}
+              className="text-sm text-ink-3 underline underline-offset-2"
+            >
+              Einzelnen Behälter von Hand anlegen
+            </Link>
           </form>
         </section>
       )}
@@ -463,7 +453,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
                 eintraege={kandidaten.map((k) => ({
                   id: k.id,
                   titel: `${k.nummer}${k.bezeichnung ? ` · ${k.bezeichnung}` : ""}`,
-                  unterzeile: adresse(k) || null,
+                  unterzeile: null,
                   hinweis: k.standort_id ? null : "ohne Standort",
                   suchtext: k.standort_id ? null : "ohne standort frei",
                 }))}

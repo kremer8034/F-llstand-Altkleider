@@ -134,7 +134,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
                           <span className="font-medium">{z.bezeichnung ?? z.nummer}</span>
                           <span className="text-xs text-ink-3">{z.nummer}</span>
                         </div>
-                        <div className="mt-0.5 pl-6 text-sm text-ink-2">{adresse(z)}</div>
+                        <div className="mt-0.5 pl-6 text-sm text-ink-2">{adresse(z.standort ?? {})}</div>
                       </div>
                       <div className="w-full max-w-[240px]">
                         <Fuellstandsbalken prozent={z.zustand?.fuellstand_prozent ?? null} />
@@ -175,7 +175,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
                           className="text-sm text-ink-2 underline underline-offset-2"
                         >
                           {a.container.bezeichnung ?? a.container.nummer}
-                          {a.container.ort ? `, ${a.container.ort}` : ""}
+                          {a.container.standort?.ort ? `, ${a.container.standort.ort}` : ""}
                         </Link>
                       )}
                       <div className="mt-0.5 text-xs text-ink-3">{formatDatumZeit(a.ausgeloest_am)}</div>

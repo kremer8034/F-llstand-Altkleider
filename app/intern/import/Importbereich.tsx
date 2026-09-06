@@ -1,27 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { csvLesen, datumLesen, schluesselNormalisieren, zahlLesen } from "@/lib/csv";
-import { containerImportieren, type Importergebnis, type Importzeile } from "./aktionen";
+import { csvLesen, schluesselNormalisieren, zahlLesen } from "@/lib/csv";
+import { standorteImportieren, type Importergebnis, type Importzeile } from "./aktionen";
 
 /** Erkannte Schreibweisen je Zielfeld - deckt die üblichen Exportspalten ab. */
 const SPALTEN: Record<keyof Importzeile, string[]> = {
-  nummer: ["nummer", "containernummer", "containernr", "nr", "kennung", "bezeichnungnr"],
-  externe_id: ["id", "externeid", "datensatzid", "objektid", "dlkid"],
-  bezeichnung: ["bezeichnung", "standort", "standortbezeichnung", "name", "beschreibung"],
+  name: ["name", "standort", "standortname", "platz", "cluster", "sammelstelle", "bezeichnung"],
+  kuerzel: ["kuerzel", "kurz", "kurzzeichen", "praefix", "stamm"],
   strasse: ["strasse", "strassehausnummer", "adresse", "anschrift"],
   plz: ["plz", "postleitzahl"],
   ort: ["ort", "stadt", "gemeinde"],
   lat: ["lat", "latitude", "breitengrad", "geobreite", "ykoordinate"],
   lng: ["lng", "lon", "longitude", "laengengrad", "geolaenge", "xkoordinate"],
-  typ: ["typ", "art", "containertyp"],
-  volumen_liter: ["volumen", "volumenliter", "groesse", "fassungsvermoegen"],
-  aufstelldatum: ["aufstelldatum", "aufstellung", "seit", "aufgestelltam", "datum"],
+  zufahrt: ["zufahrt", "anfahrt", "zugang"],
   bemerkung: ["bemerkung", "hinweis", "notiz", "kommentar"],
-  // Nicht "standort" - das ist oben schon die Bezeichnung des einzelnen
-  // Containers, so heisst die Spalte im Export der Dienstleistungsdatenbank.
-  // Der Cluster braucht deshalb einen eigenen Namen.
-  standort: ["standortname", "cluster", "platz", "containerstandort", "sammelstelle"],
+  anzahl_container: [
+    "anzahl",
+    "anzahlcontainer",
+    "container",
+    "behaelter",
+    "anzahlbehaelter",
+    "stueck",
+  ],
 };
 
 function spalteFinden(kopf: string[], feld: keyof Importzeile): number {
@@ -33,6 +34,14 @@ function spalteFinden(kopf: string[], feld: keyof Importzeile): number {
   return -1;
 }
 
+/**
+ * Standorte einspielen.
+ *
+ * Bis 0022 wurden hier Container importiert. Seit der Platz die Einheit ist,
+ * trägt eine Zeile den Platz – und in einer Spalte die Zahl der Behälter, die
+ * dort stehen. Die Behälter entstehen daraus samt Nummern; einzeln einlesen
+ * lassen sie sich nicht mehr, weil sie nichts Eigenes mehr zu tragen hätten.
+ */
 export function Importbereich() {
   const [text, setText] = useState("");
   const [ergebnis, setErgebnis] = useState<Importergebnis | null>(null);
@@ -42,17 +51,18 @@ export function Importbereich() {
     if (!text.trim()) return null;
 
     const zeilen = csvLesen(text);
-    if (zeilen.length < 2) return { fehler: "Es braucht eine Kopfzeile und mindestens eine Datenzeile." };
+    if (zeilen.length < 2)
+      return { fehler: "Es braucht eine Kopfzeile und mindestens eine Datenzeile." };
 
     const kopf = zeilen[0];
     const zuordnung = Object.fromEntries(
       (Object.keys(SPALTEN) as (keyof Importzeile)[]).map((feld) => [feld, spalteFinden(kopf, feld)]),
     ) as Record<keyof Importzeile, number>;
 
-    if (zuordnung.nummer < 0) {
+    if (zuordnung.name < 0) {
       return {
         fehler:
-          "Keine Spalte mit der Containernummer gefunden. Erwartet wird eine Spalte namens „Nummer“, „Containernummer“ oder ähnlich.",
+          "Keine Spalte mit dem Standortnamen gefunden. Erwartet wird eine Spalte namens „Name“, „Standort“, „Platz“ oder ähnlich.",
         kopf,
       };
     }
@@ -63,24 +73,21 @@ export function Importbereich() {
     };
 
     const daten: Importzeile[] = zeilen.slice(1).map((zeile) => ({
-      nummer: (werte(zeile, "nummer") ?? "").trim(),
-      externe_id: werte(zeile, "externe_id") || null,
-      bezeichnung: werte(zeile, "bezeichnung") || null,
+      name: (werte(zeile, "name") ?? "").trim(),
+      kuerzel: werte(zeile, "kuerzel") || null,
       strasse: werte(zeile, "strasse") || null,
       plz: werte(zeile, "plz") || null,
       ort: werte(zeile, "ort") || null,
       lat: zahlLesen(werte(zeile, "lat")),
       lng: zahlLesen(werte(zeile, "lng")),
-      typ: werte(zeile, "typ") || null,
-      volumen_liter: zahlLesen(werte(zeile, "volumen_liter")),
-      aufstelldatum: datumLesen(werte(zeile, "aufstelldatum")),
+      zufahrt: werte(zeile, "zufahrt") || null,
       bemerkung: werte(zeile, "bemerkung") || null,
-      standort: werte(zeile, "standort") || null,
+      anzahl_container: zahlLesen(werte(zeile, "anzahl_container")),
     }));
 
-    const gueltig = daten.filter((d) => d.nummer !== "");
+    const gueltig = daten.filter((d) => d.name !== "");
     const ohneKoordinaten = gueltig.filter((d) => d.lat === null || d.lng === null).length;
-    const mitStandort = gueltig.filter((d) => d.standort).length;
+    const mitAnzahl = gueltig.filter((d) => d.anzahl_container !== null).length;
 
     return {
       kopf,
@@ -88,7 +95,7 @@ export function Importbereich() {
       daten: gueltig,
       verworfen: daten.length - gueltig.length,
       ohneKoordinaten,
-      mitStandort,
+      mitAnzahl,
     };
   }, [text]);
 
@@ -102,7 +109,7 @@ export function Importbereich() {
   async function importieren() {
     if (!analyse || !("daten" in analyse) || !analyse.daten) return;
     setLaeuft(true);
-    setErgebnis(await containerImportieren(analyse.daten));
+    setErgebnis(await standorteImportieren(analyse.daten));
     setLaeuft(false);
   }
 
@@ -112,10 +119,18 @@ export function Importbereich() {
         <label htmlFor="datei" className="mb-1 block text-sm font-medium">
           CSV-Datei auswählen
         </label>
-        <input id="datei" type="file" accept=".csv,text/csv,text/plain" onChange={dateiLesen} className="feld" />
+        <input
+          id="datei"
+          type="file"
+          accept=".csv,text/csv,text/plain"
+          onChange={dateiLesen}
+          className="feld"
+        />
 
         <p className="mt-3 text-xs text-ink-3">
-          Oder den Inhalt direkt einfügen – Semikolon, Komma und Tabulator werden erkannt.
+          Oder den Inhalt direkt einfügen – Semikolon, Komma und Tabulator werden erkannt. Eine
+          Zeile je Standort; die Spalte <span className="zahl">Anzahl</span> sagt, wie viele
+          Behälter dort stehen.
         </p>
         <textarea
           value={text}
@@ -124,7 +139,7 @@ export function Importbereich() {
             setErgebnis(null);
           }}
           rows={6}
-          placeholder="Nummer;Bezeichnung;Strasse;PLZ;Ort;Breitengrad;Längengrad;Volumen;Aufstelldatum;Standortname"
+          placeholder="Name;Kürzel;Strasse;PLZ;Ort;Breitengrad;Längengrad;Anzahl;Zufahrt"
           className="feld zahl mt-2 text-xs"
         />
       </div>
@@ -142,15 +157,18 @@ export function Importbereich() {
         <div className="karte-flaeche overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
             <div className="text-sm">
-              <strong>{analyse.daten.length}</strong> Container erkannt
+              <strong>{analyse.daten.length}</strong> Standorte erkannt
               {analyse.verworfen > 0 && (
-                <span className="text-ink-3"> · {analyse.verworfen} Zeilen ohne Nummer übersprungen</span>
+                <span className="text-ink-3">
+                  {" "}
+                  · {analyse.verworfen} Zeilen ohne Namen übersprungen
+                </span>
+              )}
+              {analyse.mitAnzahl > 0 && (
+                <span className="text-ink-3"> · {analyse.mitAnzahl} mit Behälterzahl</span>
               )}
               {analyse.ohneKoordinaten > 0 && (
                 <span className="text-ink-3"> · {analyse.ohneKoordinaten} ohne Koordinaten</span>
-              )}
-              {analyse.mitStandort > 0 && (
-                <span className="text-ink-3"> · {analyse.mitStandort} mit Standortangabe</span>
               )}
             </div>
             <button type="button" onClick={importieren} disabled={laeuft} className="knopf-primaer">
@@ -158,31 +176,39 @@ export function Importbereich() {
             </button>
           </div>
 
+          {analyse.ohneKoordinaten > 0 && (
+            <p className="border-b bg-flaeche-2/40 px-4 py-2 text-xs text-ink-2">
+              Standorte ohne Koordinaten erscheinen weder auf der öffentlichen Seite noch in der
+              Tourenplanung. Nachtragen lassen sie sich danach auf der Standortseite – dort gibt es
+              eine Karte zum Anklicken.
+            </p>
+          )}
+
           <div className="max-h-96 overflow-auto">
             <table className="tabelle">
               <thead className="sticky top-0 bg-flaeche">
                 <tr>
-                  <th>Nummer</th>
-                  <th>Bezeichnung</th>
+                  <th>Name</th>
+                  <th>Kürzel</th>
                   <th>Adresse</th>
                   <th>Koordinaten</th>
-                  <th>Standort</th>
-                  <th>Aufgestellt</th>
+                  <th>Behälter</th>
                 </tr>
               </thead>
               <tbody>
                 {analyse.daten.slice(0, 100).map((d, i) => (
-                  <tr key={`${d.nummer}-${i}`}>
-                    <td className="zahl font-medium">{d.nummer}</td>
-                    <td>{d.bezeichnung ?? "–"}</td>
+                  <tr key={`${d.name}-${i}`}>
+                    <td className="font-medium">{d.name}</td>
+                    <td className="zahl text-ink-2">{d.kuerzel ?? "–"}</td>
                     <td className="text-ink-2">
-                      {[d.strasse, [d.plz, d.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "–"}
+                      {[d.strasse, [d.plz, d.ort].filter(Boolean).join(" ")]
+                        .filter(Boolean)
+                        .join(", ") || "–"}
                     </td>
                     <td className="zahl text-ink-2">
                       {d.lat !== null && d.lng !== null ? `${d.lat}, ${d.lng}` : "–"}
                     </td>
-                    <td className="text-ink-2">{d.standort ?? "–"}</td>
-                    <td className="zahl text-ink-2">{d.aufstelldatum ?? "–"}</td>
+                    <td className="zahl text-ink-2">{d.anzahl_container ?? "–"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -200,17 +226,31 @@ export function Importbereich() {
         <div className="karte-flaeche p-4 text-sm">
           {ergebnis.ok ? (
             <p>
-              Import abgeschlossen: <strong>{ergebnis.neu}</strong> neu angelegt,{" "}
+              Import abgeschlossen: <strong>{ergebnis.neu}</strong> Standorte neu angelegt,{" "}
               <strong>{ergebnis.aktualisiert}</strong> aktualisiert.
-              {(ergebnis.standorte_zugeordnet ?? 0) > 0 && (
+              {(ergebnis.behaelter_angelegt ?? 0) > 0 && (
                 <>
                   {" "}
-                  <strong>{ergebnis.standorte_zugeordnet}</strong> Container einem Standort
-                  zugeordnet
-                  {(ergebnis.standorte_neu ?? 0) > 0 && (
-                    <> , davon <strong>{ergebnis.standorte_neu}</strong> Standorte neu angelegt</>
-                  )}
-                  .
+                  <strong>{ergebnis.behaelter_angelegt}</strong> Behälter angelegt.
+                </>
+              )}
+              {(ergebnis.behaelter_stillgelegt ?? 0) > 0 && (
+                <>
+                  {" "}
+                  <strong>{ergebnis.behaelter_stillgelegt}</strong> stillgelegt (hatten Geschichte).
+                </>
+              )}
+              {(ergebnis.behaelter_geloescht ?? 0) > 0 && (
+                <>
+                  {" "}
+                  <strong>{ergebnis.behaelter_geloescht}</strong> gelöscht (nie benutzt).
+                </>
+              )}
+              {(ergebnis.ohne_koordinaten ?? 0) > 0 && (
+                <>
+                  {" "}
+                  <strong>{ergebnis.ohne_koordinaten}</strong> Standorte haben keine Koordinaten und
+                  bleiben damit unsichtbar.
                 </>
               )}
             </p>

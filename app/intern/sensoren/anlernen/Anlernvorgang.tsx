@@ -10,13 +10,13 @@ export interface Anlerncontainer {
   id: string;
   nummer: string;
   bezeichnung: string | null;
-  strasse: string | null;
-  plz: string | null;
-  ort: string | null;
+  /** Anschrift und Koordinaten trägt seit 0022 der Platz, nicht der Behälter. */
+  standort_name: string | null;
+  /** Koordinaten des Platzes - zum Sortieren nach Entfernung. */
   lat: number | null;
   lng: number | null;
-  leer_abstand_mm: number | null;
   hatSensor: boolean;
+  kalibriert: boolean;
 }
 
 type Schritt = "code" | "container" | "bestaetigen" | "kalibrieren" | "fertig";
@@ -63,8 +63,13 @@ export function Anlernvorgang({
   const [ersetzen, setErsetzen] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<KopplungErgebnis | null>(null);
-  const [leerwert, setLeerwert] = useState("");
-  const [kalibrierung, setKalibrierung] = useState<{ ok: boolean; fehler?: string; leer?: number; voll?: number } | null>(null);
+  const [einbauhoehe, setEinbauhoehe] = useState("");
+  const [kalibrierung, setKalibrierung] = useState<{
+    ok: boolean;
+    fehler?: string;
+    hoehe?: number;
+    leer?: number;
+  } | null>(null);
 
   const container_ = useMemo(() => new Map(container.map((c) => [c.id, c])), [container]);
   const ausgewaehlt = gewaehlt ? container_.get(gewaehlt) ?? null : null;
@@ -75,7 +80,7 @@ export function Anlernvorgang({
 
     if (text) {
       liste = liste.filter((c) =>
-        [c.nummer, c.bezeichnung, c.strasse, c.plz, c.ort]
+        [c.nummer, c.bezeichnung, c.standort_name]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -137,7 +142,7 @@ export function Anlernvorgang({
 
     const formular = new FormData();
     formular.set("container_id", gewaehlt);
-    if (leerwert.trim()) formular.set("leer_abstand_mm", leerwert.trim());
+    if (einbauhoehe.trim()) formular.set("einbauhoehe_mm", einbauhoehe.trim());
 
     const antwort = await kalibrierungSetzen(null, formular);
     setKalibrierung(antwort);
@@ -256,7 +261,7 @@ export function Anlernvorgang({
                         )}
                       </div>
                       <div className="text-sm text-ink-2">
-                        {[c.strasse, c.ort].filter(Boolean).join(", ")}
+                        {c.standort_name ?? ""}
                       </div>
                     </div>
                     {entfernung !== null && (
@@ -290,7 +295,7 @@ export function Anlernvorgang({
               <dd className="text-right font-medium">
                 {ausgewaehlt.bezeichnung ?? ausgewaehlt.nummer}
                 <div className="text-xs font-normal text-ink-2">
-                  {[ausgewaehlt.strasse, ausgewaehlt.ort].filter(Boolean).join(", ")}
+                  {ausgewaehlt.standort_name ?? ""}
                 </div>
               </dd>
             </div>
@@ -373,25 +378,26 @@ export function Anlernvorgang({
                 2. Taster am Sensorgehäuse einmal drücken – das Gerät sendet sofort eine Messung
                 (Quittung: die LED blinkt zweimal grün).
               </li>
-              <li>3. Kurz warten und dann unten auf „Leerwert übernehmen“ tippen.</li>
+              <li>3. Kurz warten und dann unten auf „Aus den Messungen übernehmen“ tippen.</li>
             </ol>
           )}
 
           <div>
-            <label htmlFor="leerwert" className="mb-1 block text-sm font-medium">
-              Leerwert von Hand setzen (mm, optional)
+            <label htmlFor="einbauhoehe" className="mb-1 block text-sm font-medium">
+              Einbauhöhe von Hand setzen (mm, optional)
             </label>
             <input
-              id="leerwert"
-              value={leerwert}
-              onChange={(e) => setLeerwert(e.target.value)}
+              id="einbauhoehe"
+              value={einbauhoehe}
+              onChange={(e) => setEinbauhoehe(e.target.value)}
               type="number"
               inputMode="numeric"
-              placeholder="Deckelinnenseite bis Boden, z. B. 1450"
+              placeholder="Sensorunterkante bis Boden, z. B. 1450"
               className="feld zahl"
             />
             <p className="mt-1 text-xs text-ink-3">
-              Leer lassen, um den Median der letzten Messungen zu übernehmen.
+              Sensorunterkante bis Boden bei leerem Behälter. Leer lassen, um den Median der
+              letzten Messungen zu übernehmen – der rohe Abstand ist genau diese Höhe.
               {istFertiggeraet(ergebnis?.bauart) &&
                 " Solange keine Messung angekommen ist, führt nur dieser Weg weiter."}
             </p>
@@ -405,7 +411,11 @@ export function Anlernvorgang({
 
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={kalibrieren} disabled={laeuft} className="knopf-primaer flex-1">
-              {laeuft ? "Wird übernommen …" : leerwert ? "Leerwert speichern" : "Leerwert übernehmen"}
+              {laeuft
+                ? "Wird übernommen …"
+                : einbauhoehe
+                  ? "Einbauhöhe speichern"
+                  : "Aus den Messungen übernehmen"}
             </button>
             <button type="button" onClick={() => setSchritt("fertig")} className="knopf-sekundaer">
               Später
@@ -424,8 +434,8 @@ export function Anlernvorgang({
             {kalibrierung?.ok && (
               <>
                 {" "}
-                Kalibrierung: leer bei <span className="zahl">{kalibrierung.leer} mm</span>, voll ab{" "}
-                <span className="zahl">{kalibrierung.voll} mm</span>.
+                Einbauhöhe <span className="zahl">{kalibrierung.hoehe} mm</span> – leer gemessen ab{" "}
+                <span className="zahl">{kalibrierung.leer} mm</span> Deckelinnenseite.
               </>
             )}
           </p>

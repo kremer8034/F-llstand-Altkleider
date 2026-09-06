@@ -16,7 +16,6 @@ const DATUM = new Intl.DateTimeFormat("de-DE", {
   month: "2-digit",
   year: "numeric",
 });
-const L = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
 
 const ZUSTAND_TEXT: Record<string, string> = {
   pflicht: "muss angefahren werden",
@@ -122,8 +121,8 @@ export default async function Routendetail({ params }: { params: Promise<{ id: s
                     {p ? (
                       <>
                         <div>
-                          {p.freie_liter !== null
-                            ? `${L.format(p.freie_liter)} l frei (${p.freie_prozent} %)`
+                          {p.freie_prozent !== null
+                            ? `${p.freie_prozent} % frei`
                             : "kein Messwert"}
                         </div>
                         <div>
