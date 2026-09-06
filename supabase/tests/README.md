@@ -32,6 +32,7 @@ $P -f supabase/migrations/0019_gruppen.sql
 $P -f supabase/migrations/0020_fertiggeraete.sql
 $P -f supabase/migrations/0021_leerwert_mit_montageversatz.sql
 $P -f supabase/migrations/0022_standorte_im_mittelpunkt.sql
+$P -f supabase/migrations/0023_ein_wort_fuer_den_container.sql
 $P -f supabase/tests/10_ablauf.sql
 $P -f supabase/tests/30_prognose.sql
 $P -f supabase/tests/40_standorte.sql

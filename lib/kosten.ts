@@ -63,10 +63,10 @@ export interface Stoppkosten {
   /** Summe. */
   kosten: number;
   /**
-   * Eingesammelte Menge in **Behälterfüllungen**.
+   * Eingesammelte Menge in **Containerfüllungen**.
    *
-   * Drei Behälter zu 80 % sind 2,4 Füllungen. Seit 0022 führen wir kein
-   * Volumen je Behälter mehr; mit einem Einheitsvolumen weiterzurechnen hätte
+   * Drei Container zu 80 % sind 2,4 Füllungen. Seit 0022 führen wir kein
+   * Volumen je Container mehr; mit einem Einheitsvolumen weiterzurechnen hätte
    * eine Genauigkeit vorgetäuscht, die es nie gab. Die Füllung ist die
    * Einheit, die wir wirklich messen - und für den Vergleich von Stopps tut
    * sie genau dasselbe wie der Liter.

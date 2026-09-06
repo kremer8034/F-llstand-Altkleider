@@ -7,7 +7,7 @@ import { STUFEN, alterText, istVeraltet } from "@/lib/fuellstand";
 import { entfernungKm } from "@/lib/route";
 import type {
   Fuellstandsstufe,
-  OeffentlicherBehaelter,
+  OeffentlicherContainer,
   OeffentlicherStandort,
 } from "@/lib/typen";
 
@@ -42,9 +42,9 @@ function anschrift(p: { strasse: string | null; plz: string | null; ort: string 
  * muss, gehört nicht auf einen Knopf.
  *
  * **Gezählt wird in Plätzen, nicht in Containern.** Für den Bürger ist ein
- * Parkplatz mit drei Containern eine Antwort, nicht drei. Seit 0022 kommt das
- * Wort "Container" hier gar nicht mehr vor: wie viele Kübel an einer Adresse
- * stehen, ist unsere interne Ordnung und hilft niemandem mit einer Tüte.
+ * Parkplatz mit drei Containern eine Antwort, nicht drei. Wie viele Container
+ * an einer Adresse stehen, ist unsere interne Ordnung und hilft niemandem mit
+ * einer Tüte - deshalb steht die Zahl hier nirgends.
  *
  * **Die Position verlässt das Gerät nicht.** Die Platzliste kommt ohnehin
  * vollständig vom Server; sortiert wird hier. Es gibt keinen Endpunkt, an den
@@ -57,8 +57,8 @@ export function Containeransicht({
   plaetze,
   listeGestoert = false,
 }: {
-  /** Der gescannte Behälter - nur Kennung und Platz, ohne eigene Messwerte. */
-  dieser: OeffentlicherBehaelter | null;
+  /** Der gescannte Container - nur Kennung und Platz, ohne eigene Messwerte. */
+  dieser: OeffentlicherContainer | null;
   /** Der Platz, an dem er steht. Das ist es, was angezeigt wird. */
   hier: OeffentlicherStandort | null;
   plaetze: OeffentlicherStandort[];
@@ -118,8 +118,8 @@ export function Containeransicht({
    * Nimmt DIESER Platz insgesamt noch auf?
    *
    * Dann ist das die richtige Antwort, und keine Adresse zwei Kilometer
-   * weiter. Wer vor einem vollen Kübel steht, sieht den daneben nicht
-   * unbedingt als Möglichkeit - er sieht einen vollen Behälter.
+   * weiter. Wer vor einem vollen Container steht, sieht den daneben nicht
+   * unbedingt als Möglichkeit - er sieht einen vollen Container.
    */
   const nebenanFrei = hier && nimmtAuf(hier.stufe) ? hier : null;
 
@@ -138,18 +138,34 @@ export function Containeransicht({
 
   const stufe = hier?.stufe ?? "unbekannt";
 
+  /*
+   * Die Überschrift darf nicht versprechen, was der Inhalt gleich verneint.
+   *
+   * "Hier können Sie abgeben" stand bisher unverändert über der Antwort - auch
+   * dann, wenn darunter "In der Nähe ist gerade kein Platz bekannt" folgte.
+   * Wer mit einer Tüte davorsteht, liest die Überschrift zuerst.
+   */
+  const gibtEsEineAntwort = Boolean(nebenanFrei || bester);
+  const ueberschrift = gibtEsEineAntwort
+    ? "Hier können Sie abgeben"
+    : listeGestoert
+      ? "Die Liste ist gerade nicht abrufbar"
+      : "Gerade ist keine freie Stelle bekannt";
+
   return (
     <div className="space-y-5">
       {/* Die Antwort zuerst */}
       <section className="karte-flaeche overflow-hidden">
         <div className="border-b px-5 py-3">
-          <h1 className="font-semibold">Hier können Sie abgeben</h1>
-          <p className="mt-0.5 text-xs text-ink-3">
-            {ortung === "laeuft" && "Ihr Standort wird ermittelt …"}
-            {ortung === "da" && "Nach Entfernung zu Ihrem Standort."}
-            {ortung === "abgelehnt" && "Ohne Standortfreigabe: Entfernung ab diesem Container."}
-            {ortung === "unmoeglich" && "Entfernung ab diesem Container."}
-          </p>
+          <h1 className="font-semibold">{ueberschrift}</h1>
+          {gibtEsEineAntwort && (
+            <p className="mt-0.5 text-xs text-ink-3">
+              {ortung === "laeuft" && "Ihr Standort wird ermittelt …"}
+              {ortung === "da" && "Nach Entfernung zu Ihrem Standort."}
+              {ortung === "abgelehnt" && "Ohne Standortfreigabe: Entfernung ab dieser Stelle."}
+              {ortung === "unmoeglich" && "Entfernung ab dieser Stelle."}
+            </p>
+          )}
         </div>
 
         {nebenanFrei ? (
@@ -296,10 +312,10 @@ export function Containeransicht({
             </div>
 
             <div className="mt-4 border-t pt-4">
-              <h3 className="text-sm font-semibold">Ist der Behälter vor Ihnen voll?</h3>
+              <h3 className="text-sm font-semibold">Ist der Container vor Ihnen voll?</h3>
               <p className="mt-1 text-sm text-ink-2">
                 Dann sagen Sie es uns – wir nehmen ihn in die nächste Planung auf. Gespeichert
-                wird ausschließlich, dass dieser Behälter gemeldet wurde, nicht wer gemeldet hat.
+                wird ausschließlich, dass dieser Container gemeldet wurde, nicht wer gemeldet hat.
               </p>
 
               {meldung === "danke" ? (
@@ -314,7 +330,7 @@ export function Containeransicht({
                     disabled={meldung === "laeuft"}
                     className="knopf-sekundaer mt-3"
                   >
-                    {meldung === "laeuft" ? "Wird gemeldet …" : "Behälter ist voll"}
+                    {meldung === "laeuft" ? "Wird gemeldet …" : "Container ist voll"}
                   </button>
                   {meldung === "fehler" && (
                     <p className="mt-2 text-sm" style={{ color: "var(--kritisch)" }}>

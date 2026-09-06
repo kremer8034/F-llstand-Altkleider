@@ -13,7 +13,7 @@ type Filter = "alle" | "platz" | "voll";
  * Nimmt dieser Platz noch etwas auf?
  *
  * Die Stufe kommt aus der Ansicht und steht fuer den GANZEN Platz - Mittel
- * ueber die gemessenen Behaelter (0022). "unbekannt" zaehlt bewusst nicht als
+ * ueber die gemessenen Container (0022). "unbekannt" zaehlt bewusst nicht als
  * Platz: unter "Noch Platz" darf nur stehen, was wir gemessen haben.
  */
 function nimmtAuf(stufe: Fuellstandsstufe): boolean {
@@ -39,6 +39,9 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
   }, [plaetze, filter, suche]);
 
   const mitPlatz = plaetze.filter((p) => nimmtAuf(p.stufe)).length;
+  // Jeder Filter traegt seine Zahl - sonst muss man klicken, um zu erfahren,
+  // ob sich das Klicken lohnt.
+  const volle = plaetze.filter((p) => p.stufe === 'voll').length;
 
   return (
     <div className="space-y-4">
@@ -49,7 +52,7 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
             [
               ["alle", `Alle (${plaetze.length})`],
               ["platz", `Noch Platz (${mitPlatz})`],
-              ["voll", "Voll"],
+              ["voll", `Voll (${volle})`],
             ] as [Filter, string][]
           ).map(([wert, text]) => (
             <button
@@ -126,24 +129,23 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
                 <div className="mt-0.5 pl-6 text-sm text-ink-2">{adresse(p)}</div>
               </div>
 
-              <div className="w-full max-w-[220px] shrink-0">
+              {/*
+                Eine Spalte, nicht zwei. Hier standen der Prozentwert am Balken
+                UND daneben "insgesamt zu 90 % belegt", dazu "Stand vor 2 Tagen"
+                UND "Angabe ist aelter als ein Tag" - dieselbe Aussage jeweils
+                zweimal, was die Zeile laenger macht, ohne sie klarer zu machen.
+
+                Was bleibt, steht in der Reihenfolge, in der man es braucht:
+                wie voll, wie verlaesslich, wie alt.
+              */}
+              <div className="w-full max-w-[260px] shrink-0">
                 <Fuellstandsbalken prozent={p.belegt_prozent} />
                 <div className="mt-1 text-xs text-ink-3">
-                  {STUFEN[p.stufe].text} · Stand {alterText(p.gemessen_am)}
+                  {p.belegt_prozent === null ? "Noch keine Messung" : STUFEN[p.stufe].text}
+                  {teilweise && " · nicht alles gemessen"}
+                  {p.gemessen_am && ` · Stand ${alterText(p.gemessen_am)}`}
+                  {veraltet && " (veraltet)"}
                 </div>
-              </div>
-
-              <div className="w-full text-xs text-ink-3 sm:w-44 sm:text-right">
-                {p.belegt_prozent === null
-                  ? "Noch keine Messung"
-                  : `insgesamt zu ${p.belegt_prozent} % belegt`}
-                {/*
-                 * Beides sind Einschraenkungen der Verlaesslichkeit, keine
-                 * Nebensache - wer hinfaehrt, soll wissen, worauf die Zahl
-                 * beruht. Von Containern ist bewusst nicht die Rede.
-                 */}
-                {veraltet && <div className="mt-0.5">Angabe ist älter als ein Tag</div>}
-                {teilweise && <div className="mt-0.5">nicht alles gemessen</div>}
               </div>
 
               {p.lat && p.lng && (

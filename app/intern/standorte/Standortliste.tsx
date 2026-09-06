@@ -21,9 +21,15 @@ export interface Standortzeile {
   plz: string | null;
   ort: string | null;
   aktiv: boolean;
+  /**
+   * Ohne Koordinaten faellt der Platz aus oeffentlicher Karte UND
+   * Tourenplanung - lautlos. Deshalb ist das ein eigener Filter und keine
+   * Fussnote auf der Detailseite.
+   */
+  ohne_koordinaten: boolean;
   container_gesamt: number;
   container_voll: number;
-  /** Behälter ohne Messwert - unbekannt, nicht leer. */
+  /** Container ohne Messwert - unbekannt, nicht leer. */
   container_ohne_wert: number;
   belegt_prozent: number | null;
   freie_prozent: number | null;
@@ -39,7 +45,7 @@ export interface Standortzeile {
 }
 
 type Sortierung = "kapazitaet" | "name" | "ort" | "groesse";
-type Filter = "alle" | "cluster" | "ungedeckt" | "ohne_bauhof";
+type Filter = "alle" | "cluster" | "ohne_koordinaten" | "ungedeckt" | "ohne_bauhof";
 
 
 /**
@@ -70,6 +76,7 @@ export function Standortliste({
   const [offen, setOffen] = useState<Set<string>>(new Set());
 
   const cluster = zeilen.filter((z) => z.container_gesamt >= 2).length;
+  const ohneKoordinaten = zeilen.filter((z) => z.ohne_koordinaten && z.aktiv).length;
   const ungedeckt = zeilen.filter((z) => z.routen.length === 0 && z.aktiv).length;
   const ohneBauhof = zeilen.filter((z) => !z.hat_entsorger && z.aktiv).length;
 
@@ -80,6 +87,7 @@ export function Standortliste({
       if (gruppe === "__ohne__" && z.gruppe_id !== null) return false;
       if (gruppe !== "" && gruppe !== "__ohne__" && z.gruppe_id !== gruppe) return false;
       if (filter === "cluster" && z.container_gesamt < 2) return false;
+      if (filter === "ohne_koordinaten" && !z.ohne_koordinaten) return false;
       if (filter === "ungedeckt" && (z.routen.length > 0 || !z.aktiv)) return false;
       if (filter === "ohne_bauhof" && (z.hat_entsorger || !z.aktiv)) return false;
       if (!text) return true;
@@ -158,7 +166,8 @@ export function Standortliste({
           aria-label="Filter"
         >
           <option value="alle">Alle ({zeilen.length})</option>
-          <option value="cluster">Nur Cluster ({cluster})</option>
+          <option value="cluster">Mehr als ein Container ({cluster})</option>
+          <option value="ohne_koordinaten">Ohne Koordinaten ({ohneKoordinaten})</option>
           <option value="ungedeckt">Ohne Regeltour ({ungedeckt})</option>
           <option value="ohne_bauhof">Ohne Bauhof ({ohneBauhof})</option>
         </select>
@@ -247,6 +256,20 @@ export function Standortliste({
                     {!z.aktiv && (
                       <span className="rounded bg-flaeche-2 px-1.5 py-0.5 text-xs text-ink-2">
                         inaktiv
+                      </span>
+                    )}
+                    {/*
+                      Direkt an der Zeile, nicht nur hinter einem Filter: dieser
+                      Platz ist auf der öffentlichen Karte und in der
+                      Tourenplanung unsichtbar, und das sieht man ihm sonst
+                      nirgends an.
+                    */}
+                    {z.ohne_koordinaten && z.aktiv && (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
+                        style={{ background: "var(--warnung)" }}
+                      >
+                        ohne Koordinaten
                       </span>
                     )}
                     {z.offene_meldungen > 0 && (

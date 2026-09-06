@@ -10,7 +10,7 @@ export interface Anlerncontainer {
   id: string;
   nummer: string;
   bezeichnung: string | null;
-  /** Anschrift und Koordinaten trägt seit 0022 der Platz, nicht der Behälter. */
+  /** Anschrift und Koordinaten trägt seit 0022 der Platz, nicht der Container. */
   standort_name: string | null;
   /** Koordinaten des Platzes - zum Sortieren nach Entfernung. */
   lat: number | null;
@@ -369,7 +369,7 @@ export function Anlernvorgang({
                 „Current Value“. Diesen Wert in <strong>Millimetern</strong> unten eintragen –
                 1,45 m sind 1450.
               </li>
-              <li>3. Dann auf „Leerwert übernehmen“ tippen.</li>
+              <li>3. Dann auf „Aus den Messungen übernehmen“ tippen.</li>
             </ol>
           ) : (
             <ol className="space-y-2 rounded-lg border p-3 text-sm text-ink-2">
@@ -396,7 +396,7 @@ export function Anlernvorgang({
               className="feld zahl"
             />
             <p className="mt-1 text-xs text-ink-3">
-              Sensorunterkante bis Boden bei leerem Behälter. Leer lassen, um den Median der
+              Sensorunterkante bis Boden bei leerem Container. Leer lassen, um den Median der
               letzten Messungen zu übernehmen – der rohe Abstand ist genau diese Höhe.
               {istFertiggeraet(ergebnis?.bauart) &&
                 " Solange keine Messung angekommen ist, führt nur dieser Weg weiter."}
@@ -442,7 +442,7 @@ export function Anlernvorgang({
 
           {!kalibrierung?.ok && (
             <p className="rounded-lg border p-3 text-sm text-ink-2">
-              Die Kalibrierung steht noch aus. Ohne Leerwert kann kein Füllstand in Prozent berechnet
+              Die Kalibrierung steht noch aus. Ohne Einbauhöhe kann kein Füllstand in Prozent berechnet
               werden – Sie können das jederzeit auf der Containerseite nachholen.
             </p>
           )}

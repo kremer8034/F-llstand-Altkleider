@@ -74,11 +74,43 @@ export function Standortformular({
               maxLength={8}
             />
             <p className="mt-1 text-xs text-ink-3">
-              Stamm der Behälternummern hier – aus <span className="zahl">RKL</span> wird{" "}
+              Stamm der Containernummern hier – aus <span className="zahl">RKL</span> wird{" "}
               <span className="zahl">RKL-1</span>, <span className="zahl">RKL-2</span> … Leer
               lassen genügt, dann wird eines vorgeschlagen.
             </p>
           </div>
+
+          {/*
+            Nur beim Anlegen. Wer einen Platz einträgt, weiß, wie viele
+            Container dort stehen - und bis zur Oberflächendurchsicht führte
+            nichts von hier zu dieser Angabe: der Platz war gespeichert, hatte
+            null Container, und der Abschnitt dafür lag weit unten auf einer
+            anderen Seite.
+
+            Beim Bearbeiten bleibt das Feld weg: dort steht die Liste der
+            vorhandenen Container daneben, und eine zweite Stelle, an der sich
+            ihre Zahl ändern lässt, wäre eine Falle.
+          */}
+          {!s && (
+            <div>
+              <label htmlFor="anzahl_container" className="mb-1 block text-sm font-medium">
+                Container hier
+              </label>
+              <input
+                id="anzahl_container"
+                name="anzahl_container"
+                type="number"
+                min={0}
+                max={50}
+                defaultValue={1}
+                className="feld zahl"
+              />
+              <p className="mt-1 text-xs text-ink-3">
+                Werden gleich mit angelegt und aus dem Kürzel durchnummeriert. Später jederzeit
+                änderbar.
+              </p>
+            </div>
+          )}
 
           <Kartenwaehler lat={s?.lat ?? null} lng={s?.lng ?? null} />
         </div>

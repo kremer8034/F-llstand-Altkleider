@@ -18,7 +18,7 @@ export default async function AnlernenSeite({
   const supabase = await serverClient();
   const { data } = await supabase
     .from("container")
-    // Anschrift und Kalibrierung stehen nicht mehr am Behälter: der Platzname
+    // Anschrift und Kalibrierung stehen nicht mehr am Container: der Platzname
     // sagt, wo man ist, die Einbauhöhe am Sensor, ob schon kalibriert wurde.
     .select("id, nummer, bezeichnung, standort:standort_id (name, lat, lng)")
     .in("status", ["aktiv", "inaktiv"])
@@ -59,7 +59,7 @@ export default async function AnlernenSeite({
             bezeichnung: (c.bezeichnung ?? null) as string | null,
             standort_name: platz?.name ?? null,
             // Die Koordinaten kommen vom Platz - danach sortiert das Anlernen
-            // die Liste, damit der nächstgelegene Behälter oben steht.
+            // die Liste, damit der nächstgelegene Container oben steht.
             lat: platz?.lat ?? null,
             lng: platz?.lng ?? null,
             hatSensor: belegteContainer.has(c.id as string),

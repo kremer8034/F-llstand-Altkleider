@@ -14,7 +14,7 @@ import type {
   Standort,
 } from "./typen";
 
-/** Was ein Behaelter ueber seinen Platz erbt - Anschrift und Koordinaten. */
+/** Was ein Container ueber seinen Platz erbt - Anschrift und Koordinaten. */
 export type ContainerPlatz = Pick<
   Standort,
   "id" | "name" | "strasse" | "plz" | "ort" | "lat" | "lng"
@@ -22,8 +22,8 @@ export type ContainerPlatz = Pick<
 
 export interface ContainerZeile extends Container {
   /**
-   * Der Platz, an dem der Behaelter steht. Seit 0022 die EINZIGE Quelle fuer
-   * Anschrift und Koordinaten - der Behaelter selbst traegt keine mehr.
+   * Der Platz, an dem der Container steht. Seit 0022 die EINZIGE Quelle fuer
+   * Anschrift und Koordinaten - der Container selbst traegt keine mehr.
    */
   standort: ContainerPlatz | null;
   zustand: ContainerZustand | null;

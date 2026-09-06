@@ -51,7 +51,7 @@ export interface Stoppzeile {
   lat: number | null;
   lng: number | null;
   freie_prozent: number | null;
-  /** Ertrag in Behälterfüllungen: drei Behälter zu 80 % sind 2,4 (0022). */
+  /** Ertrag in Containerfüllungen: drei Container zu 80 % sind 2,4 (0022). */
   ertrag_fuellungen: number | null;
   container_gesamt: number;
   grund: string | null;
@@ -61,7 +61,7 @@ export interface Stoppzeile {
 }
 
 const KM = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
-/** Behälterfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
+/** Containerfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
 const F = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 const UHR = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 

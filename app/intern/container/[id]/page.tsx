@@ -143,7 +143,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
               </Link>
               <span className="text-ink-3">
                 {standort.container_gesamt > 1
-                  ? ` · einer von ${standort.container_gesamt} Behältern hier, ${standort.freie_prozent ?? "–"} % frei`
+                  ? ` · einer von ${standort.container_gesamt} Containern hier, ${standort.freie_prozent ?? "–"} % frei`
                   : " · steht allein an diesem Standort"}
               </span>
             </p>
@@ -303,7 +303,9 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
           <div className="karte-flaeche p-4">
             <h2 className="mb-1 font-semibold">Kalibrierung</h2>
             <p className="mb-3 text-xs text-ink-3">
-              Leerwert = Abstand von der Deckelinnenseite bis zum Boden (der Montageversatz des Sensors ist eingerechnet). Vollwert = Abstand, ab dem 100 % gilt.
+              Einbauhöhe = Abstand von der Sensorunterkante bis zum Boden bei leerem Container. Der
+              Montageversatz des Geräts kommt automatisch dazu; der Wert, ab dem 100 % gilt, ist ein
+              fester Anteil davon.
             </p>
 
             <form action={kalibrieren} className="space-y-3">
@@ -323,7 +325,7 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
                   className="feld zahl"
                 />
                 <p className="mt-1 text-xs text-ink-3">
-                  Sensorunterkante bis Boden bei leerem Behälter. Leer lassen heißt: aus den
+                  Sensorunterkante bis Boden bei leerem Container. Leer lassen heißt: aus den
                   letzten Messungen ermitteln. Der Vollwert ist ein fester Anteil davon und wird
                   nicht mehr getrennt gepflegt.
                 </p>
@@ -336,11 +338,11 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
                   mit einer Stunde angegeben; der Taster gilt nur für den
                   Eigenbau. Beides stand hier falsch. */}
               <p className="text-xs text-ink-3">
-                Beide Felder leer lassen und speichern: der Leerwert wird aus den gültigen Messungen
-                der letzten <span className="zahl">{kalibrierFenster}</span> Stunden übernommen – der
+                Feld leer lassen und speichern: die Einbauhöhe wird aus den gültigen Messungen der
+                letzten <span className="zahl">{kalibrierFenster}</span> Stunden übernommen – der
                 Container muss dabei leer sein.
                 {sensor && istFertiggeraet(sensor.bauart)
-                  ? " Dieses Gerät meldet nur nach seinem Sendeintervall; liegt keine Messung im Fenster, den Leerwert von Hand eintragen."
+                  ? " Dieses Gerät meldet nur nach seinem Sendeintervall; liegt keine Messung im Fenster, die Einbauhöhe von Hand eintragen."
                   : " Beim Eigenbau lässt sich mit dem Taster am Gehäuse sofort eine Messung auslösen."}
               </p>
             </form>

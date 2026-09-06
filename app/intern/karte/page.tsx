@@ -6,12 +6,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Karte" };
 
 /**
- * Die interne Karte zeigt Plaetze, nicht Behaelter.
+ * Die interne Karte zeigt Plaetze, nicht Container.
  *
  * Bis 0022 stand hier je Container eine Stecknadel - was an einem Parkplatz
- * mit sechs Kuebeln sechs Nadeln uebereinander ergab. Seit die Anschrift am
+ * mit sechs Containern sechs Nadeln uebereinander ergab. Seit die Anschrift am
  * Platz haengt, gibt es auch nur noch dessen Koordinaten; die Karte folgt dem.
- * Wer zu einem einzelnen Behaelter will, kommt ueber den Platz dorthin.
+ * Wer zu einem einzelnen Container will, kommt ueber den Platz dorthin.
  */
 export default async function InterneKarte() {
   const supabase = await serverClient();
@@ -48,7 +48,7 @@ export default async function InterneKarte() {
         {ohneKoordinaten > 0 && (
           <p className="mt-1 text-sm text-ink-3">
             Standorte ohne Koordinaten fehlen hier und auf der öffentlichen Seite – samt aller
-            Behälter, die dort stehen.
+            Container, die dort stehen.
           </p>
         )}
       </div>

@@ -455,7 +455,7 @@ declare
   v_funktion text;
   v_treffer  text := '';
 begin
-  foreach v_ansicht in array array['oeffentliche_standorte', 'oeffentlicher_behaelter']
+  foreach v_ansicht in array array['oeffentliche_standorte', 'oeffentlicher_container']
   loop
     for v_funktion in
       select p.proname

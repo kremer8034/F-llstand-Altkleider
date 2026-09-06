@@ -202,7 +202,7 @@ export function Geraeteaufnahme() {
               placeholder="z. B. 1450"
             />
             <p className="mt-1 text-xs text-ink-3">
-              Sensorunterkante bis Boden bei leerem Behälter – daraus entsteht der Leerwert der
+              Sensorunterkante bis Boden bei leerem Container – daraus entsteht der Leerwert der
               Füllstandsrechnung. Leer lassen ist in Ordnung: nach dem Anlernen lässt sich die Höhe
               aus den ersten Messungen ermitteln.
             </p>

@@ -11,14 +11,14 @@ import type { TourFortschritt } from "@/lib/typen";
 import { GRUND_TEXT, TOURSTATUS_TEXT, type Tourzeile } from "./planungstypen";
 import { stoppsHinzufuegen, tourAnlegen } from "./aktionen";
 
-/** Behälterfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
+/** Containerfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
 const F = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 
 /**
- * Was an einem Platz zu holen ist, in Behälterfüllungen.
+ * Was an einem Platz zu holen ist, in Containerfüllungen.
  *
- * Seit 0022 führen wir kein Volumen je Behälter mehr - gerechnet wird aus der
- * Belegung mal der Zahl der GEMESSENEN Behälter. Ungemessene bleiben draußen:
+ * Seit 0022 führen wir kein Volumen je Container mehr - gerechnet wird aus der
+ * Belegung mal der Zahl der GEMESSENEN Container. Ungemessene bleiben draußen:
  * sie sind unbekannt, nicht leer.
  */
 function fuellungenText(z: Tourzeile): string | null {

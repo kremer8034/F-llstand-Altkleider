@@ -190,7 +190,7 @@ export function Kartenwaehler({
           {sucht ? "Suche läuft …" : "Adresse auf der Karte suchen"}
         </button>
         <span className="text-xs text-ink-3">
-          Danach die Nadel anklicken oder ziehen – der Behälter steht selten genau an der Hausnummer.
+          Danach die Nadel anklicken oder ziehen – der Container steht selten genau an der Hausnummer.
         </span>
       </div>
 
@@ -255,7 +255,7 @@ export function Kartenwaehler({
       {fehltNoch && (
         <p className="mt-2 text-sm text-ink-2">
           <strong>Ohne Koordinaten fehlt dieser Platz auf der öffentlichen Seite</strong> – samt
-          aller Behälter, die hier stehen. Auch die Tourenplanung kann ihn nicht anfahren.
+          aller Container, die hier stehen. Auch die Tourenplanung kann ihn nicht anfahren.
         </p>
       )}
     </div>

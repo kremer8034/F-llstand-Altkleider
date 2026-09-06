@@ -2,23 +2,27 @@ import { containerSpeichern } from "@/app/intern/container/aktionen";
 import type { Container, Standort } from "@/lib/typen";
 
 /**
- * Der Behaelter, nachdem ihm alles genommen wurde, was doppelt war (0022).
+ * Der Container, nachdem ihm alles genommen wurde, was doppelt war (0022).
  *
  * Anschrift und Koordinaten stehen am Platz, die Kalibrierung am Sensor, ein
  * Volumen fuehren wir nicht mehr. Was hier bleibt, ist das, was diesen einen
- * Kuebel von seinen Nachbarn unterscheidet: seine Nummer, sein Zustand und ob
+ * Container von seinen Nachbarn unterscheidet: seine Nummer, sein Zustand und ob
  * er nach aussen zaehlt.
  *
- * Angelegt werden Behaelter im Regelfall gar nicht mehr hier, sondern am Platz
+ * Angelegt werden Container im Regelfall gar nicht mehr hier, sondern am Platz
  * ueber die Anzahl. Dieses Formular ist fuer den Einzelfall - ein defekter
- * Kuebel, eine Nummer, die nicht ins Schema passt.
+ * Container, eine Nummer, die nicht ins Schema passt.
  */
 export function Containerformular({
   container: c,
   standort,
+  standorte = [],
 }: {
   container?: Container;
+  /** Vorgegeben, wenn das Formular von einer Standortseite aus geöffnet wird. */
   standort?: Pick<Standort, "id" | "name">;
+  /** Zur Auswahl, wenn nicht. Ohne Standort lässt sich kein Container anlegen. */
+  standorte?: Pick<Standort, "id" | "name" | "ort">[];
 }) {
   return (
     <form action={containerSpeichern} className="space-y-6">
@@ -28,12 +32,49 @@ export function Containerformular({
       {!c && standort && (
         <p className="text-sm text-ink-2">
           Wird dem Standort <strong>{standort.name}</strong> zugeordnet. Anschrift und Koordinaten
-          kommen von dort – ein Behälter trägt keine eigenen mehr.
+          kommen von dort – ein Container trägt keine eigenen mehr.
         </p>
       )}
 
+      {/*
+        Ohne Platz kein Container: standort_id ist seit 0022 Pflicht. Vorher
+        stand hier gar kein Feld, und wer die Seite ohne `?standort=` öffnete,
+        bekam beim Speichern einen rohen Datenbankfehler zu sehen.
+      */}
+      {!c && !standort && (
+        <div className="karte-flaeche p-4">
+          <label htmlFor="standort_id" className="mb-1 block text-sm font-medium">
+            Standort *
+          </label>
+          {standorte.length === 0 ? (
+            <p className="text-sm text-ink-2">
+              Es gibt noch keinen Standort. Legen Sie zuerst einen an – der Container gehört auf
+              einen Platz, und der trägt Anschrift und Koordinaten.
+            </p>
+          ) : (
+            <>
+              <select id="standort_id" name="standort_id" required className="feld" defaultValue="">
+                <option value="" disabled>
+                  Bitte wählen
+                </option>
+                {standorte.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                    {st.ort ? ` · ${st.ort}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-3">
+                Einfacher geht es über den Platz selbst: dort sagen Sie nur, wie viele Container
+                stehen, und die Nummern entstehen von allein.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       <fieldset className="karte-flaeche p-4">
-        <legend className="px-1 text-sm font-semibold">Der Behälter</legend>
+        <legend className="px-1 text-sm font-semibold">Der Container</legend>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -49,7 +90,7 @@ export function Containerformular({
               placeholder="z. B. RKL-3"
             />
             <p className="mt-1 text-xs text-ink-3">
-              Systemweit eindeutig. Am Platz angelegte Behälter bekommen sie automatisch aus dem
+              Systemweit eindeutig. Am Platz angelegte Container bekommen sie automatisch aus dem
               Kürzel des Platzes.
             </p>
           </div>
@@ -63,7 +104,7 @@ export function Containerformular({
               name="bezeichnung"
               defaultValue={c?.bezeichnung ?? ""}
               className="feld"
-              placeholder="optional, z. B. hinterer Kübel"
+              placeholder="optional, z. B. hinterer Container"
             />
           </div>
 
@@ -105,7 +146,7 @@ export function Containerformular({
               Zählt für die öffentliche Anzeige des Platzes
             </label>
             <p className="mt-1 text-xs text-ink-3">
-              Ausgeschaltet bleibt dieser Behälter in der Belegung des Platzes unberücksichtigt.
+              Ausgeschaltet bleibt dieser Container in der Belegung des Platzes unberücksichtigt.
             </p>
           </div>
 
