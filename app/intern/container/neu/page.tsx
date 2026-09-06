@@ -20,9 +20,10 @@ export default async function NeuerContainer({
   await rolleErzwingen(["admin", "dispo"]);
   const { standort: standortId } = await searchParams;
 
+  const supabase = await serverClient();
+
   let standort: Standort | undefined;
   if (standortId) {
-    const supabase = await serverClient();
     const { data } = await supabase
       .from("standort")
       .select("*")
@@ -31,12 +32,30 @@ export default async function NeuerContainer({
     standort = (data as Standort | null) ?? undefined;
   }
 
+  // Ohne vorgegebenen Platz braucht das Formular eine Auswahl - standort_id ist
+  // Pflicht, und ein leeres Feld endete bisher in einem Datenbankfehler.
+  const standorte = standort
+    ? []
+    : (((
+        await supabase
+          .from("standort")
+          .select("id, name, ort")
+          .eq("aktiv", true)
+          .order("name")
+      ).data ?? []) as Pick<Standort, "id" | "name" | "ort">[]);
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-semibold">
         {standort ? `Neuer Container an „${standort.name}"` : "Neuer Container"}
       </h1>
-      <Containerformular standort={standort} />
+      {!standort && (
+        <p className="text-sm text-ink-2">
+          Für den Einzelfall – eine Nummer außer der Reihe, ein Ersatzcontainer. Der Regelweg führt
+          über den Standort: dort geben Sie nur die Anzahl an.
+        </p>
+      )}
+      <Containerformular standort={standort} standorte={standorte} />
     </div>
   );
 }

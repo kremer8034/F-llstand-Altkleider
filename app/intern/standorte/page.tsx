@@ -6,7 +6,6 @@ import { naechsterTermin } from "@/lib/wochentage";
 import { Containerliste } from "../container/Containerliste";
 import type { Container, ContainerZustand, Route, Standort, StandortZustand } from "@/lib/typen";
 import { Standortliste } from "./Standortliste";
-import { standorteNachziehen } from "./aktionen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Standorte" };
@@ -37,7 +36,6 @@ export default async function StandorteSeite({
     standortAntwort,
     zustandAntwort,
     containerAntwort,
-    ohneAntwort,
     routenAntwort,
     zuordnungAntwort,
     werte,
@@ -50,11 +48,6 @@ export default async function StandorteSeite({
       .from("container")
       .select("id, nummer, bezeichnung, standort_id, status")
       .order("nummer"),
-    supabase
-      .from("container")
-      .select("id", { count: "exact", head: true })
-      .is("standort_id", null)
-      .eq("status", "aktiv"),
     supabase.from("route").select("*").eq("aktiv", true).order("name"),
     supabase.from("route_standort").select("route_id, standort_id"),
     einstellungen(supabase),
@@ -101,7 +94,6 @@ export default async function StandorteSeite({
 
   const reserve = zahlAusEinstellung(werte, "standort_reserve_prozent", 20);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
-  const ohneStandort = ohneAntwort.count ?? 0;
 
   const gruppen = (gruppenAntwort.data ?? []) as { id: string; name: string }[];
   const gruppeJeId = new Map(gruppen.map((g) => [g.id, g.name]));
@@ -158,32 +150,6 @@ export default async function StandorteSeite({
         </Link>
       </div>
 
-      {ohneStandort > 0 && (
-        <section className="karte-flaeche border-l-4 p-4" style={{ borderLeftColor: "var(--warnung)" }}>
-          <h2 className="font-semibold">{ohneStandort} Container ohne Standort</h2>
-          <p className="mt-1 max-w-3xl text-sm text-ink-2">
-            Die Tourenplanung geht vom Standort aus. Ein Container ohne Zuordnung hat keinen Stopp,
-            an dem er hängt – er taucht in keiner Tour auf, egal wie voll er ist. Das trifft
-            Container, die neu angelegt oder ohne Standortspalte importiert wurden.
-          </p>
-          {bearbeiten ? (
-            <form action={standorteNachziehen} className="mt-3">
-              <button type="submit" className="knopf-primaer">
-                Für jeden einen eigenen Standort anlegen
-              </button>
-              <p className="mt-2 text-sm text-ink-3">
-                Legt je Container einen eigenen Standort an – ohne Gruppierung. Was
-                zusammengehört, führen Sie danach von Hand zusammen.
-              </p>
-            </form>
-          ) : (
-            <p className="mt-2 text-sm text-ink-3">
-              Zum Beheben werden Rechte ab der Disposition gebraucht.
-            </p>
-          )}
-        </section>
-      )}
-
       {nachContainer ? (
         <>
           <p className="text-sm text-ink-3">
@@ -235,6 +201,7 @@ export default async function StandorteSeite({
               plz: s.plz,
               ort: s.ort,
               aktiv: s.aktiv,
+              ohne_koordinaten: s.lat === null || s.lng === null,
               container_gesamt: z?.container_gesamt ?? eigene.length,
               container_voll: z?.container_voll ?? 0,
               container_ohne_wert: z?.container_ohne_wert ?? 0,

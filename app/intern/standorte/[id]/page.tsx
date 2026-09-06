@@ -220,7 +220,7 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
 
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>
-              <dt className="text-xs text-ink-3">Behälter</dt>
+              <dt className="text-xs text-ink-3">Container</dt>
               <dd className="zahl font-medium">{z?.container_gesamt ?? 0}</dd>
             </div>
             <div>
@@ -388,53 +388,51 @@ export default async function Standortdetail({ params }: { params: Promise<{ id:
             })}
           </div>
         )}
+
+        {bearbeiten && (
+          <div className="border-t bg-flaeche-2/40 p-4">
+            <h3 className="text-sm font-semibold">Wie viele stehen hier?</h3>
+            <p className="mt-1 max-w-3xl text-sm text-ink-2">
+              Nur die Zahl – die Nummern entstehen aus dem Kürzel des Platzes:{" "}
+              <span className="zahl">{s.kuerzel ?? "?"}-1</span>,{" "}
+              <span className="zahl">{s.kuerzel ?? "?"}-2</span> und so weiter.
+            </p>
+            <p className="mt-1 text-sm text-ink-3">
+              Beim Verringern verschwindet nur, was nie etwas getan hat. Container mit Messungen,
+              Leerungen, Meldungen oder Sensor werden stillgelegt – ihre Geschichte bleibt
+              auswertbar.
+            </p>
+
+            <form action={containerAnzahlSetzen} className="mt-3 flex flex-wrap items-end gap-3">
+              <input type="hidden" name="standort_id" value={s.id} />
+              <div>
+                <label htmlFor="anzahl" className="mb-1 block text-xs font-medium text-ink-2">
+                  Anzahl
+                </label>
+                <input
+                  id="anzahl"
+                  name="anzahl"
+                  type="number"
+                  min={0}
+                  max={50}
+                  required
+                  defaultValue={eigene.filter((c) => c.status === "aktiv").length}
+                  className="feld zahl w-24"
+                />
+              </div>
+              <button type="submit" className="knopf-primaer">
+                Übernehmen
+              </button>
+              <Link
+                href={`/intern/container/neu?standort=${s.id}`}
+                className="text-sm text-ink-3 underline underline-offset-2"
+              >
+                Einzelnen Container von Hand anlegen
+              </Link>
+            </form>
+          </div>
+        )}
       </section>
-
-      {/* Wie viele Behälter stehen hier? */}
-      {bearbeiten && (
-        <section className="karte-flaeche p-4">
-          <h2 className="font-semibold">Behälter an diesem Platz</h2>
-          <p className="mt-1 max-w-3xl text-sm text-ink-2">
-            Sagen Sie einfach, wie viele hier stehen. Die Nummern entstehen aus dem Kürzel des
-            Platzes – <span className="zahl">{s.kuerzel ?? "?"}-1</span>,{" "}
-            <span className="zahl">{s.kuerzel ?? "?"}-2</span> und so weiter. Anschrift und
-            Koordinaten trägt der Platz, kalibriert wird am Sensor.
-          </p>
-          <p className="mt-1 text-sm text-ink-3">
-            Beim Verringern verschwindet nur, was nie etwas getan hat. Behälter mit Messungen,
-            Leerungen, Meldungen oder Sensor werden stillgelegt – ihre Geschichte bleibt
-            auswertbar.
-          </p>
-
-          <form action={containerAnzahlSetzen} className="mt-3 flex flex-wrap items-end gap-3">
-            <input type="hidden" name="standort_id" value={s.id} />
-            <div>
-              <label htmlFor="anzahl" className="mb-1 block text-xs font-medium text-ink-2">
-                Anzahl
-              </label>
-              <input
-                id="anzahl"
-                name="anzahl"
-                type="number"
-                min={0}
-                max={50}
-                required
-                defaultValue={eigene.filter((c) => c.status === "aktiv").length}
-                className="feld zahl w-24"
-              />
-            </div>
-            <button type="submit" className="knopf-primaer">
-              Übernehmen
-            </button>
-            <Link
-              href={`/intern/container/neu?standort=${s.id}`}
-              className="text-sm text-ink-3 underline underline-offset-2"
-            >
-              Einzelnen Behälter von Hand anlegen
-            </Link>
-          </form>
-        </section>
-      )}
 
       {/* Zuordnen und Zusammenführen */}
       {bearbeiten && (

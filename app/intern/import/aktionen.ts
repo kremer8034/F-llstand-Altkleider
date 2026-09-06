@@ -16,7 +16,7 @@ export interface Importzeile {
   lng?: number | null;
   zufahrt?: string | null;
   bemerkung?: string | null;
-  /** Wie viele Behaelter hier stehen. Leer heisst: nicht anfassen. */
+  /** Wie viele Container hier stehen. Leer heisst: nicht anfassen. */
   anzahl_container?: number | null;
 }
 
@@ -35,12 +35,12 @@ export interface Importergebnis {
  * Standorte einspielen.
  *
  * Bis 0022 wurden hier Container importiert - mit Anschrift, Koordinaten und
- * Volumen je Behaelter. Das war die Quelle der Dopplung, die dieser Umbau
- * beseitigt: dieselbe Adresse stand am Platz und an jedem Kuebel darauf.
+ * Volumen je Container. Das war die Quelle der Dopplung, die dieser Umbau
+ * beseitigt: dieselbe Adresse stand am Platz und an jedem Container darauf.
  *
- * Jetzt ist der Platz die Einheit. Die Behaelter entstehen aus einer Zahl -
+ * Jetzt ist der Platz die Einheit. Die Container entstehen aus einer Zahl -
  * "hier stehen sechs" - und bekommen ihre Nummern aus dem Kuerzel des Platzes.
- * Was ein einzelner Behaelter an Eigenem traegt (Status, Sensor, Geschichte),
+ * Was ein einzelner Container an Eigenem traegt (Status, Sensor, Geschichte),
  * ruehrt der Import nicht an; das pflegen wir selbst und wuerden es uns mit
  * jedem Einspielen ueberschreiben.
  *

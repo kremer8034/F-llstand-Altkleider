@@ -92,7 +92,7 @@ export async function sensorAnlegen(_vorher: AnlageErgebnis | null, formular: Fo
       mess_min_mm: art.mess_min_mm,
       mess_max_mm: art.mess_max_mm,
       montage_offset_mm: Number(feld(formular, "montage_offset_mm") ?? 0) || 0,
-      // Einbauhoehe: Sensorunterkante bis Boden bei leerem Behaelter. Traegt
+      // Einbauhoehe: Sensorunterkante bis Boden bei leerem Container. Traegt
       // seit 0022 die Kalibrierung, die vorher am Container stand. Leer heisst
       // null und nicht 0 - "noch nicht bekannt" ist etwas anderes als "steht
       // auf dem Boden".
@@ -226,7 +226,7 @@ export async function sensorKoppeln(
  * Kalibrieren heisst seit 0022: die Einbauhoehe des Sensors festlegen.
  *
  * Leer gelassen bedeutet "aus den letzten Messungen ermitteln" - der rohe
- * Abstand eines leeren Behaelters IST die Einbauhoehe. Der Vollwert ergibt
+ * Abstand eines leeren Containers IST die Einbauhoehe. Der Vollwert ergibt
  * sich als fester Anteil und ist keine Eingabe mehr.
  */
 export async function kalibrierungSetzen(

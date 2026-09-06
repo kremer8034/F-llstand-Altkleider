@@ -26,14 +26,25 @@ export default async function SensorenSeite() {
 
   const [sensorAntwort, containerAntwort, codeAntwort, werte] = await Promise.all([
     supabase.from("sensor").select("*").order("geraete_id"),
-    supabase.from("container").select("id, nummer, bezeichnung, ort"),
+    // Der Ort steht seit 0022 am Platz. Ein `.select("… ort")` auf den
+    // Container lief ins Leere - und weil PostgREST dann `null` liefert,
+    // sah in dieser Liste JEDER Sensor unzugeordnet aus.
+    supabase.from("container").select("id, nummer, bezeichnung, standort:standort_id (ort)"),
     supabase.from("anlerncode").select("sensor_id, code, verbraucht_am").order("angelegt_am", { ascending: false }),
     einstellungen(supabase),
   ]);
 
   const sensoren = (sensorAntwort.data ?? []) as Sensor[];
   const container = new Map(
-    (containerAntwort.data ?? []).map((c) => [c.id, c as { id: string; nummer: string; bezeichnung: string | null; ort: string | null }]),
+    (containerAntwort.data ?? []).map((c) => [
+      c.id,
+      c as unknown as {
+        id: string;
+        nummer: string;
+        bezeichnung: string | null;
+        standort: { ort: string | null } | null;
+      },
+    ]),
   );
 
   const offenerCode = new Map<string, string>();
@@ -98,7 +109,7 @@ export default async function SensorenSeite() {
                     {zugeordnet ? (
                       <Link href={`/intern/container/${zugeordnet.id}`} className="underline underline-offset-2">
                         {zugeordnet.bezeichnung ?? zugeordnet.nummer}
-                        {zugeordnet.ort ? `, ${zugeordnet.ort}` : ""}
+                        {zugeordnet.standort?.ort ? `, ${zugeordnet.standort.ort}` : ""}
                       </Link>
                     ) : (
                       <span className="text-ink-3">keinem Container zugeordnet</span>

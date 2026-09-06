@@ -158,7 +158,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
       lat: st?.lat ?? null,
       lng: st?.lng ?? null,
       freie_prozent: z?.freie_prozent ?? null,
-      // Ertrag in Behaelterfuellungen: die gemessenen Fuellstaende aufaddiert.
+      // Ertrag in Containerfuellungen: die gemessenen Fuellstaende aufaddiert.
       // Genauer als der Mittelwert des Platzes, weil hier die Einzelwerte
       // ohnehin vorliegen. Ungemessene zaehlen nicht mit - sie sind unbekannt.
       ertrag_fuellungen: fuellungenAus(container.map((c) => czJeId.get(c.id)?.fuellstand_prozent ?? null)),
@@ -181,7 +181,7 @@ export default async function Tourdetail({ params }: { params: Promise<{ id: str
   });
 
   /**
-   * Ertrag in Behälterfüllungen: drei Behälter zu 80 % sind 2,4 Füllungen.
+   * Ertrag in Containerfüllungen: drei Container zu 80 % sind 2,4 Füllungen.
    * Null Messwerte heißt null - nicht etwa "voll".
    */
   function fuellungenAus(werteProzent: (number | null)[]): number | null {

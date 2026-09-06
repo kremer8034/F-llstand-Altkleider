@@ -38,8 +38,8 @@ function spalteFinden(kopf: string[], feld: keyof Importzeile): number {
  * Standorte einspielen.
  *
  * Bis 0022 wurden hier Container importiert. Seit der Platz die Einheit ist,
- * trägt eine Zeile den Platz – und in einer Spalte die Zahl der Behälter, die
- * dort stehen. Die Behälter entstehen daraus samt Nummern; einzeln einlesen
+ * trägt eine Zeile den Platz – und in einer Spalte die Zahl der Container, die
+ * dort stehen. Die Container entstehen daraus samt Nummern; einzeln einlesen
  * lassen sie sich nicht mehr, weil sie nichts Eigenes mehr zu tragen hätten.
  */
 export function Importbereich() {
@@ -130,7 +130,7 @@ export function Importbereich() {
         <p className="mt-3 text-xs text-ink-3">
           Oder den Inhalt direkt einfügen – Semikolon, Komma und Tabulator werden erkannt. Eine
           Zeile je Standort; die Spalte <span className="zahl">Anzahl</span> sagt, wie viele
-          Behälter dort stehen.
+          Container dort stehen.
         </p>
         <textarea
           value={text}
@@ -165,7 +165,7 @@ export function Importbereich() {
                 </span>
               )}
               {analyse.mitAnzahl > 0 && (
-                <span className="text-ink-3"> · {analyse.mitAnzahl} mit Behälterzahl</span>
+                <span className="text-ink-3"> · {analyse.mitAnzahl} mit Containerzahl</span>
               )}
               {analyse.ohneKoordinaten > 0 && (
                 <span className="text-ink-3"> · {analyse.ohneKoordinaten} ohne Koordinaten</span>
@@ -192,7 +192,7 @@ export function Importbereich() {
                   <th>Kürzel</th>
                   <th>Adresse</th>
                   <th>Koordinaten</th>
-                  <th>Behälter</th>
+                  <th>Container</th>
                 </tr>
               </thead>
               <tbody>
@@ -231,7 +231,7 @@ export function Importbereich() {
               {(ergebnis.behaelter_angelegt ?? 0) > 0 && (
                 <>
                   {" "}
-                  <strong>{ergebnis.behaelter_angelegt}</strong> Behälter angelegt.
+                  <strong>{ergebnis.behaelter_angelegt}</strong> Container angelegt.
                 </>
               )}
               {(ergebnis.behaelter_stillgelegt ?? 0) > 0 && (

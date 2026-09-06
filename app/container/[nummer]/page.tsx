@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
-import type { OeffentlicherBehaelter, OeffentlicherStandort } from "@/lib/typen";
+import type { OeffentlicherContainer, OeffentlicherStandort } from "@/lib/typen";
 import { Containeransicht } from "./Containeransicht";
 
 // Wie die öffentliche Karte: aktuell, aber nicht bei jedem Aufruf frisch.
@@ -24,12 +24,12 @@ export default async function Containerseite({ params }: { params: Promise<{ num
         // Nur die Zuordnung Aufkleber -> Platz. Angezeigt wird der Zustand des
         // Platzes; der einzelne Kuebel traegt seit 0022 keine eigene Anschrift
         // und keinen eigenen oeffentlichen Messwert mehr.
-        supabase.from("oeffentlicher_behaelter").select("*").order("nummer"),
+        supabase.from("oeffentlicher_container").select("*").order("nummer"),
         supabase.from("oeffentliche_standorte").select("*").order("name"),
       ])
     : [null, null];
 
-  const behaelter = (behaelterAntwort?.data ?? []) as OeffentlicherBehaelter[];
+  const behaelter = (behaelterAntwort?.data ?? []) as OeffentlicherContainer[];
   const plaetze = (standortAntwort?.data ?? []) as OeffentlicherStandort[];
   const dieser = behaelter.find((c) => c.nummer.toLowerCase() === gesucht.toLowerCase()) ?? null;
   const hier = dieser ? (plaetze.find((p) => p.standort_id === dieser.standort_id) ?? null) : null;

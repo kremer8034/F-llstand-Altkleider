@@ -33,6 +33,34 @@ function alleSeitenNeu(id?: string) {
   if (id) revalidatePath(`/intern/standorte/${id}`);
 }
 
+interface Platzdaten {
+  name: string;
+  strasse: string | null;
+  plz: string | null;
+  ort: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+/**
+ * Ein freies Kuerzel besorgen.
+ *
+ * Jeder Platz braucht eines - daraus entstehen die Containernummern. Die
+ * Datenbank kennt die bereits vergebenen und findet ein freies; hier steht nur
+ * der Aufruf, damit ihn nicht drei Stellen einzeln nachbauen.
+ */
+async function freiesKuerzel(
+  supabase: Awaited<ReturnType<typeof serverClient>>,
+  name: string,
+  id?: string | null,
+): Promise<string | null> {
+  const { data } = await supabase.rpc("standort_kuerzel_vorschlag", {
+    p_name: name,
+    p_id: id ?? null,
+  });
+  return typeof data === "string" ? data : null;
+}
+
 /** Anlegen und Bearbeiten in einem - Unterschied ist nur die id. */
 export async function standortSpeichern(formular: FormData) {
   await berechtigt();
@@ -57,16 +85,10 @@ export async function standortSpeichern(formular: FormData) {
 
   const supabase = await serverClient();
 
-  // Ohne Kuerzel kein Nummernstamm fuer die Behaelter. Leer gelassen heisst
+  // Ohne Kuerzel kein Nummernstamm fuer die Container. Leer gelassen heisst
   // nicht "keins", sondern "schlag mir eins vor" - die Datenbank kennt die
   // bereits vergebenen und findet ein freies.
-  if (!daten.kuerzel) {
-    const { data: vorschlag } = await supabase.rpc("standort_kuerzel_vorschlag", {
-      p_name: daten.name,
-      p_id: id,
-    });
-    if (typeof vorschlag === "string") daten.kuerzel = vorschlag;
-  }
+  if (!daten.kuerzel) daten.kuerzel = await freiesKuerzel(supabase, daten.name, id);
 
   if (id) {
     const { error } = await supabase.from("standort").update(daten).eq("id", id);
@@ -77,6 +99,17 @@ export async function standortSpeichern(formular: FormData) {
 
   const { data, error } = await supabase.from("standort").insert(daten).select("id").single();
   if (error) throw new Error(error.message);
+
+  // Beim Anlegen steht die Containerzahl gleich im Formular - der Platz ist
+  // damit in einem Zug fertig statt leer.
+  const anzahl = zahl(formular, "anzahl_container");
+  if (anzahl !== null && anzahl > 0) {
+    const { error: anzahlFehler } = await supabase.rpc("standort_container_setzen", {
+      p_standort_id: data.id,
+      p_anzahl: Math.round(anzahl),
+    });
+    if (anzahlFehler) throw new Error(anzahlFehler.message);
+  }
 
   alleSeitenNeu();
   redirect(`/intern/standorte/${data.id}`);
@@ -101,12 +134,12 @@ export async function containerZuordnen(formular: FormData) {
 }
 
 /**
- * Wie viele Behaelter stehen an diesem Platz?
+ * Wie viele Container stehen an diesem Platz?
  *
  * Bisher fuehrte der Weg ueber "Neuer Container", ein leeres Formular und das
  * Abtippen von Adresse und Koordinaten - drei Schritte fuer einen Vorgang, bei
  * dem die Haelfte der Angaben bereits danebenstand. Seit 0022 traegt der
- * Behaelter davon nichts mehr, und damit bleibt als Angabe genau eine uebrig:
+ * Container davon nichts mehr, und damit bleibt als Angabe genau eine uebrig:
  * ihre Zahl.
  *
  * Die Arbeit macht public.standort_container_setzen - Nummernvergabe aus dem
@@ -140,8 +173,16 @@ export async function containerAnzahlSetzen(formular: FormData) {
 /**
  * Container vom Standort loesen.
  *
- * Er bleibt nicht ohne Stopp zurueck, sondern bekommt einen eigenen Standort -
- * sonst faellt er aus der Tourenplanung heraus, ohne dass es jemand merkt.
+ * Er bleibt nicht ohne Platz zurueck - das ginge seit 0022 auch gar nicht mehr,
+ * standort_id ist Pflicht -, sondern bekommt einen eigenen. Anschrift und
+ * Koordinaten kommen vom bisherigen Platz: der Container selbst traegt keine
+ * mehr, und "irgendwo im Nirgendwo" waere fuer die Tourenplanung schlechter
+ * als "vorerst dort, wo er stand".
+ *
+ * Hier stand bis zur Oberflaechendurchsicht ein `.select` auf die geloeschten
+ * Containerspalten - die Aktion brach mit einem Datenbankfehler ab. TypeScript
+ * konnte das nicht sehen: fuer den Compiler ist die Spaltenliste eine
+ * Zeichenkette.
  */
 export async function containerLoesen(formular: FormData) {
   await berechtigt();
@@ -154,21 +195,25 @@ export async function containerLoesen(formular: FormData) {
 
   const { data: container } = await supabase
     .from("container")
-    .select("nummer, bezeichnung, strasse, plz, ort, lat, lng")
+    .select("nummer, bezeichnung, standort:standort_id (name, strasse, plz, ort, lat, lng)")
     .eq("id", containerId)
     .maybeSingle();
 
   if (!container) return;
 
+  const alter = (container as unknown as { standort: Platzdaten | null }).standort;
+  const name = container.bezeichnung?.trim() || (container.nummer as string);
+
   const { data: standort, error: fehlerNeu } = await supabase
     .from("standort")
     .insert({
-      name: container.bezeichnung?.trim() || container.nummer,
-      strasse: container.strasse,
-      plz: container.plz,
-      ort: container.ort,
-      lat: container.lat,
-      lng: container.lng,
+      name,
+      kuerzel: await freiesKuerzel(supabase, name),
+      strasse: alter?.strasse ?? null,
+      plz: alter?.plz ?? null,
+      ort: alter?.ort ?? null,
+      lat: alter?.lat ?? null,
+      lng: alter?.lng ?? null,
     })
     .select("id")
     .single();
@@ -222,62 +267,6 @@ export async function standorteZusammenfuehren(formular: FormData) {
 
   alleSeitenNeu(zielId);
   redirect(`/intern/standorte/${zielId}`);
-}
-
-/**
- * Container ohne Standort auffangen.
- *
- * Die Planung geht vom Standort aus (`standort_zustand` liest `from standort`).
- * Ein Container ohne Zuordnung fällt damit lautlos aus der Tourenplanung –
- * er hat keinen Stopp, an dem er hängt. Migration 0011 hat das für den
- * Bestand erledigt; neu angelegte oder ohne Standortspalte importierte
- * Container können erneut in diese Lücke fallen.
- *
- * Diese Aktion stellt denselben neutralen Ausgangszustand her: je Container
- * ein eigener Standort, **keine** Gruppierung. Wer zusammengehört, entscheidet
- * weiterhin ein Mensch – hier wird nur sichergestellt, dass kein Container
- * unsichtbar wird.
- */
-export async function standorteNachziehen() {
-  await berechtigt();
-
-  const supabase = await serverClient();
-  const { data: offene, error: leseFehler } = await supabase
-    .from("container")
-    .select("id, nummer, bezeichnung, strasse, plz, ort, lat, lng")
-    .is("standort_id", null)
-    .order("nummer")
-    .limit(1000);
-
-  if (leseFehler) throw new Error(leseFehler.message);
-  if (!offene || offene.length === 0) return;
-
-  for (const c of offene) {
-    const name = (c.bezeichnung ?? "").trim() || c.nummer;
-    const { data: standort, error: anlegeFehler } = await supabase
-      .from("standort")
-      .insert({
-        name,
-        strasse: c.strasse,
-        plz: c.plz,
-        ort: c.ort,
-        lat: c.lat,
-        lng: c.lng,
-      })
-      .select("id")
-      .single();
-
-    if (anlegeFehler) throw new Error(anlegeFehler.message);
-
-    const { error: zuordnungsFehler } = await supabase
-      .from("container")
-      .update({ standort_id: standort.id })
-      .eq("id", c.id);
-
-    if (zuordnungsFehler) throw new Error(zuordnungsFehler.message);
-  }
-
-  alleSeitenNeu();
 }
 
 /**

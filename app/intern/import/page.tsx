@@ -13,10 +13,10 @@ export default async function ImportSeite() {
         <p className="mt-1 text-sm text-ink-2">
           Eine Zeile je Standort. Abgeglichen wird über den Namen: bekannte werden aktualisiert,
           unbekannte neu angelegt. Eine Spalte <span className="zahl">Anzahl</span> legt die
-          Behälter gleich mit an – ihre Nummern entstehen aus dem Kürzel des Standorts.
+          Container gleich mit an – ihre Nummern entstehen aus dem Kürzel des Standorts.
         </p>
         <p className="mt-2 text-sm text-ink-3">
-          Sensoren, Status und Geschichte einzelner Behälter rührt der Import nicht an. Leere
+          Sensoren, Status und Geschichte einzelner Container rührt der Import nicht an. Leere
           Zellen bedeuten „nicht angegeben“ und löschen nichts.
         </p>
       </div>

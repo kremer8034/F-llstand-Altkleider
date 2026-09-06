@@ -24,7 +24,7 @@ export interface Container {
   typ: string;
   /**
    * Pflicht seit 0022. Anschrift und Koordinaten stehen am Platz, die
-   * Kalibrierung am Sensor - der Behaelter ist nur noch die Zaehleinheit.
+   * Kalibrierung am Sensor - der Container ist nur noch die Zaehleinheit.
    */
   standort_id: string;
   betreiber: string;
@@ -57,7 +57,7 @@ export interface Sensor {
   bauart: string;
   montage_offset_mm: number;
   /**
-   * Sensorunterkante bis Boden bei leerem Behaelter, in Millimetern. Daraus
+   * Sensorunterkante bis Boden bei leerem Container, in Millimetern. Daraus
    * plus montage_offset_mm ergibt sich der Leerwert (0022).
    */
   einbauhoehe_mm: number | null;
@@ -181,10 +181,10 @@ export interface StandortZustand {
   container_gesamt: number;
   container_mit_sensor: number;
   container_ohne_wert: number;
-  /** Behaelter mit Sensor, dem die Einbauhoehe fehlt. */
+  /** Container mit Sensor, dem die Einbauhoehe fehlt. */
   container_unkalibriert: number;
   container_voll: number;
-  /** Mittel ueber die GEMESSENEN Behaelter - ungemessene sind unbekannt, nicht leer. */
+  /** Mittel ueber die GEMESSENEN Container - ungemessene sind unbekannt, nicht leer. */
   belegt_prozent: number | null;
   freie_prozent: number | null;
   zufluss_prozent_je_tag: number | null;
@@ -348,13 +348,13 @@ export interface TourFortschritt {
  * mit drei Containern eine Antwort, nicht drei.
  */
 /**
- * Ansicht public.oeffentlicher_behaelter - Zuordnung Aufkleber zu Platz.
+ * Ansicht public.oeffentlicher_container - Zuordnung Aufkleber zu Platz.
  *
  * Bewusst ohne Messwerte: angezeigt wird der Zustand des PLATZES. Die Kennung
- * steht drin, weil eine Buergermeldung sich auf genau den Behaelter bezieht,
+ * steht drin, weil eine Buergermeldung sich auf genau den Container bezieht,
  * vor dem jemand steht.
  */
-export interface OeffentlicherBehaelter {
+export interface OeffentlicherContainer {
   id: string;
   nummer: string;
   standort_id: string;

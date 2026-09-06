@@ -14,7 +14,7 @@ export const metadata = { title: "Containeretikett" };
  *
  * Der QR-Code führt auf die öffentliche Seite unter /container/<Nummer>. Dort
  * steht, wie voll die Abgabestelle ist, wo die nächste mit Platz liegt, und es
- * gibt den Knopf „Behälter ist voll".
+ * gibt den Knopf „Container ist voll".
  *
  * Bewusst die Containernummer in der Adresse und nicht die interne Kennung:
  * der Aufkleber bleibt damit lesbar, und wer die Nummer abtippt, landet auch
@@ -25,7 +25,7 @@ export default async function Containeretikett({ params }: { params: Promise<{ i
   const { id } = await params;
 
   const supabase = await serverClient();
-  // Die Anschrift steht seit 0022 am Platz, nicht am Behälter - deshalb kommt
+  // Die Anschrift steht seit 0022 am Platz, nicht am Container - deshalb kommt
   // sie hier mit dazu.
   const { data } = await supabase
     .from("container")
