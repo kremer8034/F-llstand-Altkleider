@@ -84,4 +84,49 @@ select 'T-003', id from public.standort order by name limit 1
 on conflict (nummer) do nothing;
 select 'ok' as container_angelegt;
 select count(*) as sichtbare_profile from public.benutzerprofil;
+-- ---------------------------------------------------------------------------
+\echo '=== E. Welche Funktionen darf anon ueberhaupt aufrufen? ==='
+-- In PostgreSQL erbt jede neue Funktion "execute to PUBLIC". 0005 und 0012
+-- nehmen das einzeln zurueck - aber `drop`+`create` und jede geaenderte
+-- Signatur legen ein NEUES Objekt an, das wieder offen ist. Genau so sind in
+-- 0022 zwei Sperren verlorengegangen, ohne dass es jemandem auffiel.
+--
+-- Deshalb hier keine Aufzaehlung dessen, was gesperrt sein soll, sondern die
+-- Gegenrichtung: alles ausser dieser Liste ist ein Fehler. Wer eine Funktion
+-- bewusst oeffnet, traegt sie hier ein - und muss dabei begruenden, warum.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_erlaubt text[] := array[
+    'fuellstand_stufe',      -- die oeffentlichen Ansichten rechnen damit (0003)
+    'meldung_oeffentlich'    -- der Knopf "Container ist voll" hinter dem QR-Code
+  ];
+  v_offen text := '';
+  r record;
+begin
+  for r in
+    select p.proname
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.prokind = 'f'
+       and has_function_privilege('anon', p.oid, 'execute')
+       and not (p.proname = any(v_erlaubt))
+       -- Erweiterungen bringen ihre eigenen Funktionen mit (pgcrypto legt sie
+       -- in public ab). Die gehoeren nicht uns und stehen nicht zur Debatte.
+       and not exists (
+         select 1 from pg_depend d
+          where d.objid = p.oid and d.deptype = 'e'
+       )
+     order by p.proname
+  loop
+    v_offen := v_offen || r.proname || ' ';
+  end loop;
+
+  if v_offen <> '' then
+    raise exception 'FEHLER: anon darf Funktionen aufrufen, die nicht freigegeben sind: %', v_offen;
+  end if;
+  raise notice 'korrekt: anon darf nur %', array_to_string(v_erlaubt, ', ');
+end $$;
+
 reset role;

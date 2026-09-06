@@ -23,6 +23,13 @@ export interface Importzeile {
 export interface Importergebnis {
   ok: boolean;
   fehler?: string;
+  /**
+   * Bei welcher Zeile es aufhoerte. Der Import laeuft Platz fuer Platz und
+   * schreibt sofort; bricht er in der Mitte ab, ist die erste Haelfte bereits
+   * drin. Das gehoert gesagt - sonst spielt jemand dieselbe Datei noch einmal
+   * ein und wundert sich ueber doppelte Container.
+   */
+  abgebrochen_bei?: number;
   neu?: number;
   aktualisiert?: number;
   behaelter_angelegt?: number;
@@ -74,8 +81,20 @@ export async function standorteImportieren(zeilen: Importzeile[]): Promise<Impor
   let stillgelegt = 0;
   let geloescht = 0;
   let ohneKoordinaten = 0;
+  let zeilennummer = 0;
+
+  /** Was bis hierher tatsaechlich geschrieben wurde. */
+  const bilanz = (): Omit<Importergebnis, "ok" | "fehler" | "abgebrochen_bei"> => ({
+    neu,
+    aktualisiert,
+    behaelter_angelegt: angelegt,
+    behaelter_stillgelegt: stillgelegt,
+    behaelter_geloescht: geloescht,
+    ohne_koordinaten: ohneKoordinaten,
+  });
 
   for (const z of gueltige) {
+    zeilennummer += 1;
     const name = z.name.trim();
     const vorhandeneId = nachName.get(schluessel(name));
 
@@ -96,7 +115,7 @@ export async function standorteImportieren(zeilen: Importzeile[]): Promise<Impor
 
     if (standortId) {
       const { error } = await supabase.from("standort").update(daten).eq("id", standortId);
-      if (error) return { ok: false, fehler: error.message };
+      if (error) return { ok: false, fehler: error.message, abgebrochen_bei: zeilennummer, ...bilanz() };
       aktualisiert += 1;
     } else {
       if (!daten.kuerzel) {
@@ -111,7 +130,7 @@ export async function standorteImportieren(zeilen: Importzeile[]): Promise<Impor
         .insert(daten)
         .select("id")
         .single();
-      if (error) return { ok: false, fehler: error.message };
+      if (error) return { ok: false, fehler: error.message, abgebrochen_bei: zeilennummer, ...bilanz() };
       standortId = erzeugt.id as string;
       nachName.set(schluessel(name), standortId);
       neu += 1;
@@ -120,12 +139,12 @@ export async function standorteImportieren(zeilen: Importzeile[]): Promise<Impor
     if (z.lat == null || z.lng == null) ohneKoordinaten += 1;
 
     if (z.anzahl_container != null && z.anzahl_container >= 0) {
-      const { data: bilanz, error } = await supabase.rpc("standort_container_setzen", {
+      const { data: ergebnisAnzahl, error } = await supabase.rpc("standort_container_setzen", {
         p_standort_id: standortId,
         p_anzahl: Math.round(z.anzahl_container),
       });
-      if (error) return { ok: false, fehler: error.message };
-      const b = bilanz as { angelegt?: number; stillgelegt?: number; geloescht?: number } | null;
+      if (error) return { ok: false, fehler: error.message, abgebrochen_bei: zeilennummer, ...bilanz() };
+      const b = ergebnisAnzahl as { angelegt?: number; stillgelegt?: number; geloescht?: number } | null;
       angelegt += b?.angelegt ?? 0;
       stillgelegt += b?.stillgelegt ?? 0;
       geloescht += b?.geloescht ?? 0;
@@ -136,13 +155,5 @@ export async function standorteImportieren(zeilen: Importzeile[]): Promise<Impor
   revalidatePath("/intern/karte");
   revalidatePath("/");
 
-  return {
-    ok: true,
-    neu,
-    aktualisiert,
-    behaelter_angelegt: angelegt,
-    behaelter_stillgelegt: stillgelegt,
-    behaelter_geloescht: geloescht,
-    ohne_koordinaten: ohneKoordinaten,
-  };
+  return { ok: true, ...bilanz() };
 }
