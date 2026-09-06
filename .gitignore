@@ -31,3 +31,6 @@ firmware/**/include/geheimnisse.h
 # Erzeugt von scripts/geraete-zertifikate.sh
 docker/mqtt/geraete/
 docker/mqtt/geraete-ca/
+
+# Persoenliche Einstellungen dieser Maschine (Berechtigungen fuer Claude Code)
+.claude/settings.local.json
