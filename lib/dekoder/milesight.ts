@@ -244,6 +244,95 @@ export function ausBytefolge(hex: string): MilesightWerte | null {
 }
 
 // ---------------------------------------------------------------------------
+// a2) Der Statusrahmen der NB-IoT-Reihe
+// ---------------------------------------------------------------------------
+
+/**
+ * Was ein EM400-MUD ueber MQTT wirklich schickt.
+ *
+ * Das Geraet laesst sich in der NFC-App weder auf ein eigenes Thema noch auf
+ * JSON umstellen - beides gibt es dort schlicht nicht. Es veroeffentlicht auf
+ * `em/<SN>/status` einen eigenen Rahmen, und den muss diese Seite lesen
+ * koennen, sonst ist das Geraet nicht anzuschliessen.
+ *
+ * Aufbau, mitgeschnitten am 06.09.2026 und Feld fuer Feld gegen die
+ * Basisinformationen desselben Geraets geprueft:
+ *
+ *   Byte  0- 8   Kopf                02 00 01 00 5F 00 00 00 01
+ *   Byte  9-82   74 Zeichen ASCII    Vorspann(8) SN(16) IMEI(15) IMSI(15) ICCID(20)
+ *   Byte 83-85   Datenblock          0C <Laenge, 2 Byte, gross zuerst>
+ *   ab Byte 86   Kanaele             wie in ausBytefolge
+ *
+ * Der Kanalteil ist derselbe wie im Handbuch; nur steht er hinten statt vorn.
+ * Genau daran scheiterte das Lesen bisher: ausBytefolge faengt bei Byte 0 an,
+ * haelt `02 00` fuer eine Lage, stoesst bei Byte 3 auf einen unbekannten Typ
+ * und bricht ab - lange bevor der Messwert kommt.
+ *
+ * Die Kennungen sind hier mehr wert als die aus dem Thema: sie stammen aus
+ * dem Geraet selbst. Ein Thema laesst sich verstellen, eine IMEI nicht.
+ */
+export interface Statusrahmen {
+  kennung: { geraete_id: string; imei: string; iccid: string };
+  werte: MilesightWerte;
+}
+
+const RAHMEN_KOPF = 9;
+const RAHMEN_ASCII = 74;
+/** Vorspann vor der Seriennummer - Bedeutung unbekannt, Laenge konstant. */
+const RAHMEN_VORSPANN = 8;
+/** Typkennzeichen des Blocks, in dem die Messwerte stehen. */
+const RAHMEN_DATEN = 0x0c;
+
+export function ausStatusrahmen(hex: string): Statusrahmen | null {
+  const sauber = hex.trim().replace(/^0x/i, "").replace(/[\s:-]/g, "");
+  if (sauber.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(sauber)) return null;
+
+  const bytes = Buffer.from(sauber, "hex");
+  if (bytes.length < RAHMEN_KOPF + RAHMEN_ASCII + 3) return null;
+
+  const ascii = bytes.subarray(RAHMEN_KOPF, RAHMEN_KOPF + RAHMEN_ASCII);
+  // Nur Ziffern und Grossbuchstaben. Trifft das nicht zu, ist es kein
+  // Statusrahmen - dann lieber gar nichts liefern als etwas Erfundenes.
+  if (!ascii.every((b) => (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a))) return null;
+
+  const text = ascii.toString("latin1");
+  const geraete_id = text.slice(RAHMEN_VORSPANN, RAHMEN_VORSPANN + 16);
+  const imei = text.slice(RAHMEN_VORSPANN + 16, RAHMEN_VORSPANN + 31);
+  const iccid = text.slice(RAHMEN_VORSPANN + 46, RAHMEN_VORSPANN + 66);
+
+  // Jede Kennung hat eine feste Gestalt. Passt eine nicht, stimmt die
+  // Aufteilung nicht - und eine falsche Seriennummer waere schlimmer als
+  // keine: sie ordnete die Messung einem fremden Container zu.
+  if (!/^[0-9A-F]{16}$/.test(geraete_id)) return null;
+  if (!/^\d{15}$/.test(imei)) return null;
+  if (!/^\d{20}$/.test(iccid)) return null;
+
+  const kanaele = datenblock(bytes, RAHMEN_KOPF + RAHMEN_ASCII);
+  const werte = kanaele ? ausBytefolge(kanaele.toString("hex")) : null;
+
+  return { kennung: { geraete_id, imei, iccid }, werte: werte ?? { ...LEERE_WERTE } };
+}
+
+/**
+ * Den Messblock im Rahmen finden.
+ *
+ * Zuerst dort, wo er laut Aufbau steht. Sitzt er nicht da - ein anderer
+ * Rahmen, ein Kopf anderer Laenge -, wird vorwaerts gesucht, aber nur nach
+ * einem Block, dessen angegebene Laenge GENAU bis zum Ende reicht. Diese
+ * Probe ist der Grund, warum das Suchen hier vertretbar ist: eine zufaellig
+ * passende 0x0C-Stelle mit stimmiger Laengenangabe ist unwahrscheinlich,
+ * waehrend blindes Weiterlesen jede beliebige Zahl liefern koennte.
+ */
+function datenblock(bytes: Buffer, ab: number): Buffer | null {
+  for (let i = ab; i + 3 <= bytes.length; i++) {
+    if (bytes[i] !== RAHMEN_DATEN) continue;
+    const laenge = bytes.readUInt16BE(i + 1);
+    if (i + 3 + laenge === bytes.length) return bytes.subarray(i + 3);
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // b) JSON, wie es die NB-IoT-Reihe ab Werk schickt
 // ---------------------------------------------------------------------------
 
@@ -284,9 +373,16 @@ export function ausMeldung(rumpf: Record<string, unknown>): MilesightMeldung {
   werte.gemessen_am = zeitpunkt(ausEbenen(rumpf, NAMEN.zeit));
 
   // Bytefolge nachschieben, wo JSON nichts hergab.
+  //
+  // Der Statusrahmen kommt zuerst, und das ist keine Geschmacksfrage:
+  // ausBytefolge faengt bei Byte 0 an und liest im Rahmen `02 00` als Lage,
+  // bevor es abbricht - es liefert also ein Ergebnis, nur ein falsches. Wer
+  // zuerst fragt, gewinnt; deshalb muss der spezielle Fall vorn stehen.
   const roh = zeichenkette(ausEbenen(rumpf, NAMEN.nutzlast));
+  let rahmen: Statusrahmen | null = null;
   if (roh) {
-    const ausHex = ausBytefolge(roh);
+    rahmen = ausStatusrahmen(roh);
+    const ausHex = rahmen ? rahmen.werte : ausBytefolge(roh);
     if (ausHex) {
       werte.abstand_mm ??= ausHex.abstand_mm;
       werte.batterie_prozent ??= ausHex.batterie_prozent;
@@ -298,9 +394,12 @@ export function ausMeldung(rumpf: Record<string, unknown>): MilesightMeldung {
   return {
     ...werte,
     kennung: {
-      geraete_id: zeichenkette(ausEbenen(rumpf, NAMEN.seriennummer)),
-      imei: zeichenkette(ausEbenen(rumpf, NAMEN.imei)),
-      iccid: zeichenkette(ausEbenen(rumpf, NAMEN.iccid)),
+      // JSON zuerst, dann der Rahmen. Beide stammen vom Geraet; steht die
+      // Kennung ausdruecklich im Rumpf, ist sie die ausdrueckliche Aussage.
+      geraete_id:
+        zeichenkette(ausEbenen(rumpf, NAMEN.seriennummer)) ?? rahmen?.kennung.geraete_id ?? null,
+      imei: zeichenkette(ausEbenen(rumpf, NAMEN.imei)) ?? rahmen?.kennung.imei ?? null,
+      iccid: zeichenkette(ausEbenen(rumpf, NAMEN.iccid)) ?? rahmen?.kennung.iccid ?? null,
     },
   };
 }

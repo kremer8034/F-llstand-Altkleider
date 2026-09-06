@@ -126,19 +126,27 @@ function rumpfBauen(nutzlast) {
 }
 
 /**
- * Fehlt die Kennung in der Nutzlast, tritt das Thema an ihre Stelle:
- * "sensoren/<SN>/up" nennt das Gerät im zweiten Abschnitt.
+ * Fehlt die Kennung in der Nutzlast, tritt das Thema an ihre Stelle. Zwei
+ * Zuschnitte sind bekannt und nennen das Gerät jeweils im zweiten Abschnitt:
  *
- * Nur als Rückfall, und nur bei genau diesem Zuschnitt. Ein Gerät, dessen
- * Firmware das Thema nicht einstellen lässt, sendet auf etwas Eigenem - da
- * den zweiten Abschnitt für eine Seriennummer zu halten, ergäbe eine
- * erfundene Kennung. Dann lieber keine: die Antwort des Annahmewegs nennt im
- * Feld "gesucht", was tatsächlich ankam, und genau das gehört in die
- * Geräteaufnahme.
+ *   sensoren/<SN>/up        unser eigener, wo das Gerät ihn einstellen lässt
+ *   em/<SN>/status          die Vorgabe der Milesight-NB-Reihe
+ *
+ * Der zweite kam dazu, weil die NFC-App des EM400-MUD gar kein Themenfeld
+ * anbietet: das Gerät sendet auf `em/<SN>/status`, und ohne diese Zeile fiel
+ * jede seiner Meldungen mit "Gerät unbekannt" durch.
+ *
+ * Weiterhin nur bei genau diesen beiden Zuschnitten. Ein fremdes Gerät sendet
+ * auf etwas Eigenem - da den zweiten Abschnitt für eine Seriennummer zu
+ * halten, ergäbe eine erfundene Kennung. Dann lieber keine: die Antwort des
+ * Annahmewegs nennt im Feld "gesucht", was tatsächlich ankam, und genau das
+ * gehört in die Geräteaufnahme.
  */
+const THEMENSTAEMME = new Set(["sensoren", "em"]);
+
 function kennungAusThema(thema) {
   const teile = thema.split("/").filter(Boolean);
-  if (teile.length < 2 || teile[0] !== "sensoren") return null;
+  if (teile.length < 2 || !THEMENSTAEMME.has(teile[0])) return null;
   return teile[1];
 }
 
