@@ -13,7 +13,7 @@
  * und niemand merkt, dass das Fahrzeug zum falschen Container faehrt.
  */
 
-import { ausBytefolge, ausMeldung } from "../lib/dekoder/milesight.ts";
+import { ausBytefolge, ausMeldung, ausStatusrahmen } from "../lib/dekoder/milesight.ts";
 
 let fehler = 0;
 let geprueft = 0;
@@ -144,6 +144,53 @@ pruefe("Zentimeter werden zu Millimetern",
 // erfinden: eine Null waere ein voller Container.
 const ohne = ausMeldung({ sn: "X", battery: 100 });
 pruefe("Ohne Abstand kommt null, nicht 0", ohne.abstand_mm, null);
+
+// ---------------------------------------------------------------------------
+// c) Der Statusrahmen der NB-IoT-Reihe
+// ---------------------------------------------------------------------------
+
+// Wortwoertlich mitgeschnitten am 06.09.2026, 21:13 UTC, auf dem Thema
+// em/6749F17756790021/status - also genau das, was ein EM400-MUD-N03GL ueber
+// MQTT schickt, wenn man ihm nichts anderes beibringen kann (die NFC-App
+// bietet weder ein Themenfeld noch eine Formatwahl).
+//
+// Die vier Kennungen sind Feld fuer Feld gegen die Basisinformationen
+// desselben Geraets geprueft - sie sind nicht aus dem Rahmen geraten.
+const RAHMEN =
+  "020001005F0000000130313036303131303637343946313737353637393030323138363638" +
+  "3430303738383334343439393031343035313830303038363035383938383232383036363" +
+  "6383030303836303534" + "0C000E" + "017564" + "0367EE00" + "0482AD04" + "050001";
+
+const rahmen = ausStatusrahmen(RAHMEN);
+pruefe("Statusrahmen wird erkannt", rahmen !== null, true);
+pruefe("Seriennummer aus dem Rahmen", rahmen?.kennung.geraete_id, "6749F17756790021");
+pruefe("IMEI aus dem Rahmen", rahmen?.kennung.imei, "866840078834449");
+pruefe("ICCID aus dem Rahmen", rahmen?.kennung.iccid, "89882280666800086054");
+pruefe("Abstand aus dem Rahmen", rahmen?.werte.abstand_mm, 1197);
+pruefe("Batterie aus dem Rahmen", rahmen?.werte.batterie_prozent, 100);
+pruefe("Temperatur aus dem Rahmen", rahmen?.werte.temperatur_c, 23.8);
+// Das Geraet meldet hier 05 00 01, also "schief" - es lag beim Mitschnitt
+// auf dem Tisch statt im Container. Im Handbuchbeispiel steht 05 00 00.
+// Erwartet wird also, was das Geraet WIRKLICH gesagt hat, nicht was schoener
+// waere: eine Zusicherung, die den Mitschnitt zurechtbiegt, prueft nichts.
+pruefe("Lage aus dem Rahmen", rahmen?.werte.lage, "tilt");
+
+// Der Weg, den die Bruecke tatsaechlich nimmt: Nutzlast als payload, keine
+// Kennung im Rumpf. Frueher kam hier "Geraet unbekannt" zurueck.
+const ueberBruecke = ausMeldung({ payload: RAHMEN });
+pruefe("Über die Brücke: Abstand", ueberBruecke.abstand_mm, 1197);
+pruefe("Über die Brücke: Seriennummer", ueberBruecke.kennung.geraete_id, "6749F17756790021");
+
+// Der Rahmen darf ausBytefolge nicht in die Haende fallen: die liest `02 00`
+// als Lage und bricht bei Byte 3 ab - ein Ergebnis, aber ein falsches.
+// Deshalb muss ausMeldung den Rahmen zuerst pruefen.
+pruefe("Ohne Rahmenerkennung läse ausBytefolge Unsinn",
+  ausBytefolge(RAHMEN)?.abstand_mm ?? null, null);
+
+// Eine gewoehnliche Kanalfolge ist kein Statusrahmen - sie darf nicht
+// versehentlich als einer gelesen werden.
+pruefe("Kanalfolge ist kein Statusrahmen",
+  ausStatusrahmen("017564" + "03822c01" + "0467dc00" + "050000"), null);
 
 // ---------------------------------------------------------------------------
 console.log("");

@@ -5,6 +5,13 @@ build/
 .env
 .env.local
 .env*.local
+# Auch jede Sicherungskopie davon. `.env.vor-passwortwechsel` fiel durch alle
+# drei Muster oben und stand als unverfolgte Datei im Status - einen
+# Handgriff von einem `git add -A` entfernt. Die Beispieldateien bleiben
+# ausgenommen, sie enthalten nur Platzhalter.
+.env.*
+!.env.example
+!.env.docker.example
 .vercel
 *.tsbuildinfo
 next-env.d.ts
