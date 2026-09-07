@@ -10,8 +10,8 @@ import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { istFertiggeraet } from "@/lib/geraetearten";
 import { STUFEN, adresse, alterText, formatDatum, formatDatumZeit, stufeVon } from "@/lib/fuellstand";
-import { ALARM_HINWEIS, ALARM_STUFE, ALARM_TEXT } from "@/lib/alarme";
-import { MESSPUNKTE, zeitraumText, zeitraumVon } from "@/lib/zeitraum";
+import { ALARM_ENDET, ALARM_HINWEIS, ALARM_STUFE, ALARM_TEXT, alarmZeitraumText } from "@/lib/alarme";
+import { MESSPUNKTE, zeitraumAus, zeitraumText } from "@/lib/zeitraum";
 import type {
   Alarm,
   Container,
@@ -40,10 +40,10 @@ export default async function Containerdetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ zeitraum?: string }>;
+  searchParams: Promise<{ zeitraum?: string; von?: string; bis?: string }>;
 }) {
   const { id } = await params;
-  const { zeitraum: gewaehlt } = await searchParams;
+  const suche = await searchParams;
   const supabase = await serverClient();
   const benutzer = await angemeldeterBenutzer();
 
@@ -57,11 +57,13 @@ export default async function Containerdetail({
   const c = container as Container;
 
   // Der Zeitraum steht in der Adresse, damit er das Neuladen ueberlebt und
-  // sich verschicken laesst. "bis" wird einmal festgehalten: beide Kurven
-  // sollen auf dieselbe Sekunde enden, nicht auf zwei getrennte now().
-  const zeitraum = zeitraumVon(gewaehlt);
-  const bis = new Date();
-  const von = new Date(bis.getTime() - zeitraum.tage * 86400_000);
+  // sich verschicken laesst. "jetzt" wird einmal festgehalten und
+  // hereingereicht: beide Kurven sollen auf dieselbe Sekunde enden, nicht auf
+  // zwei getrennte now(). Bei einem eigenen Fenster (von=/bis=) stehen beide
+  // Enden ohnehin fest.
+  const jetzt = new Date();
+  const zeitraum = zeitraumAus(suche, jetzt);
+  const { von, bis } = zeitraum;
 
   const [
     zustandAntwort,
@@ -225,10 +227,17 @@ export default async function Containerdetail({
                     etwas ist, aber nicht, was er mitnehmen soll. */}
                 {a.text && <div className="text-sm text-ink-2">{a.text}</div>}
                 <div className="text-xs text-ink-2">{ALARM_HINWEIS[a.typ]}</div>
+                {/* Hier stehen nur OFFENE Meldungen (die Abfrage oben filtert
+                    auf geschlossen_am is null). Genau das war der Anzeige
+                    aber nicht anzusehen: ein blosser Zeitstempel liest sich
+                    wie ein Eintrag im Protokoll, nicht wie ein Zustand, der
+                    gerade anhaelt. Jetzt sagt die Zeile beides - seit wann,
+                    und wodurch sie endet. */}
                 <div className="text-xs text-ink-3">
-                  seit {formatDatumZeit(a.ausgeloest_am)}
+                  {alarmZeitraumText(a.ausgeloest_am, jetzt)}
                   {a.quittiert_am && ` · quittiert ${formatDatumZeit(a.quittiert_am)}`}
                 </div>
+                <div className="text-xs text-ink-3">{ALARM_ENDET[a.typ]}</div>
               </div>
               {!a.quittiert_am && (
                 <form action={alarmQuittieren}>
@@ -314,7 +323,7 @@ export default async function Containerdetail({
         batterieMinProzent={batterieMinProzent}
         batterieMinVolt={batterieMinVolt}
         kopfzeile={`Verlauf, ${zeitraumText(zeitraum)}`}
-        zeitraumwahl={<Zeitraumwahl pfad={`/intern/container/${c.id}`} aktiv={zeitraum.schluessel} />}
+        zeitraumwahl={<Zeitraumwahl pfad={`/intern/container/${c.id}`} zeitraum={zeitraum} />}
       />
 
       {/* Erfassung vor Ort */}

@@ -45,9 +45,14 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Karte sowie Standortliste mit aufklappbaren Containern, Suche, Filtern und
   Sortierung; dieselbe Seite zeigt auf Wunsch die Containersicht
 - Containerdetail: **Verlaufskurven für Füllstand und Batterie** über einen
-  wählbaren Zeitraum (7 / 30 / 90 Tage, 1 Jahr) – beide Kurven auf derselben
-  Zeitachse, der Zeitraum steht in der Adresse. Dazu Leerungen, Meldungen,
-  Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
+  wählbaren Zeitraum (1 / 3 / 7 / 30 / 90 Tage, 1 Jahr oder ein frei gesetztes
+  Von-Bis-Fenster) – beide Kurven auf derselben Zeitachse, der Zeitraum steht
+  in der Adresse. Als Tabelle stehen zu jedem Zeitpunkt Füllstand, **gemessener
+  Abstand in Metern** und Batterie nebeneinander: der Füllstand ist ein
+  Rechenergebnis aus Abstand und Einbauhöhe, und nur mit beidem ist zu sehen,
+  ob ein überraschender Wert vom Sensor kommt oder von der Kalibrierung. Dazu
+  Leerungen, Meldungen, Kalibrierung, **Prognose der nächsten Leerung** und
+  Leerungsrhythmus
 - Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
   Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr
 - **Standorte**: mehrere Container an einem Platz sind ein Stopp. Zuordnung von

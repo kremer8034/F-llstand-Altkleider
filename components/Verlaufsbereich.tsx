@@ -25,6 +25,14 @@ import type { Messreihenpunkt } from "@/lib/typen";
  *   Eine Tabelle fuer beide. Wer die Zahlen sucht, sucht sie zum selben
  *   Zeitpunkt - eine Tabelle mit zwei Spalten beantwortet das, zwei getrennte
  *   Tabellen mit je einem eigenen Umschalter nicht.
+ *
+ * Die Tabelle traegt seit 0028 auch den gemessenen ABSTAND, und zwar direkt
+ * neben dem Fuellstand. Der Fuellstand ist ein Rechenergebnis aus Abstand und
+ * Einbauhoehe; steht nur das Ergebnis da, ist bei einem unerwarteten Wert
+ * nicht zu erkennen, ob der Sensor etwas anderes gemessen hat als gedacht
+ * oder ob die Kalibrierung nicht stimmt. Nebeneinander beantwortet die Zeile
+ * das in einem Blick. Eine eigene Kurve bekommt der Abstand nicht - er ist
+ * dieselbe Groesse wie der Fuellstand, nur andersherum aufgetragen.
  */
 export function Verlaufsbereich({
   reihe,
@@ -81,6 +89,18 @@ export function Verlaufsbereich({
   const nachkomma = inProzent ? 0 : 2;
   const hatWerte = reihe.length > 0;
 
+  // Der Sensor meldet Millimeter, gelesen wird in Metern: 2000 mm ist eine
+  // Zahl, die man nachrechnet, "2,00 m" eine, die man sich vorstellt. Immer
+  // zwei Nachkommastellen, damit die Spalte eine Zahlenkolonne bleibt und
+  // nicht bei jeder Zeile die Kommastelle springt.
+  const abstandText = (mm: number | null) =>
+    mm === null
+      ? "\u2013"
+      : `${(mm / 1000).toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} m`;
+
   return (
     <section className="karte-flaeche p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -106,6 +126,7 @@ export function Verlaufsbereich({
               <tr>
                 <th>Zeitpunkt</th>
                 <th className="text-right">Füllstand</th>
+                <th className="text-right">Abstand</th>
                 <th className="text-right">Batterie</th>
               </tr>
             </thead>
@@ -118,6 +139,7 @@ export function Verlaufsbereich({
                     <td className="zahl text-right font-medium">
                       {m.fuellstand_prozent === null ? "–" : `${m.fuellstand_prozent} %`}
                     </td>
+                    <td className="zahl text-right text-ink-2">{abstandText(m.abstand_mm)}</td>
                     <td className="zahl text-right font-medium">
                       {batt === null
                         ? "–"

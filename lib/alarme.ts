@@ -1,4 +1,5 @@
 import type { Alarmtyp, Fuellstandsstufe } from "./typen";
+import { formatDatumZeit } from "./fuellstand";
 
 /**
  * Wie eine Meldung heisst und wie ernst sie aussieht.
@@ -54,3 +55,51 @@ export const ALARM_STUFE: Record<Alarmtyp, Fuellstandsstufe> = {
   sensor_lage: "hoch",
   ausser_messbereich: "hoch",
 };
+
+/**
+ * Wann eine Meldung von selbst endet.
+ *
+ * Jede dieser Meldungen schliesst sich ohne Zutun, sobald ihr Grund weg ist -
+ * die Anlage prueft das bei jeder eingehenden Messung (messung_nachbereiten,
+ * 0026/0027). Nur stand das nirgends, und am 07.09.2026 fuehrte genau das zu
+ * der Frage, ob eine Meldung von 10:16 Uhr noch gilt oder nur nicht
+ * weggeraeumt wurde. Sie galt: der Sensor lag zu dieser Minute noch schief.
+ *
+ * Deshalb steht die Bedingung jetzt an der Meldung. Sie beantwortet zwei
+ * Fragen auf einmal: "verschwindet das von allein?" (ja) und "was muss dafuer
+ * passieren?" - und macht damit umgekehrt klar, dass eine Meldung, die noch
+ * dasteht, auch noch besteht.
+ */
+export const ALARM_ENDET: Record<Alarmtyp, string> = {
+  fuellstand: "Endet von selbst, sobald der Füllstand wieder unter die Warnschwelle fällt – in der Regel mit der nächsten Leerung.",
+  kein_signal: "Endet von selbst mit der nächsten Meldung des Geräts.",
+  batterie_schwach: "Endet von selbst, sobald wieder ein Wert über der Schwelle gemeldet wird.",
+  messfehler: "Endet von selbst, sobald wieder eine brauchbare Messung ankommt.",
+  sensor_lage: "Endet von selbst, sobald das Gerät wieder „gerade“ meldet.",
+  ausser_messbereich: "Endet von selbst, sobald der Sensor wieder einen Abstand innerhalb seines Messbereichs liefert.",
+};
+
+/**
+ * "Besteht seit 07.09.2026 10:16 Uhr · seit 5 Std."
+ *
+ * Beide Seiten werden gebraucht und keine reicht allein: der Zeitpunkt, um die
+ * Meldung mit dem in Verbindung zu bringen, was man an dem Tag getan hat, und
+ * die Dauer, weil "seit 5 Std." sofort sagt, was ein Datum erst nach einer
+ * Kopfrechnung sagt. Angezeigt werden ohnehin nur offene Meldungen - das
+ * "Besteht" ist deshalb keine Behauptung, sondern die Auskunft, die vorher
+ * fehlte.
+ */
+export function alarmZeitraumText(ausgeloestAm: string, jetzt: Date = new Date()): string {
+  return `Besteht seit ${formatDatumZeit(ausgeloestAm)} · seit ${dauerText(ausgeloestAm, jetzt)}`;
+}
+
+/** "12 Min." / "5 Std." / "3 Tagen" - die Laenge einer noch laufenden Meldung. */
+export function dauerText(seit: string, jetzt: Date = new Date()): string {
+  const minuten = Math.max(0, Math.floor((jetzt.getTime() - new Date(seit).getTime()) / 60_000));
+  if (minuten < 60) return `${minuten} Min.`;
+  const stunden = Math.floor(minuten / 60);
+  if (stunden < 48) return `${stunden} Std.`;
+  const tage = Math.floor(stunden / 24);
+  if (tage < 61) return `${tage} Tagen`;
+  return `${Math.floor(tage / 30.44)} Monaten`;
+}
