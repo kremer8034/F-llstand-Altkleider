@@ -5,28 +5,95 @@ import { formatDatumZeit } from "@/lib/fuellstand";
 
 export interface Verlaufspunkt {
   zeit: string;
-  prozent: number | null;
+  wert: number | null;
 }
 
-const RAND = { oben: 14, rechts: 18, unten: 30, links: 36 };
+export interface Schwelle {
+  wert: number;
+  text: string;
+}
+
+const RAND = { oben: 14, rechts: 18, unten: 30, links: 42 };
 
 /**
- * Füllstandsverlauf eines Containers. Eine einzige Datenreihe - deshalb keine
- * Legende (die Ueberschrift benennt sie), dafuer ein Fadenkreuz mit Tooltip und
- * eine umschaltbare Tabellenansicht.
+ * Achsenteilung auf runde Schritte. Ohne das steht an der Volt-Achse
+ * "3,13 / 3,35 / 3,58" - rechnerisch die Viertel der Rohgrenzen, zum Ablesen
+ * unbrauchbar. Gesucht ist der kleinste Schritt aus 1/2/2,5/5 mal einer
+ * Zehnerpotenz, der noch ein Viertel der Spanne abdeckt; die Grenzen wandern
+ * dann nach aussen auf ein Vielfaches davon.
+ */
+function nettesRaster(min: number, max: number) {
+  const roh = Math.max((max - min) / 4, 1e-9);
+  const groesse = Math.pow(10, Math.floor(Math.log10(roh)));
+  const schritt =
+    [1, 2, 2.5, 5, 10].map((f) => f * groesse).find((s) => s >= roh) ?? 10 * groesse;
+  const unten = Math.floor(min / schritt) * schritt;
+  const oben = Math.ceil(max / schritt) * schritt;
+  const anzahl = Math.round((oben - unten) / schritt);
+  return {
+    unten,
+    oben,
+    // Nachkommastellen des Schritts sauber wegrunden - 0.1 * 3 waere sonst
+    // 0.30000000000000004 und stuende so als Beschriftung da.
+    ticks: Array.from({ length: anzahl + 1 }, (_, i) =>
+      Math.round((unten + i * schritt) * 1e6) / 1e6,
+    ),
+  };
+}
+
+/**
+ * Ein Messwert eines Containers im Zeitverlauf - Fuellstand oder Batterie.
+ * Immer eine einzige Datenreihe, deshalb keine Legende (die Ueberschrift
+ * benennt sie), dafuer ein Fadenkreuz mit Tooltip und eine umschaltbare
+ * Tabellenansicht.
+ *
+ * Zwei Groessen kommen bewusst NICHT in eine Kurve mit zwei y-Achsen. Zwei
+ * Achsen laden dazu ein, aus dem Schnittpunkt zweier Linien einen
+ * Zusammenhang zu lesen, den es nicht gibt - der Punkt haengt allein daran,
+ * wie man die Achsen skaliert hat. Zwei Kurven untereinander auf derselben
+ * Zeitachse zeigen dasselbe, ohne diese Falle.
  */
 export function Verlaufskurve({
   punkte,
   leerungen = [],
-  schwelleVoll = 90,
+  schwelle = null,
   hoehe = 240,
-  ueberschrift = "Füllstandsverlauf",
+  ueberschrift,
+  einheit = "%",
+  yMin = 0,
+  yMax = 100,
+  nachkommastellen = 0,
+  farbe = "var(--serie)",
+  wash = "var(--serie-wash)",
+  von,
+  bis,
+  spaltenname = "Wert",
+  leerText = "Noch keine Messwerte vorhanden.",
 }: {
   punkte: Verlaufspunkt[];
   leerungen?: string[];
-  schwelleVoll?: number;
+  schwelle?: Schwelle | null;
   hoehe?: number;
-  ueberschrift?: string;
+  ueberschrift: string;
+  einheit?: string;
+  /**
+   * Untere Kante der Wertachse. Fuer Prozent bleibt sie bei 0. Eine
+   * Zellenspannung dagegen faengt nicht bei 0 V an - eine Lithiumzelle geht im
+   * Betrieb nie unter 3 V, und auf einer 0..4er Achse waere ihr ganzer
+   * Verlauf ein Strich am oberen Rand. Sobald die Achse nicht bei 0 beginnt,
+   * entfaellt die Flaeche unter der Linie von selbst: eine Flaeche misst vom
+   * Nullpunkt, und ueber einer abgeschnittenen Achse wuerde sie luegen.
+   */
+  yMin?: number;
+  yMax?: number;
+  nachkommastellen?: number;
+  farbe?: string;
+  wash?: string;
+  /** Feste Zeitachse. Fehlt sie, spannt die Kurve ueber ihre eigenen Daten. */
+  von?: string | number;
+  bis?: string | number;
+  spaltenname?: string;
+  leerText?: string;
 }) {
   const behaelter = useRef<HTMLDivElement>(null);
   const [breite, setBreite] = useState(640);
@@ -45,8 +112,8 @@ export function Verlaufskurve({
   const daten = useMemo(
     () =>
       punkte
-        .filter((p) => p.prozent !== null)
-        .map((p) => ({ t: new Date(p.zeit).getTime(), y: p.prozent as number, zeit: p.zeit }))
+        .filter((p) => p.wert !== null && Number.isFinite(p.wert))
+        .map((p) => ({ t: new Date(p.zeit).getTime(), y: p.wert as number, zeit: p.zeit }))
         .sort((a, b) => a.t - b.t),
     [punkte],
   );
@@ -54,30 +121,92 @@ export function Verlaufskurve({
   const plotBreite = breite - RAND.links - RAND.rechts;
   const plotHoehe = hoehe - RAND.oben - RAND.unten;
 
+  // Die Zeitachse kommt von aussen, wenn zwei Kurven untereinander stehen:
+  // sonst spannt jede ueber ihre eigenen Daten, und zwei Kurven mit
+  // unterschiedlich langer Messhistorie stuenden untereinander mit
+  // verschobenen Achsen - genau der Vergleich, um den es hier geht, waere
+  // dann falsch.
   const { tMin, tSpanne } = useMemo(() => {
+    const aussen =
+      von !== undefined && bis !== undefined
+        ? { a: new Date(von).getTime(), b: new Date(bis).getTime() }
+        : null;
+    if (aussen && Number.isFinite(aussen.a) && Number.isFinite(aussen.b)) {
+      return { tMin: aussen.a, tSpanne: Math.max(1, aussen.b - aussen.a) };
+    }
     if (daten.length === 0) return { tMin: 0, tSpanne: 1 };
-    const min = daten[0].t;
-    const max = daten[daten.length - 1].t;
-    return { tMin: min, tSpanne: Math.max(1, max - min) };
-  }, [daten]);
+    return {
+      tMin: daten[0].t,
+      tSpanne: Math.max(1, daten[daten.length - 1].t - daten[0].t),
+    };
+  }, [daten, von, bis]);
 
   const x = (t: number) => RAND.links + ((t - tMin) / tSpanne) * plotBreite;
-  const y = (wert: number) => RAND.oben + (1 - wert / 100) * plotHoehe;
 
-  const linie = daten.map((d, i) => `${i === 0 ? "M" : "L"}${x(d.t).toFixed(1)} ${y(d.y).toFixed(1)}`).join(" ");
-  const flaeche =
-    daten.length > 1
-      ? `${linie} L${x(daten[daten.length - 1].t).toFixed(1)} ${(RAND.oben + plotHoehe).toFixed(1)} ` +
-        `L${x(daten[0].t).toFixed(1)} ${(RAND.oben + plotHoehe).toFixed(1)} Z`
-      : "";
+  const raster = useMemo(() => nettesRaster(yMin, yMax), [yMin, yMax]);
+  const ySpanne = Math.max(1e-9, raster.oben - raster.unten);
+  const y = (wert: number) =>
+    RAND.oben +
+    (1 - (Math.min(Math.max(wert, raster.unten), raster.oben) - raster.unten) / ySpanne) *
+      plotHoehe;
+  // Eine Flaeche misst vom Nullpunkt. Faengt die Achse woanders an, faellt sie
+  // weg - sonst stuende dort eine Menge, die es nicht gibt.
+  const mitFlaeche = raster.unten <= 0;
 
-  const zeitFormat = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit" });
+  const zahlText = (wert: number) =>
+    wert.toLocaleString("de-DE", {
+      minimumFractionDigits: nachkommastellen,
+      maximumFractionDigits: nachkommastellen,
+    });
+
+  // Ein stiller Sensor darf keine Gerade quer durch die Luecke ziehen: das
+  // saehe aus wie ein gleichmaessiger Verlauf, wo in Wahrheit nichts gemessen
+  // wurde. Ab dem Vierfachen des ueblichen Abstands bricht die Linie deshalb
+  // ab und setzt danach neu an.
+  const abschnitte = useMemo(() => {
+    if (daten.length === 0) return [] as (typeof daten)[];
+    const abstaende = daten.slice(1).map((d, i) => d.t - daten[i].t).sort((a, b) => a - b);
+    const mittlerer = abstaende.length > 0 ? abstaende[Math.floor(abstaende.length / 2)] : 0;
+    const grenze = Math.max(mittlerer * 4, tSpanne / 40);
+
+    const teile: (typeof daten)[] = [[daten[0]]];
+    daten.slice(1).forEach((d, i) => {
+      if (d.t - daten[i].t > grenze) teile.push([d]);
+      else teile[teile.length - 1].push(d);
+    });
+    return teile;
+  }, [daten, tSpanne]);
+
+  const grundlinie = (RAND.oben + plotHoehe).toFixed(1);
+
+  const pfade = abschnitte.map((abschnitt) => {
+    const linie = abschnitt
+      .map((d, i) => `${i === 0 ? "M" : "L"}${x(d.t).toFixed(1)} ${y(d.y).toFixed(1)}`)
+      .join(" ");
+    const flaeche =
+      mitFlaeche && abschnitt.length > 1
+        ? `${linie} L${x(abschnitt[abschnitt.length - 1].t).toFixed(1)} ${grundlinie} ` +
+          `L${x(abschnitt[0].t).toFixed(1)} ${grundlinie} Z`
+        : "";
+    return { linie, flaeche, schluessel: abschnitt[0].t };
+  });
+
+  // Ueber ein Jahr sagt "07.09." nichts mehr - dann gehoert das Jahr dazu.
+  const zeitFormat = useMemo(
+    () =>
+      new Intl.DateTimeFormat(
+        "de-DE",
+        tSpanne > 200 * 86400_000
+          ? { month: "2-digit", year: "2-digit" }
+          : { day: "2-digit", month: "2-digit" },
+      ),
+    [tSpanne],
+  );
 
   const xTicks = useMemo(() => {
-    if (daten.length < 2) return [];
     const anzahl = Math.min(6, Math.max(2, Math.floor(plotBreite / 90)));
     return Array.from({ length: anzahl }, (_, i) => tMin + (tSpanne * i) / (anzahl - 1));
-  }, [daten.length, plotBreite, tMin, tSpanne]);
+  }, [plotBreite, tMin, tSpanne]);
 
   function beiBewegung(ereignis: React.PointerEvent<SVGSVGElement>) {
     if (daten.length === 0) return;
@@ -95,20 +224,10 @@ export function Verlaufskurve({
     setAktiv(naechster);
   }
 
-  if (daten.length === 0) {
-    return (
-      <div className="flex h-40 items-center justify-center rounded-lg border text-sm text-ink-3">
-        Noch keine Messwerte vorhanden.
-      </div>
-    );
-  }
-
-  const aktiverPunkt = aktiv !== null ? daten[aktiv] : null;
-
-  return (
-    <div ref={behaelter} className="w-full">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold text-ink">{ueberschrift}</h3>
+  const kopf = (
+    <div className="mb-2 flex items-baseline justify-between gap-3">
+      <h3 className="text-sm font-semibold text-ink">{ueberschrift}</h3>
+      {daten.length > 0 && (
         <button
           type="button"
           onClick={() => setTabelle((t) => !t)}
@@ -116,7 +235,27 @@ export function Verlaufskurve({
         >
           {tabelle ? "Kurve anzeigen" : "Als Tabelle"}
         </button>
+      )}
+    </div>
+  );
+
+  if (daten.length === 0) {
+    return (
+      <div ref={behaelter} className="w-full">
+        {kopf}
+        <div className="flex h-40 items-center justify-center rounded-lg border text-sm text-ink-3">
+          {leerText}
+        </div>
       </div>
+    );
+  }
+
+  const aktiverPunkt = aktiv !== null ? daten[aktiv] : null;
+  const letzter = daten[daten.length - 1];
+
+  return (
+    <div ref={behaelter} className="w-full">
+      {kopf}
 
       {tabelle ? (
         <div className="max-h-64 overflow-y-auto rounded-lg border">
@@ -124,14 +263,16 @@ export function Verlaufskurve({
             <thead className="sticky top-0 bg-flaeche">
               <tr>
                 <th>Zeitpunkt</th>
-                <th className="text-right">Füllstand</th>
+                <th className="text-right">{spaltenname}</th>
               </tr>
             </thead>
             <tbody>
               {[...daten].reverse().map((d) => (
                 <tr key={d.t}>
                   <td className="text-ink-2">{formatDatumZeit(d.zeit)}</td>
-                  <td className="zahl text-right font-medium">{d.y} %</td>
+                  <td className="zahl text-right font-medium">
+                    {zahlText(d.y)} {einheit}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -146,10 +287,12 @@ export function Verlaufskurve({
             onPointerLeave={() => setAktiv(null)}
             style={{ touchAction: "pan-y" }}
             role="img"
-            aria-label={`${ueberschrift}: ${daten.length} Messwerte`}
+            aria-label={`${ueberschrift}: ${daten.length} Messwerte, zuletzt ${zahlText(
+              letzter.y,
+            )} ${einheit} am ${formatDatumZeit(letzter.zeit)}`}
           >
             {/* Gitter: durchgezogene Haarlinien, zuruecktretend */}
-            {[0, 25, 50, 75, 100].map((wert) => (
+            {raster.ticks.map((wert) => (
               <g key={wert}>
                 <line
                   x1={RAND.links}
@@ -167,30 +310,43 @@ export function Verlaufskurve({
                   fill="var(--ink-3)"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
-                  {wert}
+                  {zahlText(wert)}
                 </text>
               </g>
             ))}
 
-            {/* Schwellwert "voll" - hier ist die Strichelung inhaltlich richtig */}
-            <line
-              x1={RAND.links}
-              x2={breite - RAND.rechts}
-              y1={y(schwelleVoll)}
-              y2={y(schwelleVoll)}
-              stroke="var(--kritisch)"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-            />
-            <text
-              x={breite - RAND.rechts}
-              y={y(schwelleVoll) - 5}
-              textAnchor="end"
-              fontSize="10"
-              fill="var(--ink-3)"
-            >
-              voll ab {schwelleVoll} %
-            </text>
+            {/* Schwellwert - hier ist die Strichelung inhaltlich richtig */}
+            {schwelle && schwelle.wert >= raster.unten && schwelle.wert <= raster.oben && (
+              <>
+                <line
+                  x1={RAND.links}
+                  x2={breite - RAND.rechts}
+                  y1={y(schwelle.wert)}
+                  y2={y(schwelle.wert)}
+                  stroke="var(--kritisch)"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                {/* Links, nicht rechts: rechts sitzt immer der hervorgehobene
+                    Endpunkt, und genau wenn der Messwert an der Schwelle
+                    steht, deckt er die Beschriftung zu. Der helle Saum um die
+                    Schrift haelt sie ausserdem dort lesbar, wo die Kurve
+                    selbst durch die Schwelle laeuft. */}
+                <text
+                  x={RAND.links + 4}
+                  y={y(schwelle.wert) - 5}
+                  textAnchor="start"
+                  fontSize="10"
+                  fill="var(--ink-3)"
+                  stroke="var(--flaeche)"
+                  strokeWidth="3"
+                  paintOrder="stroke"
+                  strokeLinejoin="round"
+                >
+                  {schwelle.text}
+                </text>
+              </>
+            )}
 
             {/* Leerungen als Markierung auf der Grundlinie */}
             {leerungen.map((zeitpunkt) => {
@@ -218,23 +374,26 @@ export function Verlaufskurve({
               );
             })}
 
-            {/* Fläche als leiser Hauch, dann die Linie */}
-            {flaeche && <path d={flaeche} fill="var(--serie-wash)" />}
-            <path
-              d={linie}
-              fill="none"
-              stroke="var(--serie)"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {/* Fläche als leiser Hauch, dann die Linie - je Abschnitt */}
+            {pfade.map((p) => p.flaeche && <path key={`f${p.schluessel}`} d={p.flaeche} fill={wash} />)}
+            {pfade.map((p) => (
+              <path
+                key={`l${p.schluessel}`}
+                d={p.linie}
+                fill="none"
+                stroke={farbe}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ))}
 
             {/* Endpunkt hervorheben */}
             <circle
-              cx={x(daten[daten.length - 1].t)}
-              cy={y(daten[daten.length - 1].y)}
+              cx={x(letzter.t)}
+              cy={y(letzter.y)}
               r="4"
-              fill="var(--serie)"
+              fill={farbe}
               stroke="var(--flaeche)"
               strokeWidth="2"
             />
@@ -277,7 +436,7 @@ export function Verlaufskurve({
                   cx={x(aktiverPunkt.t)}
                   cy={y(aktiverPunkt.y)}
                   r="5"
-                  fill="var(--serie)"
+                  fill={farbe}
                   stroke="var(--flaeche)"
                   strokeWidth="2"
                 />
@@ -295,7 +454,9 @@ export function Verlaufskurve({
               }}
             >
               <div className="text-ink-3">{formatDatumZeit(aktiverPunkt.zeit)}</div>
-              <div className="zahl mt-0.5 text-sm font-semibold text-ink">{aktiverPunkt.y} % gefuellt</div>
+              <div className="zahl mt-0.5 text-sm font-semibold text-ink">
+                {zahlText(aktiverPunkt.y)} {einheit}
+              </div>
             </div>
           )}
         </div>
