@@ -187,6 +187,38 @@ pruefe("Über die Brücke: Seriennummer", ueberBruecke.kennung.geraete_id, "6749
 pruefe("Ohne Rahmenerkennung läse ausBytefolge Unsinn",
   ausBytefolge(RAHMEN)?.abstand_mm ?? null, null);
 
+// Am 07.09.2026 stellte dasselbe Geraet die Blockkennung im laufenden Betrieb
+// von 0C auf 0D um - erst vereinzelt, ab 05:13 UTC ausschliesslich. Der Rahmen
+// blieb sonst unveraendert. Weil der Dekoder nur 0C kannte, kam acht Stunden
+// lang immer weniger und zuletzt gar nichts mehr an, ohne Fehlermeldung: aus
+// Sicht der Anlage war jede Meldung "ordnungsgemaess ohne Abstand".
+//
+// Dieser Rahmen ist am 07.09.2026 um 05:50 UTC vom Geraet mitgeschnitten.
+const RAHMEN_0D =
+  "020001005F0000000130313036303131303637343946313737353637393030323138363638" +
+  "3430303738383334343439393031343035313830303038363035383938383232383036363" +
+  "6383030303836303534" + "0D000E" + "017561" + "0367E600" + "0482AC04" + "050001";
+
+const rahmen0d = ausStatusrahmen(RAHMEN_0D);
+pruefe("Rahmen mit Blockkennung 0D wird gelesen", rahmen0d !== null, true);
+pruefe("Abstand aus dem 0D-Rahmen", rahmen0d?.werte.abstand_mm, 1196);
+pruefe("Batterie aus dem 0D-Rahmen", rahmen0d?.werte.batterie_prozent, 97);
+pruefe("Temperatur aus dem 0D-Rahmen", rahmen0d?.werte.temperatur_c, 23.0);
+pruefe("Seriennummer aus dem 0D-Rahmen", rahmen0d?.kennung.geraete_id, "6749F17756790021");
+pruefe("Über die Brücke: Abstand aus 0D", ausMeldung({ payload: RAHMEN_0D }).abstand_mm, 1196);
+
+// Eine bisher unbekannte Kennung darf die Messreihe ebenfalls nicht anhalten,
+// solange Laengenangabe UND Kanalinhalt stimmen. Hier 0xEE statt 0C/0D.
+const RAHMEN_UNBEKANNT = RAHMEN_0D.replace("0D000E", "EE000E");
+pruefe("Unbekannte Blockkennung mit stimmiger Länge wird gelesen",
+  ausStatusrahmen(RAHMEN_UNBEKANNT)?.werte.abstand_mm, 1196);
+
+// Aber nur dann. Stimmt die Laengenangabe nicht, wird nichts geliefert -
+// lieber eine Luecke als eine erfundene Zahl.
+const RAHMEN_KRUMM = RAHMEN_0D.replace("0D000E", "0D00FF");
+pruefe("Falsche Längenangabe liefert keinen Messwert",
+  ausStatusrahmen(RAHMEN_KRUMM)?.werte.abstand_mm ?? null, null);
+
 // Eine gewoehnliche Kanalfolge ist kein Statusrahmen - sie darf nicht
 // versehentlich als einer gelesen werden.
 pruefe("Kanalfolge ist kein Statusrahmen",
