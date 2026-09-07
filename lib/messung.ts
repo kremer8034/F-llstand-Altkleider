@@ -32,6 +32,8 @@ export interface Messmeldung {
   batterie_prozent?: unknown;
   temperatur_c?: unknown;
   rssi?: unknown;
+  /** Lage des Geraets: "normal" oder "tilt". Nur Fertiggeraete melden sie. */
+  lage?: unknown;
   anlass?: unknown;
   firmware?: unknown;
   gemessen_am?: unknown;
@@ -42,6 +44,22 @@ const ANLAESSE = ["intervall", "test", "taster", "schwellwert", "neustart"] as c
 function zahl(wert: unknown): number | null {
   const n = Number(wert);
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Lage, wie sie in die Spalte gehoert.
+ *
+ * Der Dekoder liefert "normal" oder "tilt"; ueber den Webhook kann auch die
+ * Herstellerwolke etwas anderes schreiben ("Tilt", "1", "titl"). Alles, was
+ * nicht ausdruecklich "normal" ist, gilt als schief - und das ist die
+ * vorsichtige Richtung: eine Meldung zu viel kostet einen Blick, eine zu
+ * wenig einen Sensor, der monatelang unbemerkt am Boden liegt.
+ */
+function lage(wert: unknown): string | null {
+  if (typeof wert !== "string") return null;
+  const gelesen = wert.trim().toLowerCase();
+  if (gelesen === "") return null;
+  return gelesen === "normal" || gelesen === "0" ? "normal" : "tilt";
 }
 
 const SENSORSPALTEN = "id, container_id, status, bauart, intervall_minuten, firmware";
@@ -130,6 +148,7 @@ export async function messungSpeichern(
     batterie_prozent: batterieProzent,
     temperatur_c: zahl(daten.temperatur_c),
     rssi: zahl(daten.rssi),
+    lage: lage(daten.lage),
     anlass: ANLAESSE.includes(String(daten.anlass) as (typeof ANLAESSE)[number])
       ? String(daten.anlass)
       : "intervall",

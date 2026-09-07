@@ -97,12 +97,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (meldung.abstand_mm === null) {
-    // Ein Lebenszeichen ohne Messwert ist kein Fehler des Absenders - die
-    // Geraete melden auch nach dem Einschalten und beim Lagewechsel. Es
-    // trotzdem als Messung abzulegen wuerde die Kalibrierung verderben.
-    return NextResponse.json({ ok: true, gespeichert: false, grund: "kein Abstand in der Meldung" });
-  }
+  // Ein Lebenszeichen ohne Messwert ist kein Fehler des Absenders - die
+  // Geraete melden auch nach dem Einschalten und beim Lagewechsel, und ein
+  // verstuemmelter Rahmen sieht genauso aus.
+  //
+  // Frueher fiel so eine Meldung hier heraus und hinterliess nichts. Das war
+  // die stille Luecke vom 07.09.2026: das Geraet aenderte seine Blockkennung,
+  // acht Stunden lang kam kein Abstand mehr durch - und weil jede einzelne
+  // Meldung "ordnungsgemaess ohne Messwert" war, wurde nirgends etwas rot.
+  // Aus Sicht der Anlage war das Geraet still, obwohl es im Minutentakt
+  // anklopfte.
+  //
+  // Deshalb wird es jetzt abgelegt: der Ausloeser in der Datenbank setzt
+  // gueltig = false (ohne Abstand kein Fuellstand), die Kalibrierung und die
+  // Prognose uebergehen ungueltige Zeilen ohnehin, und die Verlaufskurve
+  // uebergeht NULL. Was bleibt, ist die Spur, an der pruefe_messfehler()
+  // erkennt, dass ein Geraet redet, ohne etwas zu sagen.
+  const messwert = meldung.abstand_mm !== null;
 
   const ergebnis = await messungSpeichern(
     sensor,
@@ -117,6 +128,7 @@ export async function POST(request: NextRequest) {
       batterie_prozent: meldung.batterie_prozent,
       temperatur_c: meldung.temperatur_c,
       rssi: meldung.rssi,
+      lage: meldung.lage,
       anlass: "intervall",
       gemessen_am: meldung.gemessen_am,
     },
@@ -130,7 +142,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     gespeichert: true,
+    // "messwert: false" heisst: angekommen und abgelegt, aber ohne Abstand.
+    // Im Protokoll der Bruecke ist das der Unterschied zwischen "es kommt
+    // nichts" und "es kommt etwas, das wir nicht lesen koennen".
+    messwert,
     angelernt: sensor.container_id !== null,
     abstand_mm: meldung.abstand_mm,
+    lage: meldung.lage,
   });
 }

@@ -6,11 +6,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Stuendliche Kontrolle: welcher angelernte Sensor hat zu lange nichts mehr
- * gemeldet?
+ * Stuendliche Kontrolle: taugt noch, was von den Sensoren kommt?
  *
- * Im Betrieb bei Supabase ruft diesen Endpunkt niemand - dort laeuft
- * pruefe_stille_sensoren() als Datenbank-Job (pg_cron, Migration 0006). Beim
+ * Zwei Fragen, beide in pruefe_sensoren() (0026_meldungen.sql):
+ *
+ *   1. Wer hat laenger nichts gemeldet als erlaubt?      -> "kein Signal"
+ *   2. Wer meldet, ohne einen brauchbaren Wert zu
+ *      liefern - einen ganzen Tag lang?                  -> "Messfehler"
+ *
+ * Die zweite ist die stille: ein Geraet, dessen Rahmen wir nicht mehr lesen
+ * koennen, klopft weiter im Takt an und sieht in jeder Einzelmeldung
+ * ordnungsgemaess aus. Genau so stand die Messreihe am 07.09.2026 acht
+ * Stunden still, ohne dass irgendwo etwas rot wurde.
+ *
+ * Im Betrieb bei Supabase ruft diesen Endpunkt niemand - dort laeuft die
+ * Pruefung als Datenbank-Job (pg_cron, Migration 0006/0026). Beim
  * Docker-Betrieb uebernimmt der Dienst "cron" aus docker-compose.yml, und von
  * Hand laesst er sich jederzeit ausloesen.
  *
@@ -44,7 +54,7 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = adminClient();
-  const { data, error } = await admin.rpc("pruefe_stille_sensoren");
+  const { data, error } = await admin.rpc("pruefe_sensoren");
 
   if (error) {
     // Die Meldung der Datenbank bleibt im Serverprotokoll - nach aussen geht

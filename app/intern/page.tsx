@@ -7,17 +7,10 @@ import { Stufensymbol } from "@/components/Stufensymbol";
 import { serverClient } from "@/lib/supabase/server";
 import { containerMitZustand, einstellungen, offeneAlarme, zahlAusEinstellung } from "@/lib/daten";
 import { STUFEN, adresse, alterText, formatDatumZeit, istVeraltet, stufeVon } from "@/lib/fuellstand";
-import type { Alarmtyp } from "@/lib/typen";
+import { ALARM_STUFE, ALARM_TEXT } from "@/lib/alarme";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Übersicht" };
-
-const ALARM_TEXT: Record<Alarmtyp, string> = {
-  fuellstand: "Container voll",
-  kein_signal: "Kein Signal",
-  batterie_schwach: "Batterie schwach",
-  messfehler: "Messfehler",
-};
 
 export default async function Uebersicht({ searchParams }: { searchParams: Promise<{ grund?: string }> }) {
   const { grund } = await searchParams;
@@ -38,7 +31,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
 
   const schwelleWarnung = zahlAusEinstellung(werte, "schwelle_warnung", 75);
   const schwelleVoll = zahlAusEinstellung(werte, "schwelle_voll", 90);
-  const stilleStunden = zahlAusEinstellung(werte, "max_stille_stunden", 30);
+  const stilleStunden = zahlAusEinstellung(werte, "max_stille_stunden", 24);
 
   const aktiv = zeilen.filter((z) => z.status === "aktiv");
   const voll = aktiv.filter((z) => (z.zustand?.fuellstand_prozent ?? -1) >= schwelleVoll);
@@ -164,9 +157,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
               {alarme.slice(0, 12).map((a) => (
                 <li key={a.id} className="px-4 py-3">
                   <div className="flex items-start gap-2">
-                    <Stufensymbol
-                      stufe={a.typ === "fuellstand" ? "voll" : a.typ === "batterie_schwach" ? "hoch" : "unbekannt"}
-                    />
+                    <Stufensymbol stufe={ALARM_STUFE[a.typ]} />
                     <div className="min-w-0">
                       <div className="text-sm font-medium">{ALARM_TEXT[a.typ]}</div>
                       {a.container && (
@@ -178,6 +169,12 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
                           {a.container.standort?.ort ? `, ${a.container.standort.ort}` : ""}
                         </Link>
                       )}
+                      {/* Der Befund selbst - "Batterie nur noch 8 %", "412
+                          Meldungen seit gestern, keine davon brauchbar". Ohne
+                          ihn stand hier eine Ueberschrift ohne Aussage, und
+                          man musste jede Meldung einzeln aufmachen, um zu
+                          erfahren, ob sie eilt. */}
+                      {a.text && <div className="mt-0.5 text-sm text-ink-2">{a.text}</div>}
                       <div className="mt-0.5 text-xs text-ink-3">{formatDatumZeit(a.ausgeloest_am)}</div>
                     </div>
                   </div>

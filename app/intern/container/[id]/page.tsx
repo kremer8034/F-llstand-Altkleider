@@ -10,6 +10,7 @@ import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { istFertiggeraet } from "@/lib/geraetearten";
 import { STUFEN, adresse, alterText, formatDatum, formatDatumZeit, stufeVon } from "@/lib/fuellstand";
+import { ALARM_HINWEIS, ALARM_STUFE, ALARM_TEXT } from "@/lib/alarme";
 import { MESSPUNKTE, zeitraumText, zeitraumVon } from "@/lib/zeitraum";
 import type {
   Alarm,
@@ -215,9 +216,15 @@ export default async function Containerdetail({
         <div className="karte-flaeche divide-y">
           {alarme.map((a) => (
             <div key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <Stufensymbol stufe={a.typ === "fuellstand" ? "voll" : "hoch"} />
+              <Stufensymbol stufe={ALARM_STUFE[a.typ]} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{a.text ?? a.typ}</div>
+                <div className="text-sm font-medium">{ALARM_TEXT[a.typ]}</div>
+                {/* Befund UND Handgriff. Vorher stand hier nur der Befund,
+                    im Rueckfall sogar der rohe Datenbankname ("messfehler") -
+                    fuer jemanden, der gleich losfaehrt, die Auskunft, dass
+                    etwas ist, aber nicht, was er mitnehmen soll. */}
+                {a.text && <div className="text-sm text-ink-2">{a.text}</div>}
+                <div className="text-xs text-ink-2">{ALARM_HINWEIS[a.typ]}</div>
                 <div className="text-xs text-ink-3">
                   seit {formatDatumZeit(a.ausgeloest_am)}
                   {a.quittiert_am && ` · quittiert ${formatDatumZeit(a.quittiert_am)}`}

@@ -52,7 +52,7 @@ export default async function SensorenSeite() {
     if (!c.verbraucht_am && !offenerCode.has(c.sensor_id)) offenerCode.set(c.sensor_id, c.code);
   });
 
-  const stilleStunden = zahlAusEinstellung(werte, "max_stille_stunden", 30);
+  const stilleStunden = zahlAusEinstellung(werte, "max_stille_stunden", 24);
 
   return (
     <div className="space-y-4">
