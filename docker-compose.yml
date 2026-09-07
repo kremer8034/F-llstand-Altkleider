@@ -13,12 +13,25 @@
 
 name: fuellstand
 
+# ---------------------------------------------------------------------- Zeit
+# Die Anlage wird in Unterfranken betrieben, also läuft sie auch in deutscher
+# Zeit. Ohne diese Angabe stehen alle Container in UTC – die Oberfläche wird
+# auf dem Server gebaut, und eine Meldung von 12:16 Uhr erschien dann als
+# „10:16 Uhr". Aufgefallen am 07.09.2026.
+#
+# Das ist die eine Hälfte. Die andere steht in lib/zeit.ts: was ANGEZEIGT
+# wird, nennt die Zone zusätzlich ausdrücklich, denn ein Teil der Oberfläche
+# läuft im Browser des Betrachters, und dort gilt TZ nicht.
+x-zeitzone: &zeitzone
+  TZ: Europe/Berlin
+
 services:
   # ------------------------------------------------------------------ Daten
   db:
     image: supabase/postgres:15.14.1.165
     restart: unless-stopped
     environment:
+      <<: *zeitzone
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}
       POSTGRES_DB: postgres
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET fehlt}
@@ -55,6 +68,7 @@ services:
       auth:
         condition: service_started
     environment:
+      <<: *zeitzone
       PGHOST: db
       PGUSER: postgres
       PGPASSWORD: ${POSTGRES_PASSWORD}
@@ -117,6 +131,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      <<: *zeitzone
       PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORT}@db:5432/postgres
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
@@ -139,6 +154,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
+      <<: *zeitzone
       NEXT_PUBLIC_SUPABASE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
       NEXT_PUBLIC_SITE_URL: ${OEFFENTLICHE_URL:-http://localhost:8080}
@@ -233,6 +249,7 @@ services:
     depends_on:
       - app
     environment:
+      <<: *zeitzone
       CRON_SECRET: ${CRON_SECRET}
     # busybox bringt wget mit - kein Nachinstallieren beim Start noetig.
     command:
@@ -319,6 +336,7 @@ services:
       app:
         condition: service_started
     environment:
+      <<: *zeitzone
       MQTT_ADRESSE: mqtt://mqtt:1883
       MQTT_BENUTZER: ${MQTT_BENUTZER:?MQTT_BENUTZER fehlt}
       MQTT_PASSWORT: ${MQTT_PASSWORT:?MQTT_PASSWORT fehlt}

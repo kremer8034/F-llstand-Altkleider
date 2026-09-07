@@ -6,8 +6,8 @@ import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
 import { serverClient } from "@/lib/supabase/server";
 import { containerMitZustand, einstellungen, offeneAlarme, zahlAusEinstellung } from "@/lib/daten";
-import { STUFEN, adresse, alterText, formatDatumZeit, istVeraltet, stufeVon } from "@/lib/fuellstand";
-import { ALARM_STUFE, ALARM_TEXT } from "@/lib/alarme";
+import { STUFEN, adresse, alterText, istVeraltet, stufeVon } from "@/lib/fuellstand";
+import { ALARM_STUFE, ALARM_TEXT, alarmZeitraumText } from "@/lib/alarme";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Übersicht" };
@@ -175,7 +175,15 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
                           man musste jede Meldung einzeln aufmachen, um zu
                           erfahren, ob sie eilt. */}
                       {a.text && <div className="mt-0.5 text-sm text-ink-2">{a.text}</div>}
-                      <div className="mt-0.5 text-xs text-ink-3">{formatDatumZeit(a.ausgeloest_am)}</div>
+                      {/* "Besteht seit ..." statt eines nackten Zeitstempels:
+                          die Liste zeigt ausschliesslich offene Meldungen,
+                          aber ein Datum allein liest sich wie ein
+                          Protokolleintrag von damals. Die Dauer daneben sagt
+                          ohne Kopfrechnen, ob das seit einer Stunde oder seit
+                          einer Woche so ist. */}
+                      <div className="mt-0.5 text-xs text-ink-3">
+                        {alarmZeitraumText(a.ausgeloest_am)}
+                      </div>
                     </div>
                   </div>
                 </li>

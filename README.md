@@ -45,9 +45,14 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Karte sowie Standortliste mit aufklappbaren Containern, Suche, Filtern und
   Sortierung; dieselbe Seite zeigt auf Wunsch die Containersicht
 - Containerdetail: **Verlaufskurven für Füllstand und Batterie** über einen
-  wählbaren Zeitraum (7 / 30 / 90 Tage, 1 Jahr) – beide Kurven auf derselben
-  Zeitachse, der Zeitraum steht in der Adresse. Dazu Leerungen, Meldungen,
-  Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
+  wählbaren Zeitraum (1 / 3 / 7 / 30 / 90 Tage, 1 Jahr oder ein frei gesetztes
+  Von-Bis-Fenster) – beide Kurven auf derselben Zeitachse, der Zeitraum steht
+  in der Adresse. Als Tabelle stehen zu jedem Zeitpunkt Füllstand, **gemessener
+  Abstand in Metern** und Batterie nebeneinander: der Füllstand ist ein
+  Rechenergebnis aus Abstand und Einbauhöhe, und nur mit beidem ist zu sehen,
+  ob ein überraschender Wert vom Sensor kommt oder von der Kalibrierung. Dazu
+  Leerungen, Meldungen, Kalibrierung, **Prognose der nächsten Leerung** und
+  Leerungsrhythmus
 - Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
   Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr
 - **Standorte**: mehrere Container an einem Platz sind ein Stopp. Zuordnung von
@@ -102,13 +107,23 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
   Cron-Eintrag ([docs/betrieb.md](docs/betrieb.md), Abschnitt 2b)
 - Sendeintervall der Geräte aus der Oberfläche steuerbar, ohne neu zu flashen
 
+**Zeitrechnung**
+
+Die Anlage rechnet und zeigt in **deutscher Zeit** (`Europe/Berlin`), Sommer-
+und Winterzeit eingeschlossen. Das steht an drei Stellen und braucht alle drei:
+`TZ` in `docker-compose.yml` für die Container, `timezone` an der Datenbank
+(Migration `0029`, davon hängt unter anderem `current_date` in der
+Tourenplanung ab) und `lib/zeit.ts` für alles Angezeigte – denn ein Teil der
+Oberfläche läuft im Browser, wo `TZ` nicht gilt. Gespeichert wird weiterhin der
+Augenblick selbst (`timestamptz`), nicht eine Ortszeit.
+
 ## Aufbau
 
 | Verzeichnis | Inhalt |
 |---|---|
 | `app/` | Next.js (App Router): öffentliche Seiten, interner Bereich, Fahreransicht, Schnittstellen |
 | `components/` | Karte, Verlaufskurve, Füllstandsbalken, Statussymbole, QR-Scanner |
-| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser, Offline-Warteschlange |
+| `lib/` | Supabase-Clients, Rollen, Füllstandslogik, Zeitzone, Prognosetexte, Kostenrechnung, Routenoptimierung, CSV-Leser, Offline-Warteschlange |
 | `supabase/migrations/` | Datenbankschema, Funktionen, Zugriffsschutz |
 | `firmware/altkleider-sensor/` | Firmware für ESP32-S3 + SIM7080G + Ultraschall |
 | `docker/` | Torwächter, Datenbankstart, Schema-Einspieler, MQTT-Broker und die Brücke zur Anwendung |

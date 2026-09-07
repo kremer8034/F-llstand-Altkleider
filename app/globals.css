@@ -255,12 +255,24 @@ body {
   /* Kein uppercase + tracking-wide mehr: gesperrte Versalien lesen sich
      schlechter, brechen bei deutschen Wortlaengen ("Sendeintervall") frueher um
      und sind die haeufigste Vorlagen-Geste ueberhaupt. Der Kopf hebt sich durch
-     Gewicht und Farbe ab, das reicht. */
-  .tabelle th {
+     Gewicht und Farbe ab, das reicht.
+
+     :where() ist hier kein Zierrat, sondern behebt einen Fehler. ".tabelle th"
+     zaehlt eine Klasse UND ein Element, ".text-right" nur eine Klasse - und
+     Spezifitaet schlaegt die Reihenfolge der Ebenen. Ein
+     <th className="text-right"> verlor deshalb gegen das text-left von hier,
+     waehrend die Zahlen darunter rechtsbuendig standen: die Ueberschrift stand
+     am linken Rand der Spalte, ihre Werte am rechten. Betroffen war jede
+     Zahlenspalte der Anlage - Verlauf, Leerungen, Auswertung, Benutzer.
+
+     :where() zaehlt nichts. Damit stehen Regel und Hilfsklasse bei (0,1,0)
+     gleichauf, und die Hilfsklasse gewinnt, weil ihre Ebene spaeter kommt -
+     also genau dann, wenn jemand sie ausdruecklich hinschreibt. */
+  .tabelle :where(th) {
     @apply border-b px-3 py-2 text-left text-xs font-semibold text-ink-3;
   }
 
-  .tabelle td {
+  .tabelle :where(td) {
     @apply border-b px-3 py-2 align-middle;
   }
 

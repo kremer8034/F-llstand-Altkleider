@@ -1,4 +1,5 @@
 import type { Fuellstandsstufe } from "./typen";
+import { ZEITZONE } from "./zeit";
 
 /**
  * Fuellstand ist eine Zustandsgroesse, keine Kategorie: die vier Stufen tragen
@@ -77,8 +78,17 @@ export function istVeraltet(zeitpunkt: string | null | undefined, stundenGrenze 
   return Date.now() - new Date(zeitpunkt).getTime() > stundenGrenze * 3600_000;
 }
 
-const DATUM = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+// Ausdruecklich deutsche Zeit, nicht die Einstellung des Geraets: diese
+// beiden Formatierer laufen auf dem Server UND im Browser, und beide Seiten
+// muessen dieselbe Uhrzeit schreiben. Begruendung in lib/zeit.ts.
+const DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 const DATUM_ZEIT = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

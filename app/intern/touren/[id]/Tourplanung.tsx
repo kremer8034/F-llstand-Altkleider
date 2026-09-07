@@ -1,4 +1,5 @@
 "use client";
+import { ZEITZONE, tagAlsZeitpunkt } from "@/lib/zeit";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -63,7 +64,14 @@ export interface Stoppzeile {
 const KM = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 /** Containerfüllungen: eine Nachkommastelle, "2,4 Füllungen" liest sich rund. */
 const F = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
-const UHR = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
+const UHR = new Intl.DateTimeFormat("de-DE", { timeZone: ZEITZONE, hour: "2-digit", minute: "2-digit" });
+const TOURTAG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 /**
  * Eine Tour planen und ihren Verlauf verfolgen.
@@ -244,12 +252,7 @@ export function Tourplanung({
               </span>
             </div>
             <p className="mt-1 text-sm text-ink-2">
-              {new Intl.DateTimeFormat("de-DE", {
-                weekday: "long",
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              }).format(new Date(`${tour.datum}T12:00:00`))}
+              {TOURTAG.format(tagAlsZeitpunkt(tour.datum))}
               {tour.begonnen_am && ` · begonnen ${UHR.format(new Date(tour.begonnen_am))} Uhr`}
               {tour.abgeschlossen_am &&
                 ` · beendet ${UHR.format(new Date(tour.abgeschlossen_am))} Uhr`}

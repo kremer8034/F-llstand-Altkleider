@@ -107,6 +107,8 @@ export interface Messung {
 export interface Messreihenpunkt {
   zeit: string;
   fuellstand_prozent: number | null;
+  /** Gemessener Abstand in Millimetern - nur aus gueltigen Messungen (0028). */
+  abstand_mm: number | null;
   batterie_prozent: number | null;
   batterie_v: number | null;
   /** Wie viele Rohmessungen in diesem Korb liegen. */

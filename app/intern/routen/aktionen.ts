@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { isoWochentag } from "@/lib/wochentage";
+import { tagAlsZeitpunkt } from "@/lib/zeit";
 
 function text(formular: FormData, name: string): string | null {
   const wert = formular.get(name);
@@ -52,7 +53,7 @@ export async function routeSpeichern(
   if (!name) return { ok: false, fehler: "Die Route braucht einen Namen." };
   if (!anker) return { ok: false, fehler: "Bitte einen Termin angeben, an dem die Tour tatsächlich fährt." };
 
-  const ankerDatum = new Date(`${anker}T12:00:00`);
+  const ankerDatum = tagAlsZeitpunkt(anker);
   if (Number.isNaN(ankerDatum.getTime())) {
     return { ok: false, fehler: "Das Datum ist nicht lesbar." };
   }

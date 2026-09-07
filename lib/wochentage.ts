@@ -1,3 +1,5 @@
+import { ZEITZONE, tagAlsZeitpunkt, tagStempel } from "./zeit";
+
 /** ISO-Wochentage: 1 = Montag ... 7 = Sonntag - so rechnet auch Postgres. */
 export const WOCHENTAGE: { wert: number; name: string; kurz: string }[] = [
   { wert: 1, name: "Montag", kurz: "Mo" },
@@ -23,10 +25,21 @@ export function rhythmusText(wochentag: number, intervallWochen: number): string
   return `alle ${intervallWochen} Wochen ${tag}`;
 }
 
-/** ISO-Wochentag eines Datums - 1 = Montag. */
+/**
+ * ISO-Wochentag eines Zeitpunkts - 1 = Montag.
+ *
+ * In deutscher Zeit, nicht in der des Geraets: getDay() haette denselben
+ * Zeitpunkt je nach Zeiteinstellung des Browsers auf zwei verschiedene Tage
+ * gelegt, und der Wochentag einer Regeltour darf nicht davon abhaengen, wer
+ * gerade auf die Seite sieht.
+ */
+const WOCHENTAG_KURZ = new Intl.DateTimeFormat("en-US", { timeZone: ZEITZONE, weekday: "short" });
+const WOCHENTAG_NUMMER: Record<string, number> = {
+  Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
+};
+
 export function isoWochentag(datum: Date): number {
-  const tag = datum.getDay();
-  return tag === 0 ? 7 : tag;
+  return WOCHENTAG_NUMMER[WOCHENTAG_KURZ.format(datum)] ?? 1;
 }
 
 /**
@@ -46,10 +59,13 @@ export function naechsterTermin(
   intervallWochen: number,
   ab: Date = new Date(),
 ): Date {
-  const stichtag = new Date(ab);
-  stichtag.setHours(0, 0, 0, 0);
-
-  const anker = new Date(`${ankerDatum}T00:00:00`);
+  // Beide Enden auf die Tagesmitte in UTC gelegt. Dadurch ist der Abstand
+  // zwischen zwei Terminen immer ein glattes Vielfaches von 24 Stunden - die
+  // 23- und die 25-Stunden-Nacht der Zeitumstellung koennen den Termin nicht
+  // um einen Tag verschieben, und die Rechnung haengt an keiner
+  // Zeiteinstellung.
+  const stichtag = tagAlsZeitpunkt(tagStempel(ab));
+  const anker = tagAlsZeitpunkt(ankerDatum);
   const periode = Math.max(1, intervallWochen) * 7 * 86400_000;
   const schritte = Math.max(0, Math.ceil((stichtag.getTime() - anker.getTime()) / periode));
 

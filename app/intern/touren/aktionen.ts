@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { routePlanen, type Ort } from "@/lib/route";
+import { heute } from "@/lib/zeit";
 
 function text(formular: FormData, name: string): string | null {
   const wert = formular.get(name);
@@ -28,13 +29,6 @@ function alleSeitenNeu(tourId?: string) {
     revalidatePath(`/intern/touren/${tourId}`);
     revalidatePath(`/fahrer/${tourId}`);
   }
-}
-
-/** Heute im lokalen Kalender - nicht in UTC, sonst kippt der Tag am Abend. */
-function heute(): string {
-  const d = new Date();
-  const versatz = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - versatz).toISOString().slice(0, 10);
 }
 
 /**

@@ -1,21 +1,18 @@
 import Link from "next/link";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
+import { ZEITZONE, heute, tagAlsZeitpunkt } from "@/lib/zeit";
 import type { TourFortschritt } from "@/lib/typen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Meine Touren" };
 
 const DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "long",
   day: "2-digit",
   month: "2-digit",
 });
-
-function heute(): string {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
 
 export default async function FahrerSeite() {
   const benutzer = await angemeldeterBenutzer();
@@ -82,7 +79,7 @@ export default async function FahrerSeite() {
                   )}
                 </div>
                 <div className="mt-1 text-sm text-ink-2">
-                  {DATUM.format(new Date(`${t.datum}T12:00:00`))} · {t.stopps_gesamt} Stopps
+                  {DATUM.format(tagAlsZeitpunkt(t.datum))} · {t.stopps_gesamt} Stopps
                 </div>
                 {t.status === "laeuft" && (
                   <div className="mt-1 text-sm text-ink-3">
@@ -104,7 +101,7 @@ export default async function FahrerSeite() {
               <li key={t.tour_id} className="karte-flaeche px-4 py-3 text-sm opacity-70">
                 <span className="font-medium">{t.name ?? "Tour"}</span>
                 <span className="ml-2 text-ink-3">
-                  {DATUM.format(new Date(`${t.datum}T12:00:00`))} · {t.stopps_erledigt} von{" "}
+                  {DATUM.format(tagAlsZeitpunkt(t.datum))} · {t.stopps_erledigt} von{" "}
                   {t.stopps_gesamt} Stopps
                 </span>
               </li>

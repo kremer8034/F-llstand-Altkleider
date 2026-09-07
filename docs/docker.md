@@ -254,6 +254,19 @@ git pull
 docker compose up -d --build
 ```
 
+> **Migration 0029 einmalig nachziehen.** Sie setzt die Zeitzone der Datenbank
+> auf `Europe/Berlin`. `alter database … set timezone` wirkt nur auf NEUE
+> Sitzungen – PostgREST und die Anmeldeverwaltung halten ihre Verbindungen
+> offen und rechnen sonst weiter in UTC. Nach dem ersten Hochfahren mit dieser
+> Migration deshalb einmal:
+>
+> ```bash
+> docker compose restart rest auth
+> ```
+>
+> Prüfen lässt es sich mit `docker compose exec db psql -U postgres -c 'show
+> timezone'` – dort muss `Europe/Berlin` stehen.
+
 Der `migrate`-Dienst spielt bei jedem Start alle Migrationen ein, die noch
 fehlen – jede genau einmal. Was schon gelaufen ist, steht in der Tabelle
 `public.schema_migration`. Eine neue Migration braucht deshalb nichts weiter
