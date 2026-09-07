@@ -280,8 +280,24 @@ const RAHMEN_KOPF = 9;
 const RAHMEN_ASCII = 74;
 /** Vorspann vor der Seriennummer - Bedeutung unbekannt, Laenge konstant. */
 const RAHMEN_VORSPANN = 8;
-/** Typkennzeichen des Blocks, in dem die Messwerte stehen. */
-const RAHMEN_DATEN = 0x0c;
+/**
+ * Typkennzeichen des Blocks, in dem die Messwerte stehen.
+ *
+ * Bis zum 07.09.2026 kam ausschliesslich 0x0C. An diesem Morgen stellte das
+ * Geraet mitten im Betrieb auf 0x0D um - erst vereinzelt, dann ueberwiegend,
+ * ab 05:13 UTC ausschliesslich. Alles andere am Rahmen blieb gleich: gleiche
+ * Laenge, gleiche Kennungen, gleiche Kanaele, plausible Messwerte in
+ * ununterbrochener Folge (1197 mm mit 0x0C um 05:13, 1196 mm mit 0x0D um
+ * 05:50). Die Datenaufnahme stand acht Stunden lang zunehmend still, weil
+ * hier eine einzelne Zahl stand.
+ *
+ * Was 0x0D bedeutet, ist NICHT belegt - das Handbuch, das hier vorlag, kennt
+ * die Unterscheidung nicht, und ich habe sie nicht erraten. Deshalb traegt
+ * die Sicherheit hier nicht mehr das Kennzeichen, sondern die Probe darunter
+ * (siehe datenblock): die angegebene Laenge muss genau bis zum Ende reichen,
+ * und der Block muss sich zu mindestens einem bekannten Kanal lesen lassen.
+ */
+const RAHMEN_DATEN = new Set([0x0c, 0x0d]);
 
 export function ausStatusrahmen(hex: string): Statusrahmen | null {
   const sauber = hex.trim().replace(/^0x/i, "").replace(/[\s:-]/g, "");
@@ -316,19 +332,41 @@ export function ausStatusrahmen(hex: string): Statusrahmen | null {
 /**
  * Den Messblock im Rahmen finden.
  *
- * Zuerst dort, wo er laut Aufbau steht. Sitzt er nicht da - ein anderer
- * Rahmen, ein Kopf anderer Laenge -, wird vorwaerts gesucht, aber nur nach
- * einem Block, dessen angegebene Laenge GENAU bis zum Ende reicht. Diese
- * Probe ist der Grund, warum das Suchen hier vertretbar ist: eine zufaellig
- * passende 0x0C-Stelle mit stimmiger Laengenangabe ist unwahrscheinlich,
- * waehrend blindes Weiterlesen jede beliebige Zahl liefern koennte.
+ * Zwei Durchgaenge, und die Reihenfolge ist der Punkt.
+ *
+ *   1. Ein bekanntes Kennzeichen (0x0C, 0x0D), dessen angegebene Laenge GENAU
+ *      bis zum Ende des Rahmens reicht. Das ist der normale Weg.
+ *   2. Findet sich keines, JEDE Stelle mit stimmiger Laengenangabe, deren
+ *      Block sich ausserdem zu mindestens einem bekannten Kanal lesen laesst.
+ *
+ * Der zweite Durchgang ist die Lehre aus dem 07.09.2026: das Geraet aenderte
+ * das Kennzeichen ohne Vorwarnung, und weil hier eine feste Zahl stand, kam
+ * acht Stunden lang immer weniger und zuletzt gar nichts mehr an - ohne
+ * Fehler, ohne Alarm, denn aus Sicht der Anlage war jede einzelne Meldung
+ * "ordnungsgemaess ohne Abstand". Ein Geraet, das seinen Rahmen leicht
+ * anders schneidet, darf die Messreihe nicht anhalten.
+ *
+ * Geraten wird dabei nichts. Zwei Proben muessen zusammen zutreffen: die
+ * Laengenangabe muss auf das Byte genau bis zum Rahmenende reichen (bei
+ * hundert Byte Rahmen trifft das zufaellig etwa einmal auf siebenhundert
+ * Rahmen zu), und der so gefundene Block muss sich in bekannte Kanaele
+ * aufloesen. Blindes Weiterlesen liefert dagegen jede beliebige Zahl - und
+ * Unsinn mit plausiblen Werten waere schlimmer als eine Luecke.
  */
 function datenblock(bytes: Buffer, ab: number): Buffer | null {
+  const reichtBisEnde = (i: number) =>
+    i + 3 <= bytes.length && i + 3 + bytes.readUInt16BE(i + 1) === bytes.length;
+
   for (let i = ab; i + 3 <= bytes.length; i++) {
-    if (bytes[i] !== RAHMEN_DATEN) continue;
-    const laenge = bytes.readUInt16BE(i + 1);
-    if (i + 3 + laenge === bytes.length) return bytes.subarray(i + 3);
+    if (RAHMEN_DATEN.has(bytes[i]) && reichtBisEnde(i)) return bytes.subarray(i + 3);
   }
+
+  for (let i = ab; i + 3 <= bytes.length; i++) {
+    if (!reichtBisEnde(i)) continue;
+    const block = bytes.subarray(i + 3);
+    if (ausBytefolge(block.toString("hex"))) return block;
+  }
+
   return null;
 }
 
