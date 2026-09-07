@@ -43,7 +43,9 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Übersicht mit Kennzahlen und offenen Alarmen
 - Karte sowie Standortliste mit aufklappbaren Containern, Suche, Filtern und
   Sortierung; dieselbe Seite zeigt auf Wunsch die Containersicht
-- Containerdetail: Füllstandsverlauf der letzten 30 Tage, Leerungen, Meldungen,
+- Containerdetail: **Verlaufskurven für Füllstand und Batterie** über einen
+  wählbaren Zeitraum (7 / 30 / 90 Tage, 1 Jahr) – beide Kurven auf derselben
+  Zeitachse, der Zeitraum steht in der Adresse. Dazu Leerungen, Meldungen,
   Kalibrierung, **Prognose der nächsten Leerung** und Leerungsrhythmus
 - Auswertung: Rangliste aller Container nach Leerungshäufigkeit – mittlerer
   Abstand zwischen zwei Leerungen desselben Containers, Leerungen pro Jahr

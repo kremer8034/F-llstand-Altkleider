@@ -4,11 +4,13 @@ import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
 import { Prognosekarte } from "@/components/Prognosekarte";
 import { Verlaufskurve } from "@/components/Verlaufskurve";
+import { Zeitraumwahl } from "@/components/Zeitraumwahl";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { istFertiggeraet } from "@/lib/geraetearten";
 import { STUFEN, adresse, alterText, formatDatum, formatDatumZeit, stufeVon } from "@/lib/fuellstand";
+import { MESSPUNKTE, zeitraumText, zeitraumVon } from "@/lib/zeitraum";
 import type {
   Alarm,
   Container,
@@ -16,7 +18,7 @@ import type {
   ContainerRhythmus,
   ContainerZustand,
   Leerung,
-  Messung,
+  Messreihenpunkt,
   Sensor,
 } from "@/lib/typen";
 import { Erfassungsbereich } from "./Erfassungsbereich";
@@ -32,8 +34,15 @@ const MELDUNG_TEXT: Record<string, string> = {
   sonstiges: "Sonstiges",
 };
 
-export default async function Containerdetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function Containerdetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ zeitraum?: string }>;
+}) {
   const { id } = await params;
+  const { zeitraum: gewaehlt } = await searchParams;
   const supabase = await serverClient();
   const benutzer = await angemeldeterBenutzer();
 
@@ -46,12 +55,18 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   if (!container) notFound();
   const c = container as Container;
 
-  const vor30Tagen = new Date(Date.now() - 30 * 86400_000).toISOString();
+  // Der Zeitraum steht in der Adresse, damit er das Neuladen ueberlebt und
+  // sich verschicken laesst. "bis" wird einmal festgehalten: beide Kurven
+  // sollen auf dieselbe Sekunde enden, nicht auf zwei getrennte now().
+  const zeitraum = zeitraumVon(gewaehlt);
+  const bis = new Date();
+  const von = new Date(bis.getTime() - zeitraum.tage * 86400_000);
 
   const [
     zustandAntwort,
     sensorAntwort,
-    messungAntwort,
+    messreiheAntwort,
+    leerungImZeitraumAntwort,
     leerungAntwort,
     meldungAntwort,
     alarmAntwort,
@@ -61,13 +76,25 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   ] = await Promise.all([
       supabase.from("container_zustand").select("*").eq("container_id", c.id).maybeSingle(),
       supabase.from("sensor").select("*").eq("container_id", c.id).maybeSingle(),
+      // Nicht die Rohmessungen: public.messreihe() mittelt sie auf eine feste
+      // Punktzahl herunter. Ein Jahr im Minutentakt sind rund 500.000 Zeilen -
+      // die will hier weder der Browser noch die Leitung.
+      supabase.rpc("messreihe", {
+        p_container_id: c.id,
+        p_von: von.toISOString(),
+        p_bis: bis.toISOString(),
+        p_punkte: MESSPUNKTE,
+      }),
+      // Leerungen im gewaehlten Fenster - nur fuer die Markierungen unter der
+      // Kurve. Die Tabelle weiter unten hat ihre eigene Abfrage, weil sie die
+      // letzten zwanzig zeigt und nicht die des Zeitraums.
       supabase
-        .from("messung")
-        .select("id, gemessen_am, fuellstand_prozent, abstand_mm, batterie_v, anlass, gueltig")
+        .from("leerung")
+        .select("geleert_am")
         .eq("container_id", c.id)
-        .gte("gemessen_am", vor30Tagen)
-        .order("gemessen_am", { ascending: true })
-        .limit(500),
+        .gte("geleert_am", von.toISOString())
+        .lte("geleert_am", bis.toISOString())
+        .order("geleert_am", { ascending: true }),
       supabase
         .from("leerung")
         .select("*")
@@ -103,7 +130,9 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
 
   const zustand = zustandAntwort.data as ContainerZustand | null;
   const sensor = sensorAntwort.data as Sensor | null;
-  const messungen = (messungAntwort.data ?? []) as Messung[];
+  const messreihe = (messreiheAntwort.data ?? []) as Messreihenpunkt[];
+  const leerungenImZeitraum = ((leerungImZeitraumAntwort.data ?? []) as { geleert_am: string }[])
+    .map((l) => l.geleert_am);
   const leerungen = (leerungAntwort.data ?? []) as Leerung[];
   const meldungen = (meldungAntwort.data ?? []) as { id: string; typ: string; text: string | null; gemeldet_am: string; erledigt_am: string | null }[];
   const alarme = (alarmAntwort.data ?? []) as Alarm[];
@@ -113,8 +142,40 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
   const kalibrierFenster = zahlAusEinstellung(werte, "kalibrier_fenster_stunden", 6);
   const schwelleVoll = zahlAusEinstellung(werte, "schwelle_voll", 90);
   const schwelleTour = zahlAusEinstellung(werte, "schwelle_warnung", 75);
+  const batterieMinProzent = zahlAusEinstellung(werte, "batterie_min_prozent", 20);
+  const batterieMinVolt = zahlAusEinstellung(werte, "batterie_min_v", 3.4);
   const stufe = stufeVon(zustand?.fuellstand_prozent);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
+
+  // Die Batterie kommt je nach Geraeteart in Prozent oder in Volt: ein
+  // Fertiggeraet meldet den Ladestand, der Eigenbau die Zellenspannung
+  // (0020_fertiggeraete.sql). Was die Kurve zeigt, entscheidet deshalb nicht
+  // die Bauart, sondern was im Zeitraum tatsaechlich angekommen ist - sonst
+  // stuende bei einem getauschten Sensor eine leere Kurve da.
+  const hatProzent = messreihe.some((m) => m.batterie_prozent !== null);
+  const hatVolt = messreihe.some((m) => m.batterie_v !== null);
+  const inProzent = hatProzent || !hatVolt;
+  const batteriereihe = messreihe.map((m) => ({
+    zeit: m.zeit,
+    wert: inProzent ? m.batterie_prozent : m.batterie_v,
+  }));
+  // Prozent ist von Haus aus eine 0..100er Achse. Volt nicht: eine
+  // Lithiumzelle bewegt sich im Betrieb zwischen etwa 3,0 und 3,7 V, und auf
+  // einer Achse ab 0 V waere ihr ganzer Verlauf ein Strich am oberen Rand.
+  // Die Achse spannt deshalb um die tatsaechlichen Werte und um die Schwelle,
+  // auf ganze Zehntel gerundet - die Schwelle muss zu sehen sein, auch wenn
+  // die Zelle noch weit darueber liegt.
+  const voltwerte = batteriereihe
+    .map((b) => b.wert)
+    .filter((w): w is number => w !== null)
+    .concat(batterieMinVolt);
+  const batterieMin = inProzent
+    ? 0
+    : Math.floor((Math.min(...voltwerte) - 0.1) * 10) / 10;
+  const batterieMax = inProzent
+    ? 100
+    : Math.max(batterieMin + 0.4, Math.ceil((Math.max(...voltwerte) + 0.1) * 10) / 10);
+  const batterieJetzt = inProzent ? zustand?.batterie_prozent : zustand?.batterie_v;
 
   return (
     <div className="space-y-6">
@@ -223,7 +284,11 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             </div>
             <div>
               <dt className="text-xs text-ink-3">Batterie</dt>
-              <dd className="zahl font-medium">{zustand?.batterie_v ? `${zustand.batterie_v} V` : "–"}</dd>
+              <dd className="zahl font-medium">
+                {batterieJetzt !== null && batterieJetzt !== undefined
+                  ? `${batterieJetzt} ${inProzent ? "%" : "V"}`
+                  : "–"}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-ink-3">Funkpegel</dt>
@@ -237,16 +302,63 @@ export default async function Containerdetail({ params }: { params: Promise<{ id
             </div>
           </dl>
 
-          <div className="mt-6">
+          {/* Zeitraum: eine Reihe oberhalb beider Kurven. Beide zeigen dasselbe
+              Fenster, damit sich Fuellstand und Batterie untereinander lesen
+              lassen. */}
+          <div className="mt-6 border-t pt-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-semibold">Verlauf</h2>
+              <Zeitraumwahl pfad={`/intern/container/${c.id}`} aktiv={zeitraum.schluessel} />
+            </div>
+
             <Verlaufskurve
-              punkte={messungen.map((m) => ({ zeit: m.gemessen_am, prozent: m.fuellstand_prozent }))}
-              leerungen={leerungen.map((l) => l.geleert_am)}
-              schwelleVoll={schwelleVoll}
-              ueberschrift="Füllstandsverlauf, letzte 30 Tage"
+              punkte={messreihe.map((m) => ({ zeit: m.zeit, wert: m.fuellstand_prozent }))}
+              leerungen={leerungenImZeitraum}
+              schwelle={{ wert: schwelleVoll, text: `voll ab ${schwelleVoll} %` }}
+              ueberschrift={`Füllstand, ${zeitraumText(zeitraum)}`}
+              spaltenname="Füllstand"
+              von={von.toISOString()}
+              bis={bis.toISOString()}
             />
             <p className="mt-2 text-xs text-ink-3">
               Grüne Punkte auf der Grundlinie markieren erkannte Leerungen.
             </p>
+
+            <div className="mt-6">
+              <Verlaufskurve
+                punkte={batteriereihe}
+                schwelle={
+                  inProzent
+                    ? { wert: batterieMinProzent, text: `schwach ab ${batterieMinProzent} %` }
+                    : {
+                        wert: batterieMinVolt,
+                        text: `schwach ab ${batterieMinVolt.toLocaleString("de-DE")} V`,
+                      }
+                }
+                ueberschrift={`Batterie, ${zeitraumText(zeitraum)}`}
+                spaltenname="Ladezustand"
+                einheit={inProzent ? "%" : "V"}
+                yMin={batterieMin}
+                yMax={batterieMax}
+                nachkommastellen={inProzent ? 0 : 2}
+                farbe="var(--serie-2)"
+                wash="var(--serie-2-wash)"
+                von={von.toISOString()}
+                bis={bis.toISOString()}
+                leerText={
+                  sensor
+                    ? "Dieser Sensor hat im gewählten Zeitraum keinen Batteriewert gemeldet."
+                    : "Ohne zugeordneten Sensor gibt es keinen Batteriewert."
+                }
+              />
+              <p className="mt-2 text-xs text-ink-3">
+                {inProzent
+                  ? "Ladezustand, wie ihn das Gerät meldet."
+                  : "Zellenspannung des Eigenbaus."}{" "}
+                Unterschreitet der Wert die gestrichelte Linie, löst die Anlage den Alarm
+                „Batterie schwach“ aus.
+              </p>
+            </div>
           </div>
         </section>
 

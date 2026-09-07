@@ -88,6 +88,20 @@ export interface Messung {
   gueltig: boolean;
 }
 
+/**
+ * Ein Punkt der Verlaufskurven. Kommt aus public.messreihe() und ist bereits
+ * ein Mittelwert ueber einen Zeitkorb - je Kurve immer gleich viele Punkte,
+ * egal wie lang der Zeitraum und wie schnell der Sendetakt ist.
+ */
+export interface Messreihenpunkt {
+  zeit: string;
+  fuellstand_prozent: number | null;
+  batterie_prozent: number | null;
+  batterie_v: number | null;
+  /** Wie viele Rohmessungen in diesem Korb liegen. */
+  messungen: number;
+}
+
 export interface Leerung {
   id: string;
   container_id: string;
