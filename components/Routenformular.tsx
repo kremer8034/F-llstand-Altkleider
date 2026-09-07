@@ -1,4 +1,5 @@
 "use client";
+import { heute, tagAlsZeitpunkt } from "@/lib/zeit";
 
 import Link from "next/link";
 import { useActionState } from "react";
@@ -21,7 +22,7 @@ export function Routenformular({
   const [ergebnis, absenden] = useActionState<Routenergebnis | null, FormData>(routeSpeichern, null);
   const r = route;
 
-  const heute = new Date().toISOString().slice(0, 10);
+  const heutigerTag = heute();
 
   return (
     <form action={absenden} className="space-y-6">
@@ -54,7 +55,7 @@ export function Routenformular({
               name="anker_datum"
               type="date"
               required
-              defaultValue={r?.anker_datum ?? heute}
+              defaultValue={r?.anker_datum ?? heutigerTag}
               className="feld zahl"
             />
             <p className="mt-1 text-xs text-ink-3">
@@ -84,7 +85,7 @@ export function Routenformular({
           {r && (
             <p className="text-sm text-ink-2 sm:col-span-2">
               Aktuell: <strong>{rhythmusText(r.wochentag, r.intervall_wochen)}</strong> – der
-              Ankertermin fällt auf einen {wochentagName(isoWochentag(new Date(r.anker_datum)))}.
+              Ankertermin fällt auf einen {wochentagName(isoWochentag(tagAlsZeitpunkt(r.anker_datum)))}.
             </p>
           )}
 

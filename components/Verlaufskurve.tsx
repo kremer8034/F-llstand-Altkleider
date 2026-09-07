@@ -1,4 +1,5 @@
 "use client";
+import { ZEITZONE } from "@/lib/zeit";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatDatumZeit } from "@/lib/fuellstand";
@@ -235,12 +236,12 @@ export function Verlaufskurve({
   // Ueber ein Jahr sagt "07.09." nichts mehr - dann gehoert das Jahr dazu.
   const zeitFormat = useMemo(
     () =>
-      new Intl.DateTimeFormat(
-        "de-DE",
-        tSpanne > 200 * 86400_000
-          ? { month: "2-digit", year: "2-digit" }
-          : { day: "2-digit", month: "2-digit" },
-      ),
+      new Intl.DateTimeFormat("de-DE", {
+        timeZone: ZEITZONE,
+        ...(tSpanne > 200 * 86400_000
+          ? { month: "2-digit" as const, year: "2-digit" as const }
+          : { day: "2-digit" as const, month: "2-digit" as const }),
+      }),
     [tSpanne],
   );
 

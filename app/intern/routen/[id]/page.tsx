@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZEITZONE } from "@/lib/zeit";
 import { notFound } from "next/navigation";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
@@ -11,6 +12,7 @@ import { routeLoeschen, standortEntfernen, standorteZuordnen } from "../aktionen
 export const dynamic = "force-dynamic";
 
 const DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "short",
   day: "2-digit",
   month: "2-digit",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZEITZONE } from "@/lib/zeit";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Regeltouren" };
 
 const DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "short",
   day: "2-digit",
   month: "2-digit",

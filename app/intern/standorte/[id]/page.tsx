@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZEITZONE } from "@/lib/zeit";
 import { notFound } from "next/navigation";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
@@ -31,6 +32,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "short",
   day: "2-digit",
   month: "2-digit",

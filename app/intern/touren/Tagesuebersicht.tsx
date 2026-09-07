@@ -1,4 +1,5 @@
 "use client";
+import { ZEITZONE, heute, tagAlsZeitpunkt, tagStempel } from "@/lib/zeit";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,17 +29,19 @@ function fuellungenText(z: Tourzeile): string | null {
   return `${F.format((gemessen * Number(z.belegt_prozent)) / 100)} Füllungen`;
 }
 const DATUM_LANG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "long",
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 });
-const UHR = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
+const UHR = new Intl.DateTimeFormat("de-DE", { timeZone: ZEITZONE, hour: "2-digit", minute: "2-digit" });
 
 function tagVerschieben(datum: string, tage: number): string {
-  const d = new Date(`${datum}T12:00:00`);
-  d.setDate(d.getDate() + tage);
-  return d.toISOString().slice(0, 10);
+  // Ueber die Tagesmitte gerechnet, damit die 23- und die 25-Stunden-Nacht
+  // der Zeitumstellung keinen Tag verschlucken oder verdoppeln.
+  const d = tagAlsZeitpunkt(datum);
+  return tagStempel(new Date(d.getTime() + tage * 86400_000));
 }
 
 /**
@@ -89,8 +92,7 @@ export function Tagesuebersicht({
 
   const sichtbareTouren = touren.filter((t) => passt(gruppeJeTour[t.tour_id]));
 
-  const heute = new Date();
-  const istHeute = datum === new Date(heute.getTime() - heute.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const istHeute = datum === heute();
 
   // Fällige Standorte, die an diesem Tag noch auf keiner Tour stehen.
   const offen = useMemo(
@@ -122,7 +124,7 @@ export function Tagesuebersicht({
           ←
         </Link>
         <span className="font-medium">
-          {DATUM_LANG.format(new Date(`${datum}T12:00:00`))}
+          {DATUM_LANG.format(tagAlsZeitpunkt(datum))}
           {istHeute && <span className="ml-2 text-sm text-ink-3">heute</span>}
         </span>
         <Link href={`/intern/touren?tag=${tagVerschieben(datum, 1)}`} className="knopf-sekundaer px-3 py-1.5">

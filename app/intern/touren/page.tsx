@@ -3,18 +3,13 @@ import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
 import { einstellungen, zahlAusEinstellung } from "@/lib/daten";
 import { naechsterTermin, rhythmusText } from "@/lib/wochentage";
+import { heute, tagStempel } from "@/lib/zeit";
 import type { Gruppe, Route, TourFortschritt } from "@/lib/typen";
 import { Tagesuebersicht } from "./Tagesuebersicht";
 import type { Tourzeile } from "./planungstypen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Touren" };
-
-/** Heute im lokalen Kalender - nicht in UTC, sonst kippt der Tag am Abend. */
-function heute(): string {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
 
 export default async function TourenSeite({
   searchParams,
@@ -90,7 +85,7 @@ export default async function TourenSeite({
   // einem Klick eine Tagestour machen.
   const heuteFaellig = routen
     .map((r) => ({ route: r, termin: naechsterTermin(r.anker_datum, r.intervall_wochen) }))
-    .filter(({ termin }) => termin.toISOString().slice(0, 10) === datum)
+    .filter(({ termin }) => tagStempel(termin) === datum)
     .map(({ route }) => ({
       id: route.id,
       name: route.name,

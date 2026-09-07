@@ -1,4 +1,5 @@
 import type { ContainerPrognose, ContainerRhythmus, Prognosegrundlage } from "./typen";
+import { ZEITZONE } from "./zeit";
 
 /**
  * Darstellung von Prognose und Leerungsrhythmus.
@@ -21,6 +22,7 @@ function zahl(wert: number | string | null | undefined): number | null {
 }
 
 const WOCHENTAG_DATUM = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
   weekday: "short",
   day: "2-digit",
   month: "2-digit",

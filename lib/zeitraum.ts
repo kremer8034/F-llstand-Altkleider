@@ -20,7 +20,11 @@
  * Vorauswahlen nicht, sondern beantwortet die eine Frage, die keine von
  * ihnen kann: "was war am Dienstag letzter Woche?" Ein Zeitraum, der immer
  * an heute klebt, laesst sich nicht auf ein vergangenes Ereignis richten.
+ *
+ * Ein Tag ist dabei ein deutscher Tag - siehe lib/zeit.ts.
  */
+import { ZEITZONE, tagStempel, tagesbeginn, tagesende } from "./zeit";
+
 export interface Zeitraumvorgabe {
   schluessel: string;
   text: string;
@@ -63,30 +67,9 @@ export interface Zeitraum {
 export const MESSPUNKTE = 400;
 
 const TAG_MS = 86400_000;
-const ISO_TAG = /^\d{4}-\d{2}-\d{2}$/;
 
 /** "2026-09-07" - fuer die Vorbelegung von <input type="date">. */
-export function alsTagesfeld(datum: Date): string {
-  return datum.toISOString().slice(0, 10);
-}
-
-/**
- * Ein Tagesfeld zu einem Zeitpunkt. Die Anlage rechnet durchgaengig in UTC
- * (kein TZ in den Containern), deshalb hier auch - ein Tag im Formular ist
- * derselbe Tag wie in der Datenbank.
- *
- * Die Probe zum Schluss faengt Tage ab, die es nicht gibt: "2026-02-29" ist
- * ein gueltiges Muster, und Date macht daraus stillschweigend den 1. Maerz.
- * Ein Feld vom Typ "date" liefert so etwas nie - eine von Hand
- * zusammengesetzte Adresse schon, und dann soll die Seite auf die Vorauswahl
- * zurueckfallen statt einen anderen Tag zu zeigen als den, der dasteht.
- */
-function tagesgrenze(wert: string, ende: boolean): Date | null {
-  if (!ISO_TAG.test(wert)) return null;
-  const datum = new Date(`${wert}T${ende ? "23:59:59.999" : "00:00:00.000"}Z`);
-  if (Number.isNaN(datum.getTime())) return null;
-  return datum.toISOString().slice(0, 10) === wert ? datum : null;
-}
+export const alsTagesfeld = tagStempel;
 
 function vorgabeVon(schluessel: string | null | undefined): Zeitraumvorgabe {
   return (
@@ -110,11 +93,16 @@ export function zeitraumAus(
   jetzt: Date,
 ): Zeitraum {
   if (suche.zeitraum === ZEITRAUM_EIGEN) {
-    let von = tagesgrenze(suche.von ?? "", false);
-    let bis = tagesgrenze(suche.bis ?? "", true);
+    // Die Tagesgrenzen liegen in deutscher Zeit: "07.09." beginnt am 06.09.
+    // um 22:00 UTC, nicht um Mitternacht UTC. Sonst fehlten dem gewaehlten
+    // Tag die ersten zwei Stunden und die letzten zwei gehoerten dem
+    // naechsten - im Minutentakt sind das 120 Messungen an der falschen
+    // Stelle.
+    let von = tagesbeginn(suche.von ?? "");
+    let bis = tagesende(suche.bis ?? "");
 
     if (von && bis) {
-      if (von > bis) [von, bis] = [tagesgrenze(suche.bis ?? "", false)!, tagesgrenze(suche.von ?? "", true)!];
+      if (von > bis) [von, bis] = [tagesbeginn(suche.bis ?? "")!, tagesende(suche.von ?? "")!];
       return {
         schluessel: ZEITRAUM_EIGEN,
         text: `${tagText(von)} – ${tagText(bis)}`,
@@ -135,7 +123,12 @@ export function zeitraumAus(
   };
 }
 
-const TAG = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+const TAG = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 function tagText(datum: Date): string {
   return TAG.format(datum);
