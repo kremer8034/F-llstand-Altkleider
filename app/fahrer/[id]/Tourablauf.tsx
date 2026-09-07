@@ -374,7 +374,7 @@ export function Tourablauf({
         {kopf}
 
         <div className="karte-flaeche p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">Vor Ort</p>
+          <p className="text-xs font-medium text-ink-3">Vor Ort</p>
           <h1 className="mt-1 text-lg font-semibold">{naechster.name}</h1>
 
           <div className="mt-4">
@@ -526,7 +526,7 @@ export function Tourablauf({
       {kopf}
 
       <div className="karte-flaeche p-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+        <p className="text-xs font-medium text-ink-3">
           Nächster Stopp · {fertigeAnzahl + 1} von {alleStopps.length}
         </p>
         <h1 className="mt-1 text-2xl font-semibold">{naechster.name}</h1>

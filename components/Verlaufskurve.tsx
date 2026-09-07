@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatDatumZeit } from "@/lib/fuellstand";
 
 export interface Verlaufspunkt {
@@ -14,6 +14,9 @@ export interface Schwelle {
 }
 
 const RAND = { oben: 14, rechts: 18, unten: 30, links: 42 };
+// Ohne eigene Zeitachse braucht die Kurve unten nur Luft, keinen Platz fuer
+// Beschriftung - sonst klafft eine Luecke zur Kurve darunter.
+const UNTEN_OHNE_ACHSE = 6;
 
 /**
  * Achsenteilung auf runde Schritte. Ohne das steht an der Volt-Achse
@@ -65,6 +68,9 @@ export function Verlaufskurve({
   nachkommastellen = 0,
   farbe = "var(--serie)",
   wash = "var(--serie-wash)",
+  flaeche: mitFlaecheGewuenscht = true,
+  zeitachse = true,
+  eigeneTabelle = true,
   von,
   bis,
   spaltenname = "Wert",
@@ -89,6 +95,24 @@ export function Verlaufskurve({
   nachkommastellen?: number;
   farbe?: string;
   wash?: string;
+  /**
+   * Flaeche unter der Linie. An der fuehrenden Kurve richtig - sie gibt ihr
+   * Gewicht. An einer Nebenkurve falsch: zwei gleich satte Flaechen
+   * uebereinander sagen dem Auge, beide seien gleich wichtig.
+   */
+  flaeche?: boolean;
+  /**
+   * Eigene Zeitachse. Stehen zwei Kurven auf derselben Achse untereinander,
+   * traegt nur die untere die Beschriftung - zweimal dieselben Datumsangaben
+   * sind doppelte Tinte und trennen, was zusammengehoert.
+   */
+  zeitachse?: boolean;
+  /**
+   * Eigener Umschalter "Als Tabelle". Aus, wenn mehrere Kurven zusammen einen
+   * Bereich bilden: dort gehoert eine Tabelle hin, die alle Reihen
+   * nebeneinanderstellt, und ein Umschalter statt einer je Kurve.
+   */
+  eigeneTabelle?: boolean;
   /** Feste Zeitachse. Fehlt sie, spannt die Kurve ueber ihre eigenen Daten. */
   von?: string | number;
   bis?: string | number;
@@ -100,14 +124,30 @@ export function Verlaufskurve({
   const [aktiv, setAktiv] = useState<number | null>(null);
   const [tabelle, setTabelle] = useState(false);
 
+  // Die Breite kommt aus drei Quellen, und das ist Absicht. Der
+  // ResizeObserver allein hat sich als zu wenig erwiesen: meldet er einmal
+  // eine Breite aus einem Zwischenzustand des Layouts und aendert sich danach
+  // nichts mehr, bleibt die Kurve stumm auf einem Viertel der Kachel stehen -
+  // ohne Fehler, ohne dass es jemandem auffaellt. Deshalb zusaetzlich eine
+  // Messung direkt nach dem Einhaengen (noch vor dem ersten Bild) und eine
+  // beim Fenstergroessenwechsel.
+  const messen = useCallback(() => {
+    const b = behaelter.current?.getBoundingClientRect().width;
+    if (b && b > 0) setBreite(Math.max(280, b));
+  }, []);
+
+  useLayoutEffect(messen, [messen]);
+
   useEffect(() => {
     if (!behaelter.current) return;
-    const beobachter = new ResizeObserver(([eintrag]) => {
-      setBreite(Math.max(280, eintrag.contentRect.width));
-    });
+    const beobachter = new ResizeObserver(messen);
     beobachter.observe(behaelter.current);
-    return () => beobachter.disconnect();
-  }, []);
+    window.addEventListener("resize", messen);
+    return () => {
+      beobachter.disconnect();
+      window.removeEventListener("resize", messen);
+    };
+  }, [messen]);
 
   const daten = useMemo(
     () =>
@@ -119,7 +159,8 @@ export function Verlaufskurve({
   );
 
   const plotBreite = breite - RAND.links - RAND.rechts;
-  const plotHoehe = hoehe - RAND.oben - RAND.unten;
+  const randUnten = zeitachse ? RAND.unten : UNTEN_OHNE_ACHSE;
+  const plotHoehe = hoehe - RAND.oben - randUnten;
 
   // Die Zeitachse kommt von aussen, wenn zwei Kurven untereinander stehen:
   // sonst spannt jede ueber ihre eigenen Daten, und zwei Kurven mit
@@ -151,7 +192,7 @@ export function Verlaufskurve({
       plotHoehe;
   // Eine Flaeche misst vom Nullpunkt. Faengt die Achse woanders an, faellt sie
   // weg - sonst stuende dort eine Menge, die es nicht gibt.
-  const mitFlaeche = raster.unten <= 0;
+  const mitFlaeche = mitFlaecheGewuenscht && raster.unten <= 0;
 
   const zahlText = (wert: number) =>
     wert.toLocaleString("de-DE", {
@@ -204,9 +245,10 @@ export function Verlaufskurve({
   );
 
   const xTicks = useMemo(() => {
+    if (!zeitachse) return [];
     const anzahl = Math.min(6, Math.max(2, Math.floor(plotBreite / 90)));
     return Array.from({ length: anzahl }, (_, i) => tMin + (tSpanne * i) / (anzahl - 1));
-  }, [plotBreite, tMin, tSpanne]);
+  }, [zeitachse, plotBreite, tMin, tSpanne]);
 
   function beiBewegung(ereignis: React.PointerEvent<SVGSVGElement>) {
     if (daten.length === 0) return;
@@ -227,7 +269,7 @@ export function Verlaufskurve({
   const kopf = (
     <div className="mb-2 flex items-baseline justify-between gap-3">
       <h3 className="text-sm font-semibold text-ink">{ueberschrift}</h3>
-      {daten.length > 0 && (
+      {eigeneTabelle && daten.length > 0 && (
         <button
           type="button"
           onClick={() => setTabelle((t) => !t)}
@@ -257,7 +299,7 @@ export function Verlaufskurve({
     <div ref={behaelter} className="w-full">
       {kopf}
 
-      {tabelle ? (
+      {eigeneTabelle && tabelle ? (
         <div className="max-h-64 overflow-y-auto rounded-lg border">
           <table className="tabelle">
             <thead className="sticky top-0 bg-flaeche">
@@ -291,6 +333,36 @@ export function Verlaufskurve({
               letzter.y,
             )} ${einheit} am ${formatDatumZeit(letzter.zeit)}`}
           >
+            {/* Zeitraum ohne Messwerte kenntlich machen. Ein frisch angelernter
+                Sensor hat bei "letztes Jahr" eine Handvoll Punkte ganz rechts
+                und links davon nichts - ohne diese Flaeche sieht das aus wie
+                ein Container, der ein Jahr lang leer war. Der Unterschied
+                zwischen "nichts gemessen" und "null gemessen" ist hier der
+                ganze Unterschied. */}
+            {daten[0].t - tMin > tSpanne * 0.04 && (
+              <g>
+                <rect
+                  x={RAND.links}
+                  y={RAND.oben}
+                  width={Math.max(0, x(daten[0].t) - RAND.links)}
+                  height={plotHoehe}
+                  fill="var(--flaeche-2)"
+                  opacity="0.75"
+                />
+                {x(daten[0].t) - RAND.links > 150 && (
+                  <text
+                    x={(RAND.links + x(daten[0].t)) / 2}
+                    y={RAND.oben + plotHoehe / 2}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fill="var(--ink-3)"
+                  >
+                    keine Messwerte vor {zeitFormat.format(new Date(daten[0].t))}
+                  </text>
+                )}
+              </g>
+            )}
+
             {/* Gitter: durchgezogene Haarlinien, zuruecktretend */}
             {raster.ticks.map((wert) => (
               <g key={wert}>

@@ -95,7 +95,7 @@ export default async function SensorenSeite() {
                 <div className="min-w-[180px] flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     {still && <Stufensymbol stufe="unbekannt" />}
-                    <span className="zahl font-medium">{s.geraete_id}</span>
+                    <span className="kennung font-medium">{s.geraete_id}</span>
                     <span className="rounded bg-flaeche-2 px-1.5 py-0.5 text-xs text-ink-2">
                       {STATUS_TEXT[s.status] ?? s.status}
                     </span>
@@ -161,10 +161,13 @@ export default async function SensorenSeite() {
                     </form>
                   )}
 
+                  {/* knopf-gefahr: sah bis hierher aus wie "Einstellungen"
+                      daneben, loest aber die Verbindung zwischen Geraet und
+                      Container. Gleiche Form, gleiche Farbe, ungleiche Folgen. */}
                   {bearbeiten && s.container_id && (
                     <form action={sensorEntkoppeln}>
                       <input type="hidden" name="sensor_id" value={s.id} />
-                      <button type="submit" className="knopf-sekundaer px-3 py-1.5">
+                      <button type="submit" className="knopf-gefahr px-3 py-1.5">
                         Entkoppeln
                       </button>
                     </form>

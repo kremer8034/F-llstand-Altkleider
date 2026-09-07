@@ -222,9 +222,20 @@ export function Containeransicht({
             einmal – <strong>nicht</strong>, dass hier keine Container in der Nähe wären.
           </p>
         ) : (
-          <p className="px-5 py-6 text-sm text-ink-2">
-            In der Nähe ist gerade kein Platz mit freier Kapazität bekannt.
-          </p>
+          /* Ein leerer Bildschirm ist eine Aufforderung, kein Befund. Hier
+             stand bisher nur, was die Anlage nicht weiss - und wer mit einer
+             Tuete davorsteht, blieb ohne naechsten Schritt. */
+          <div className="px-5 py-6">
+            <p className="text-sm text-ink-2">
+              In der Nähe ist gerade kein Platz mit freier Kapazität bekannt. Alle gemeldeten
+              Abgabestellen sind voll oder haben länger nichts gemeldet.
+            </p>
+            <p className="mt-2 text-sm text-ink-2">
+              Bitte stellen Sie nichts neben den Container – lose Säcke im Freien werden nass und
+              müssen als Restmüll entsorgt werden. Melden Sie den Behälter unten als voll, dann
+              nehmen wir ihn in die nächste Planung auf.
+            </p>
+          </div>
         )}
       </section>
 
@@ -292,7 +303,7 @@ export function Containeransicht({
       <section className="karte-flaeche p-5">
         {dieser ? (
           <>
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+            <p className="text-xs font-medium text-ink-3">
               Diese Abgabestelle
             </p>
             <h2 className="mt-1 font-semibold">{hier?.name ?? dieser.nummer}</h2>
@@ -311,6 +322,10 @@ export function Containeransicht({
               <span className="text-xs text-ink-3">Messung {alterText(hier?.gemessen_am)}</span>
             </div>
 
+            {/* Der einzige Grund, warum jemand am Behaelter steht und den Code
+                scannt. Trug bis hierher den Sekundaerstil und sah damit aus
+                wie ein Nebenweg. Auf dem Telefon ueber die volle Breite: er
+                wird im Stehen mit einer Hand getroffen. */}
             <div className="mt-4 border-t pt-4">
               <h3 className="text-sm font-semibold">Ist der Container vor Ihnen voll?</h3>
               <p className="mt-1 text-sm text-ink-2">
@@ -328,7 +343,7 @@ export function Containeransicht({
                     type="button"
                     onClick={alsVollMelden}
                     disabled={meldung === "laeuft"}
-                    className="knopf-sekundaer mt-3"
+                    className="knopf-primaer mt-3 w-full sm:w-auto"
                   >
                     {meldung === "laeuft" ? "Wird gemeldet …" : "Container ist voll"}
                   </button>

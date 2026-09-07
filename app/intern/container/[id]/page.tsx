@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Fuellstandsbalken } from "@/components/Fuellstandsbalken";
 import { Stufensymbol } from "@/components/Stufensymbol";
 import { Prognosekarte } from "@/components/Prognosekarte";
-import { Verlaufskurve } from "@/components/Verlaufskurve";
+import { Verlaufsbereich } from "@/components/Verlaufsbereich";
 import { Zeitraumwahl } from "@/components/Zeitraumwahl";
 import { serverClient } from "@/lib/supabase/server";
 import { angemeldeterBenutzer, darfBearbeiten } from "@/lib/auth";
@@ -147,34 +147,9 @@ export default async function Containerdetail({
   const stufe = stufeVon(zustand?.fuellstand_prozent);
   const bearbeiten = benutzer ? darfBearbeiten(benutzer.profil.rolle) : false;
 
-  // Die Batterie kommt je nach Geraeteart in Prozent oder in Volt: ein
-  // Fertiggeraet meldet den Ladestand, der Eigenbau die Zellenspannung
-  // (0020_fertiggeraete.sql). Was die Kurve zeigt, entscheidet deshalb nicht
-  // die Bauart, sondern was im Zeitraum tatsaechlich angekommen ist - sonst
-  // stuende bei einem getauschten Sensor eine leere Kurve da.
-  const hatProzent = messreihe.some((m) => m.batterie_prozent !== null);
-  const hatVolt = messreihe.some((m) => m.batterie_v !== null);
-  const inProzent = hatProzent || !hatVolt;
-  const batteriereihe = messreihe.map((m) => ({
-    zeit: m.zeit,
-    wert: inProzent ? m.batterie_prozent : m.batterie_v,
-  }));
-  // Prozent ist von Haus aus eine 0..100er Achse. Volt nicht: eine
-  // Lithiumzelle bewegt sich im Betrieb zwischen etwa 3,0 und 3,7 V, und auf
-  // einer Achse ab 0 V waere ihr ganzer Verlauf ein Strich am oberen Rand.
-  // Die Achse spannt deshalb um die tatsaechlichen Werte und um die Schwelle,
-  // auf ganze Zehntel gerundet - die Schwelle muss zu sehen sein, auch wenn
-  // die Zelle noch weit darueber liegt.
-  const voltwerte = batteriereihe
-    .map((b) => b.wert)
-    .filter((w): w is number => w !== null)
-    .concat(batterieMinVolt);
-  const batterieMin = inProzent
-    ? 0
-    : Math.floor((Math.min(...voltwerte) - 0.1) * 10) / 10;
-  const batterieMax = inProzent
-    ? 100
-    : Math.max(batterieMin + 0.4, Math.ceil((Math.max(...voltwerte) + 0.1) * 10) / 10);
+  // Fuer die Kachel oben: welche Einheit dieser Container liefert. Die Kurven
+  // entscheiden das noch einmal selbst, auf Grundlage des Zeitraums.
+  const inProzent = zustand?.batterie_prozent !== null && zustand?.batterie_prozent !== undefined;
   const batterieJetzt = inProzent ? zustand?.batterie_prozent : zustand?.batterie_v;
 
   return (
@@ -190,7 +165,7 @@ export default async function Containerdetail({
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{c.bezeichnung ?? c.nummer}</h1>
           <p className="mt-1 text-sm text-ink-2">
-            <span className="zahl">{c.nummer}</span>
+            <span className="kennung">{c.nummer}</span>
             {standort?.ort && ` · ${standort.ort}`}
             {c.aufstelldatum && ` · Standort seit ${formatDatum(c.aufstelldatum)}`}
           </p>
@@ -263,8 +238,10 @@ export default async function Containerdetail({
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Aktueller Stand + Verlauf */}
-        <section className="karte-flaeche p-4 lg:col-span-2">
+        {/* Aktueller Stand. self-start, sonst dehnt das Raster die Kachel auf
+            die Hoehe der rechten Spalte - mit der langen Kalibrierkarte waren
+            das rund 700 px Weissraum unter vier Kennzahlen. */}
+        <section className="karte-flaeche p-4 lg:col-span-2 lg:self-start">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Stufensymbol stufe={stufe} groesse={20} />
@@ -301,69 +278,12 @@ export default async function Containerdetail({
               </dd>
             </div>
           </dl>
-
-          {/* Zeitraum: eine Reihe oberhalb beider Kurven. Beide zeigen dasselbe
-              Fenster, damit sich Fuellstand und Batterie untereinander lesen
-              lassen. */}
-          <div className="mt-6 border-t pt-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-semibold">Verlauf</h2>
-              <Zeitraumwahl pfad={`/intern/container/${c.id}`} aktiv={zeitraum.schluessel} />
-            </div>
-
-            <Verlaufskurve
-              punkte={messreihe.map((m) => ({ zeit: m.zeit, wert: m.fuellstand_prozent }))}
-              leerungen={leerungenImZeitraum}
-              schwelle={{ wert: schwelleVoll, text: `voll ab ${schwelleVoll} %` }}
-              ueberschrift={`Füllstand, ${zeitraumText(zeitraum)}`}
-              spaltenname="Füllstand"
-              von={von.toISOString()}
-              bis={bis.toISOString()}
-            />
-            <p className="mt-2 text-xs text-ink-3">
-              Grüne Punkte auf der Grundlinie markieren erkannte Leerungen.
-            </p>
-
-            <div className="mt-6">
-              <Verlaufskurve
-                punkte={batteriereihe}
-                schwelle={
-                  inProzent
-                    ? { wert: batterieMinProzent, text: `schwach ab ${batterieMinProzent} %` }
-                    : {
-                        wert: batterieMinVolt,
-                        text: `schwach ab ${batterieMinVolt.toLocaleString("de-DE")} V`,
-                      }
-                }
-                ueberschrift={`Batterie, ${zeitraumText(zeitraum)}`}
-                spaltenname="Ladezustand"
-                einheit={inProzent ? "%" : "V"}
-                yMin={batterieMin}
-                yMax={batterieMax}
-                nachkommastellen={inProzent ? 0 : 2}
-                farbe="var(--serie-2)"
-                wash="var(--serie-2-wash)"
-                von={von.toISOString()}
-                bis={bis.toISOString()}
-                leerText={
-                  sensor
-                    ? "Dieser Sensor hat im gewählten Zeitraum keinen Batteriewert gemeldet."
-                    : "Ohne zugeordneten Sensor gibt es keinen Batteriewert."
-                }
-              />
-              <p className="mt-2 text-xs text-ink-3">
-                {inProzent
-                  ? "Ladezustand, wie ihn das Gerät meldet."
-                  : "Zellenspannung des Eigenbaus."}{" "}
-                Unterschreitet der Wert die gestrichelte Linie, löst die Anlage den Alarm
-                „Batterie schwach“ aus.
-              </p>
-            </div>
-          </div>
         </section>
 
-        {/* Prognose, Sensor und Kalibrierung */}
-        <section className="space-y-4">
+        {/* Prognose - das Einzige aus dieser Spalte, das zur Statuszeile
+            gehoert: was ist jetzt, und was heisst das fuer die naechste Tour.
+            Sensor und Kalibrierung sind Technik und stehen am Seitenende. */}
+        <section className="space-y-4 lg:self-start">
           <Prognosekarte
             prognose={prognose}
             rhythmus={rhythmus}
@@ -371,96 +291,24 @@ export default async function Containerdetail({
             schwelleVoll={schwelleVoll}
           />
 
-          <div className="karte-flaeche p-4">
-            <h2 className="mb-3 font-semibold">Sensor</h2>
-
-            {sensor ? (
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-ink-3">Geräte-ID</dt>
-                  <dd className="zahl font-medium">{sensor.geraete_id}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-ink-3">Status</dt>
-                  <dd className="font-medium">{sensor.status}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-ink-3">Letzte Meldung</dt>
-                  <dd>{alterText(sensor.letzte_meldung_am)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-ink-3">Sendeintervall</dt>
-                  <dd className="zahl">{sensor.intervall_minuten} Min.</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-ink-3">Firmware</dt>
-                  <dd className="zahl">{sensor.firmware ?? "–"}</dd>
-                </div>
-                <div className="pt-2">
-                  <Link href={`/intern/sensoren`} className="text-sm underline underline-offset-2">
-                    Sensorverwaltung
-                  </Link>
-                </div>
-              </dl>
-            ) : (
-              <div className="space-y-3 text-sm">
-                <p className="text-ink-2">Diesem Container ist noch kein Sensor zugeordnet.</p>
-                <Link href={`/intern/sensoren/anlernen?container=${c.id}`} className="knopf-primaer">
-                  Sensor anlernen
-                </Link>
-              </div>
-            )}
-          </div>
-
-          <div className="karte-flaeche p-4">
-            <h2 className="mb-1 font-semibold">Kalibrierung</h2>
-            <p className="mb-3 text-xs text-ink-3">
-              Einbauhöhe = Abstand von der Sensorunterkante bis zum Boden bei leerem Container. Der
-              Montageversatz des Geräts kommt automatisch dazu; der Wert, ab dem 100 % gilt, ist ein
-              fester Anteil davon.
-            </p>
-
-            <form action={kalibrieren} className="space-y-3">
-              <input type="hidden" name="container_id" value={c.id} />
-
-              <div>
-                <label htmlFor="einbauhoehe" className="mb-1 block text-xs text-ink-3">
-                  Einbauhöhe (mm)
-                </label>
-                <input
-                  id="einbauhoehe"
-                  name="einbauhoehe_mm"
-                  type="number"
-                  inputMode="numeric"
-                  defaultValue={sensor?.einbauhoehe_mm ?? ""}
-                  placeholder="z. B. 1450"
-                  className="feld zahl"
-                />
-                <p className="mt-1 text-xs text-ink-3">
-                  Sensorunterkante bis Boden bei leerem Container. Leer lassen heißt: aus den
-                  letzten Messungen ermitteln. Der Vollwert ist ein fester Anteil davon und wird
-                  nicht mehr getrennt gepflegt.
-                </p>
-              </div>
-
-              <button type="submit" className="knopf-primaer w-full">
-                Kalibrierung speichern
-              </button>
-              {/* Das Fenster steht als Einstellung und war hier bis 0009 fest
-                  mit einer Stunde angegeben; der Taster gilt nur für den
-                  Eigenbau. Beides stand hier falsch. */}
-              <p className="text-xs text-ink-3">
-                Feld leer lassen und speichern: die Einbauhöhe wird aus den gültigen Messungen der
-                letzten <span className="zahl">{kalibrierFenster}</span> Stunden übernommen – der
-                Container muss dabei leer sein.
-                {sensor && istFertiggeraet(sensor.bauart)
-                  ? " Dieses Gerät meldet nur nach seinem Sendeintervall; liegt keine Messung im Fenster, die Einbauhöhe von Hand eintragen."
-                  : " Beim Eigenbau lässt sich mit dem Taster am Gehäuse sofort eine Messung auslösen."}
-              </p>
-            </form>
-          </div>
         </section>
       </div>
+
+      {/* Verlauf ueber die volle Breite. In der zweidrittelbreiten Spalte
+          standen die Kurven auf 790 px, waehrend rechts unter der Sensorkachel
+          500 px leer blieben - und eine Zeitreihe ueber ein Jahr ist genau das,
+          was Breite braucht. */}
+      <Verlaufsbereich
+        reihe={messreihe}
+        leerungen={leerungenImZeitraum}
+        von={von.toISOString()}
+        bis={bis.toISOString()}
+        schwelleVoll={schwelleVoll}
+        batterieMinProzent={batterieMinProzent}
+        batterieMinVolt={batterieMinVolt}
+        kopfzeile={`Verlauf, ${zeitraumText(zeitraum)}`}
+        zeitraumwahl={<Zeitraumwahl pfad={`/intern/container/${c.id}`} aktiv={zeitraum.schluessel} />}
+      />
 
       {/* Erfassung vor Ort */}
       <Erfassungsbereich
@@ -530,6 +378,100 @@ export default async function Containerdetail({
           )}
         </section>
       </div>
+
+      {/* Sensor und Kalibrierung zuletzt. Beides braucht man beim Anlernen und
+          bei einer Stoerung, nicht beim taeglichen Blick auf den Behaelter -
+          oben stand die lange Kalibrierkarte bisher gleichrangig neben dem
+          Fuellstand und zog die ganze Zeile auf ihre Hoehe. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+          <div className="karte-flaeche p-4">
+          <h2 className="mb-3 font-semibold">Sensor</h2>
+
+          {sensor ? (
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Geräte-ID</dt>
+                <dd className="zahl font-medium">{sensor.geraete_id}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Status</dt>
+                <dd className="font-medium">{sensor.status}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Letzte Meldung</dt>
+                <dd>{alterText(sensor.letzte_meldung_am)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Sendeintervall</dt>
+                <dd className="zahl">{sensor.intervall_minuten} Min.</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Firmware</dt>
+                <dd className="zahl">{sensor.firmware ?? "–"}</dd>
+              </div>
+              <div className="pt-2">
+                <Link href={`/intern/sensoren`} className="text-sm underline underline-offset-2">
+                  Sensorverwaltung
+                </Link>
+              </div>
+            </dl>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <p className="text-ink-2">Diesem Container ist noch kein Sensor zugeordnet.</p>
+              <Link href={`/intern/sensoren/anlernen?container=${c.id}`} className="knopf-primaer">
+                Sensor anlernen
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="karte-flaeche p-4">
+          <h2 className="mb-3 font-semibold">Kalibrierung</h2>
+
+          <form action={kalibrieren} className="space-y-3">
+            <input type="hidden" name="container_id" value={c.id} />
+
+            <div>
+              <label htmlFor="einbauhoehe" className="mb-1 block text-xs text-ink-3">
+                Einbauhöhe (mm)
+              </label>
+              <input
+                id="einbauhoehe"
+                name="einbauhoehe_mm"
+                type="number"
+                inputMode="numeric"
+                defaultValue={sensor?.einbauhoehe_mm ?? ""}
+                placeholder="z. B. 1450"
+                className="feld zahl"
+              />
+              {/* Eine Erklaerung, nicht drei. Dieselbe Definition stand
+                  bis hierher ueber der Karte, unter dem Feld und noch
+                  einmal unter dem Knopf. */}
+              <p className="mt-1.5 text-xs leading-relaxed text-ink-3">
+                Abstand von der Sensorunterkante bis zum Boden, bei leerem Container. Der
+                Montageversatz des Geräts kommt automatisch dazu, ebenso der Wert, ab dem
+                100 % gilt.
+              </p>
+            </div>
+
+            <button type="submit" className="knopf-primaer w-full">
+              Kalibrierung speichern
+            </button>
+            {/* Das Fenster steht als Einstellung und war hier bis 0009 fest
+                mit einer Stunde angegeben; der Taster gilt nur für den
+                Eigenbau. Beides stand hier falsch. */}
+            <p className="text-xs leading-relaxed text-ink-3">
+              Feld leer lassen und speichern: die Höhe wird aus den gültigen Messungen der
+              letzten <span className="zahl">{kalibrierFenster}</span> Stunden übernommen – der
+              Container muss dabei leer sein.
+              {sensor && istFertiggeraet(sensor.bauart)
+                ? " Dieses Gerät meldet nur nach seinem Sendeintervall; liegt keine Messung im Fenster, die Höhe von Hand eintragen."
+                : " Beim Eigenbau löst der Taster am Gehäuse sofort eine Messung aus."}
+            </p>
+          </form>
+        </div>
+      </div>
+
     </div>
   );
 }
