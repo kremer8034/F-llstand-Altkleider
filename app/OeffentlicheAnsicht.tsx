@@ -117,7 +117,6 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
 
         {gefiltert.map((p) => {
           const veraltet = istVeraltet(p.gemessen_am);
-          const teilweise = p.container_gemessen > 0 && p.container_gemessen < p.container_gesamt;
 
           return (
             <div key={p.standort_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
@@ -136,13 +135,20 @@ export function OeffentlicheAnsicht({ plaetze }: { plaetze: OeffentlicherStandor
                 zweimal, was die Zeile laenger macht, ohne sie klarer zu machen.
 
                 Was bleibt, steht in der Reihenfolge, in der man es braucht:
-                wie voll, wie verlaesslich, wie alt.
+                wie voll, wie alt.
+
+                "nicht alles gemessen" stand hier ebenfalls und ist bewusst
+                weg. Es beschrieb unsere Ausstattung, nicht seine Frage: dass
+                an einem Platz mit sechs Kuebeln erst einer einen Sensor hat,
+                aendert an dem, was er wissen will - nimmt der Platz noch
+                etwas auf? - gar nichts. Wer davorsteht, sieht ohnehin, was
+                voll ist. Fuer den internen Bereich bleibt die Unterscheidung
+                erhalten (container_gemessen in oeffentliche_standorte).
               */}
               <div className="w-full max-w-[260px] shrink-0">
                 <Fuellstandsbalken prozent={p.belegt_prozent} />
                 <div className="mt-1 text-xs text-ink-3">
                   {p.belegt_prozent === null ? "Noch keine Messung" : STUFEN[p.stufe].text}
-                  {teilweise && " · nicht alles gemessen"}
                   {p.gemessen_am && ` · Stand ${alterText(p.gemessen_am)}`}
                   {veraltet && " (veraltet)"}
                 </div>

@@ -248,7 +248,7 @@ Unter *Device → General*:
 Das Gerät misst also im Reporting Interval, sammelt und sendet erst, wenn es
 so viele Messungen beisammen hat. Werkseinstellung 30 min × 12 = alle sechs
 Stunden. Mit 360 min × 12 wären es **alle drei Tage** – die Anwendung hielte
-den Sensor längst für tot (`max_stille_stunden`, Vorgabe 30) und beim
+den Sensor längst für tot (`max_stille_stunden`, Vorgabe 24) und beim
 Kalibrieren wartete man vergeblich.
 
 Aus geschaltet gilt schlicht: alle 360 Minuten eine Messung, sofort gesendet.
@@ -341,8 +341,11 @@ Wissen, dass sie beim Nachkalibrieren mitgeführt werden muss.
 
 **„Current Value: 65533 m"** ist übrigens kein Messwert, sondern die
 Fehlerkennung des Sensors (0xFFFD) – er sieht gerade nichts im Messbereich.
-Auf dem Schreibtisch ist das normal. Käme dieser Wert im Betrieb, stünde er
-als ungültig in der Datenbank und erzeugte keinen Füllstand.
+Auf dem Schreibtisch ist das normal. Im Betrieb steht er als ungültig in der
+Datenbank und erzeugt keinen Füllstand – und kommt er mehrmals hintereinander,
+meldet die Anlage **„Nichts im Messbereich“**: dann steht etwas direkt vor dem
+Sensor (randvoller Behälter, verdeckte Membran, heruntergefallene Sonde),
+siehe [betrieb.md](betrieb.md), Abschnitt 2b.
 
 ---
 

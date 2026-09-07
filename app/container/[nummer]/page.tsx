@@ -3,8 +3,11 @@ import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
 import type { OeffentlicherContainer, OeffentlicherStandort } from "@/lib/typen";
 import { Containeransicht } from "./Containeransicht";
 
-// Wie die öffentliche Karte: aktuell, aber nicht bei jedem Aufruf frisch.
-export const revalidate = 60;
+// Wie die öffentliche Karte: bei jedem Aufruf frisch. Die Begründung steht in
+// app/page.tsx - ein abgelaufener Zwischenspeicher liefert hier den Stand des
+// vorigen Besuchers aus, und wer vor dem Container steht, entscheidet gerade
+// anhand dieser Zahl, ob er weiterfährt.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ nummer: string }> }) {
   const { nummer } = await params;

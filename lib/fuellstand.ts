@@ -66,8 +66,13 @@ export function standzeitText(tage: number | null | undefined): string {
   return `${(tage / 365.25).toFixed(1).replace(".", ",")} Jahre`;
 }
 
-/** Messwert gilt als veraltet, wenn er aelter als das doppelte Sendeintervall ist. */
-export function istVeraltet(zeitpunkt: string | null | undefined, stundenGrenze = 30): boolean {
+/**
+ * Messwert gilt als veraltet, wenn seit ihm mehr als `stundenGrenze` vergangen
+ * sind. Der Vorgabewert entspricht der Einstellung `max_stille_stunden`: seit
+ * 0026 ein Tag - so lange, wie ein Geraet schweigen darf, bevor die Anlage von
+ * sich aus meldet (siehe supabase/migrations/0026_meldungen.sql).
+ */
+export function istVeraltet(zeitpunkt: string | null | undefined, stundenGrenze = 24): boolean {
   if (!zeitpunkt) return true;
   return Date.now() - new Date(zeitpunkt).getTime() > stundenGrenze * 3600_000;
 }

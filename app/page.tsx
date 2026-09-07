@@ -2,9 +2,23 @@ import { oeffentlicherClient } from "@/lib/supabase/oeffentlich";
 import type { OeffentlicherStandort } from "@/lib/typen";
 import { OeffentlicheAnsicht } from "./OeffentlicheAnsicht";
 
-// Die oeffentliche Karte soll aktuell sein, aber nicht bei jedem Aufruf die
-// Datenbank belasten: eine Minute Zwischenspeicher ist ein guter Kompromiss.
-export const revalidate = 60;
+/**
+ * Diese Seite wird bei jedem Aufruf frisch gebaut.
+ *
+ * Vorher stand hier `revalidate = 60` in der Annahme, die Anzeige sei damit
+ * hoechstens eine Minute alt. Das ist nicht, was diese Zahl bedeutet. Next
+ * liefert eine abgelaufene Seite naemlich AUS und baut sie erst danach neu
+ * ("stale-while-revalidate"): Wer die Seite aufruft, bekommt den Stand des
+ * VORIGEN Aufrufs. Auf einer Seite, die alle paar Minuten jemand oeffnet,
+ * heisst das nicht "eine Minute alt", sondern "so alt wie der letzte Besuch"
+ * - gemessen am 07.09.2026 waren es 21 Minuten, obwohl der Sensor im
+ * Minutentakt meldete und die Datenbank auf die Sekunde aktuell war.
+ *
+ * Die Belastung, die der Zwischenspeicher abfangen sollte, ist eine einzelne
+ * Abfrage auf eine Ansicht mit einer Zeile je Platz. Dafuer lohnt es nicht,
+ * die Aktualitaet zu verlieren, die der ganze Aufbau erzeugt.
+ */
+export const dynamic = "force-dynamic";
 
 export default async function Startseite() {
   const supabase = oeffentlicherClient();

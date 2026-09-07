@@ -32,7 +32,8 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Karte und Liste aller freigegebenen **Standorte** mit Belegung und Alter der
   Messung; Filter „Noch Platz“; Routenlink ins Navigationsgerät. Ein Eintrag je
   Platz, nicht je Behälter – für den Bürger ist ein Parkplatz mit sechs Kübeln
-  eine Anlaufstelle und keine sechs
+  eine Anlaufstelle und keine sechs. Die Seite wird bei jedem Aufruf frisch
+  gebaut: ein Zwischenspeicher liefert hier den Stand des vorigen Besuchers aus
 - **QR-Code am Behälter** (`/container/<Nummer>`): nennt zuerst den nächsten
   Platz mit freier Kapazität, mit Entfernung, Routenknopf und Karte. Der
   Standort wird beim Laden abgefragt, nicht auf Knopfdruck; er bleibt dabei auf
@@ -92,9 +93,13 @@ Entstanden für den **BRK Kreisverband Miltenberg**.
 - Prognose, wann ein Container die Tourenschwelle und die Vollschwelle erreicht –
   aus dem Anstieg im laufenden Zyklus und dem bisherigen Leerungsrhythmus
 - Leerungserkennung aus dem Verlauf
-- Alarme: voll, kein Signal, Batterie schwach – öffnen und schließen sich selbst;
-  die stündliche Signalprüfung läuft im Docker-Betrieb als eigener Dienst
-  (`cron`), bei Vercel als Cron-Eintrag
+- Meldungen: voll, kein Signal, Batterie schwach, **keine brauchbaren
+  Messwerte**, **Sensor verrutscht** und **nichts im Messbereich** (randvoller
+  Behälter oder verdeckte Sonde) – öffnen und schließen sich selbst. Die
+  Leitlinie: eine ausgefallene Übertragung ist Normalbetrieb, gemeldet wird
+  erst, wenn einen ganzen Tag lang nichts Brauchbares ankommt. Die stündliche
+  Prüfung läuft im Docker-Betrieb als eigener Dienst (`cron`), bei Vercel als
+  Cron-Eintrag ([docs/betrieb.md](docs/betrieb.md), Abschnitt 2b)
 - Sendeintervall der Geräte aus der Oberfläche steuerbar, ohne neu zu flashen
 
 ## Aufbau

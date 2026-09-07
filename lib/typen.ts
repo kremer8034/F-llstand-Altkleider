@@ -2,7 +2,16 @@ export type Benutzerrolle = "admin" | "dispo" | "fahrer";
 export type ContainerStatus = "aktiv" | "inaktiv" | "defekt" | "entfernt";
 export type SensorStatus = "neu" | "angelernt" | "wartung" | "defekt" | "ausser_betrieb";
 export type Messanlass = "intervall" | "test" | "taster" | "schwellwert" | "neustart";
-export type Alarmtyp = "fuellstand" | "kein_signal" | "batterie_schwach" | "messfehler";
+export type Alarmtyp =
+  | "fuellstand"
+  | "kein_signal"
+  | "batterie_schwach"
+  | "messfehler"
+  | "sensor_lage"
+  | "ausser_messbereich";
+
+/** Lage des Geraets, wie Fertiggeraete sie melden. NULL: Bauart sagt nichts dazu. */
+export type Lage = "normal" | "tilt";
 export type Meldungstyp = "voll" | "beschaedigt" | "vermuellt" | "zugeparkt" | "sonstiges";
 export type Fuellstandsstufe = "frei" | "teilweise" | "hoch" | "voll" | "unbekannt";
 
@@ -43,6 +52,7 @@ export interface ContainerZustand {
   batterie_v: number | null;
   batterie_prozent: number | null;
   rssi: number | null;
+  lage: string | null;
 }
 
 export interface Sensor {
@@ -86,6 +96,7 @@ export interface Messung {
   rssi: number | null;
   anlass: Messanlass;
   gueltig: boolean;
+  lage: string | null;
 }
 
 /**

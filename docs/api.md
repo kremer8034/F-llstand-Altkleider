@@ -148,7 +148,7 @@ in `messung.roh`.
 | Antwort | Bedeutung |
 |---|---|
 | `{"ok":true,"gespeichert":true}` | angekommen und abgelegt |
-| `{"ok":true,"gespeichert":false}` | Lebenszeichen ohne Messwert – kein Fehler |
+| `{"ok":true,"gespeichert":true,"messwert":false}` | Lebenszeichen ohne Messwert – kein Fehler, wird aber abgelegt: kommt einen Tag lang nichts Brauchbares, meldet die Anlage „Messfehler“ |
 | **404** mit `gesucht` | Gerät nicht angelernt; `gesucht` nennt die Kennungen aus der Meldung |
 | **401** | Schlüssel falsch |
 | **503** | `INGEST_WEBHOOK_TOKEN` nicht gesetzt – der Weg ist zu |

@@ -94,8 +94,9 @@ ist damit abgeschaltet – er steht nie offen.
 
 ## 2a. Stündliche Überwachung
 
-Migration `0006` legt mit **pg_cron** einen Job in der Datenbank an, der
-stündlich prüft, welcher angelernte Sensor zu lange nichts gemeldet hat:
+Migration `0006` legt mit **pg_cron** einen Job in der Datenbank an, `0026`
+zieht ihn auf `public.pruefe_sensoren()` nach. Der Lauf stellt stündlich zwei
+Fragen:
 
 ```sql
 select jobname, schedule, active from cron.job;
@@ -103,13 +104,73 @@ select * from cron.job_run_details order by start_time desc limit 10;
 ```
 
 > **Warum nicht über Vercel Cron?** Der Hobby-Tarif erlaubt dort nur *einen*
-> Lauf pro Tag. Bei einer Schwelle von 30 Stunden fiele ein toter Sensor damit
-> erst bis zu 54 Stunden nach seiner letzten Meldung auf. pg_cron gehört zu
+> Lauf pro Tag. Bei einer Schwelle von 24 Stunden fiele ein toter Sensor damit
+> erst bis zu 48 Stunden nach seiner letzten Meldung auf. pg_cron gehört zu
 > Supabase, kostet nichts und kann stündlich. Wer einen Pro-Tarif hat, kann
 > stattdessen eine `vercel.json` mit
 > `{"crons":[{"path":"/api/cron/pruefen","schedule":"17 * * * *"}]}` anlegen –
 > dann aber den Datenbank-Job abschalten:
-> `select cron.unschedule('stille-sensoren-pruefen');`
+> `select cron.unschedule('sensoren-pruefen');`
+
+---
+
+## 2b. Was die Anlage von sich aus meldet
+
+Sechs Meldungen, alle im Meldungsfenster der Übersicht und am Container. Sie
+öffnen und schließen sich selbst; „quittieren“ heißt nur *gesehen*, nicht
+*erledigt*.
+
+| Meldung | Wann sie aufgeht | Wann sie wieder zugeht |
+|---|---|---|
+| **Container voll** | Füllstand ≥ `schwelle_voll` | Füllstand wieder unter `schwelle_warnung` |
+| **Batterie schwach** | unter `batterie_min_v` bzw. `batterie_min_prozent` | ein Messwert darüber (nach dem Zellentausch) |
+| **Kein Signal** | seit `max_stille_stunden` **gar keine** Meldung – mindestens aber seit dem doppelten Sendeintervall des Geräts | die nächste Meldung, egal ob brauchbar |
+| **Keine brauchbaren Messwerte** | im Fenster von `messfehler_stunden` kamen mindestens `messfehler_min_meldungen` Meldungen an, aber **keine einzige** mit gültigem Füllstand | die nächste Meldung mit gültigem Füllstand |
+| **Sensor verrutscht** | `lage_meldungen_bis_alarm` Meldungen hintereinander melden Schräglage | die nächste Meldung, die wieder „normal“ sagt |
+| **Nichts im Messbereich** | `messbereich_meldungen` Meldungen **hintereinander** tragen einen Abstand, der außerhalb des Messbereichs liegt | die nächste Meldung mit einem Wert im Messbereich |
+
+Die Leitlinie dahinter: **eine ausgefallene Übertragung ist Normalbetrieb.**
+Funk ist Funk, und ein Gerät, dessen Meldung einmal nicht durchkommt, ist
+nicht kaputt. Deshalb hängt keine dieser Meldungen an einem einzelnen Wert,
+sondern entweder an einem ganzen Tag oder an mehreren Meldungen **in Folge**.
+Eine Reihe ist dabei bewusst nicht in Stunden gerechnet: sie bedeutet beim
+Minutentakt drei Minuten und bei vier Meldungen am Tag die übernächste
+Meldung – in beiden Fällen dieselbe Aussage, „das ist kein Ausreißer mehr“.
+
+„Kein Signal“ und „Keine brauchbaren Messwerte“ schließen sich gegenseitig
+aus, und der Unterschied ist der Weg zur Reparatur:
+
+* **Kein Signal** – vom Gerät kommt nichts. Batterie leer, Antenne ab,
+  Funkloch, SIM-Volumen aufgebraucht.
+* **Keine brauchbaren Messwerte** – das Gerät meldet sich pünktlich, aber
+  seine Werte taugen nicht: Sicht auf den Boden verstellt, Sensor falsch
+  eingebaut, oder das Gerät hat sein Meldeformat geändert und wir lesen es
+  nicht mehr. Das ist der stille Fall, an dem die Messreihe am 07.09.2026 acht
+  Stunden lang stillstand, ohne dass irgendwo etwas rot wurde – jede einzelne
+  Meldung sah in Ordnung aus.
+
+Feiner unterschieden wird noch einmal danach, **ob überhaupt ein Abstand in
+der Meldung steht**:
+
+* **Nichts im Messbereich** – ein Abstand kommt an, liegt aber außerhalb des
+  Messbereichs (der EM400 meldet dafür `0xFFFD` = 65533). Dann steht *etwas
+  vor dem Sensor*: randvoller Behälter, verdeckte Membran, oder das Gerät ist
+  heruntergefallen und liegt in der Ware. Genau dieses Bild hat ein Versuch am
+  07.09.2026 erzeugt – Sensor in eine Tasche gepackt, 23 Minuten lang
+  ununterbrochen 65533.
+* **Keine brauchbaren Messwerte** – gar kein Abstand in der Meldung. Dann ist
+  etwas mit der *Meldung*, nicht mit dem Behälter.
+
+Läuft beides zusammen, tritt der Messfehler zurück: die genauere Meldung steht
+schon.
+
+Von Hand auslösen lässt sich der Lauf jederzeit:
+
+```sql
+select public.pruefe_sensoren();     -- beide Prüfungen, gibt neue Meldungen zurück
+select public.pruefe_stille_sensoren();
+select public.pruefe_messfehler();
+```
 
 ---
 
@@ -192,8 +253,13 @@ Tabelle `einstellung`, änderbar nur durch die Administration:
 |---|---|---|
 | `schwelle_warnung` | 75 | ab hier erscheint der Container in der Tourenliste |
 | `schwelle_voll` | 90 | ab hier gilt er als voll (Alarm) |
-| `max_stille_stunden` | 30 | danach „kein Signal“ |
+| `max_stille_stunden` | 24 | ohne jede Meldung so lange: „kein Signal“. Untergrenze ist immer das doppelte Sendeintervall des Geräts |
+| `messfehler_stunden` | 24 | so lange darf ein Gerät melden, ohne dass ein brauchbarer Messwert dabei ist |
+| `messfehler_min_meldungen` | 3 | erst ab so vielen Meldungen im Fenster gilt das als Messfehler – eine einzelne verstümmelte Meldung ist Normalbetrieb |
+| `lage_meldungen_bis_alarm` | 2 | so viele Meldungen hintereinander müssen „schief“ sagen, bevor der Sensor als verrutscht gilt |
+| `messbereich_meldungen` | 3 | so viele Meldungen hintereinander müssen außerhalb des Messbereichs liegen, bevor „nichts im Messbereich“ gilt |
 | `batterie_min_v` | 3.4 | darunter Batteriealarm |
+| `batterie_min_prozent` | 20 | darunter Batteriealarm bei Fertiggeräten |
 | `voll_abstand_anteil` | 0.15 | Vollwert = Leerwert × dieser Anteil |
 | `kalibrier_fenster_stunden` | 6 | aus diesem Zeitraum wird der Leerwert gemittelt |
 | `leerung_erkennung_diff` | 40 | Sprung nach unten, der als Leerung zählt |
