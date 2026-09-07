@@ -20,6 +20,26 @@
   --achse: #c3c2b7;
   --rand: rgba(11, 11, 11, 0.1);
 
+  /* Handlung und Fokus. Bis hierher war --serie beides zugleich: die Farbe
+     der Fuellstandskurve UND die Farbe des Knopfes "Anmelden". Damit gehoerte
+     sie niemandem - mal hiess sie "hier klicken", mal "das ist der Messwert".
+     Die Primaeraktion traegt jetzt Tinte: sie steht ueberall gleich, drueckt
+     sich nicht in den Vordergrund und laesst dem Blau die Daten. Das Rot des
+     Kreisverbands bleibt der Marke vorbehalten und wird nie ein Knopf -
+     daneben steht --kritisch fuer Alarme, und zwei Rottoene mit
+     verschiedener Bedeutung waeren eine Falle. */
+  --aktion: #1b2a38;
+  --aktion-ink: #fcfcfb;
+  --aktion-hover: #2c4256;
+  --gefahr: #a02c2c;
+  --gefahr-wash: rgba(160, 44, 44, 0.09);
+
+  /* Tastaturfokus ist ein Zustand, keine Handlung - deshalb eine eigene
+     Rolle und nicht die Aktionsfarbe. Sie muss auf jeder Flaeche auffallen,
+     auch auf einem dunklen Knopf. */
+  --fokus: #2a78d6;
+  --fokus-wash: rgba(42, 120, 214, 0.3);
+
   /* Datenreihen der Verlaufskurven. Je Kurve eine Reihe, also braucht keine
      Kurve eine Legende - die Ueberschrift benennt sie. Zwei Farben trotzdem,
      weil Fuellstand und Batterie untereinander stehen und auseinander zu
@@ -54,6 +74,15 @@
     --achse: #383835;
     --rand: rgba(255, 255, 255, 0.1);
 
+    --aktion: #e9e8e2;
+    --aktion-ink: #16191c;
+    --aktion-hover: #ffffff;
+    --gefahr: #e46b6b;
+    --gefahr-wash: rgba(228, 107, 107, 0.14);
+
+    --fokus: #6aa9f0;
+    --fokus-wash: rgba(106, 169, 240, 0.38);
+
     --serie: #3987e5;
     --serie-wash: rgba(57, 135, 229, 0.14);
     --serie-2: #b95cb0;
@@ -76,6 +105,15 @@
   --achse: #383835;
   --rand: rgba(255, 255, 255, 0.1);
 
+  --aktion: #e9e8e2;
+  --aktion-ink: #16191c;
+  --aktion-hover: #ffffff;
+  --gefahr: #e46b6b;
+  --gefahr-wash: rgba(228, 107, 107, 0.14);
+
+  --fokus: #6aa9f0;
+  --fokus-wash: rgba(106, 169, 240, 0.38);
+
   --serie: #3987e5;
   --serie-wash: rgba(57, 135, 229, 0.14);
   --serie-2: #b95cb0;
@@ -88,6 +126,7 @@ html,
 body {
   background: var(--plane);
   color: var(--ink);
+  font-family: var(--schrift-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body {
@@ -139,57 +178,103 @@ body {
   border: 0;
 }
 
-/* Formularelemente --------------------------------------------------------- */
-.feld {
-  @apply w-full rounded-lg border bg-flaeche px-3 py-2 text-sm text-ink outline-none;
-}
+/* Formular- und Knopfklassen liegen bewusst in @layer components.
+   Ohne diese Schicht stehen sie im Stylesheet HINTER den Utilities, und bei
+   gleicher Spezifitaet gewinnt dann die spaetere Regel: `class="feld w-auto"`
+   ergab ein Feld ueber die volle Bildschirmbreite, weil das w-full aus
+   @apply die Utility ueberstimmte. Auf der Containerliste standen die beiden
+   Auswahlfelder deshalb 1248 px breit da. In der Schicht gewinnt wieder die
+   Utility, wie es Tailwind vorsieht - und `feld w-auto` tut, was dort steht. */
+@layer components {
+  /* Formularelemente --------------------------------------------------------- */
+  .feld {
+    @apply w-full rounded-lg border bg-flaeche px-3 py-2 text-sm text-ink outline-none;
+  }
 
-.feld:focus {
-  border-color: var(--serie);
-  box-shadow: 0 0 0 3px var(--serie-wash);
-}
+  .feld:focus {
+    border-color: var(--fokus);
+    box-shadow: 0 0 0 3px var(--fokus-wash);
+  }
 
-.knopf {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
-}
+  .knopf {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
+  }
 
-.knopf-primaer {
-  @apply knopf text-white;
-  background: var(--serie);
-}
+  /* Tastaturfokus muss auf jeder Flaeche sichtbar sein - auch auf dem dunklen
+     Primaerknopf, wo ein Rahmen in Aktionsfarbe verschwinden wuerde. Deshalb
+     ein Ring mit Abstand statt einer Randfarbe. */
+  .knopf:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--fokus);
+    outline-offset: 2px;
+  }
 
-.knopf-primaer:hover {
-  filter: brightness(1.08);
-}
+  .knopf-primaer {
+    @apply knopf;
+    background: var(--aktion);
+    color: var(--aktion-ink);
+  }
 
-.knopf-sekundaer {
-  @apply knopf border bg-flaeche text-ink;
-}
+  .knopf-primaer:hover {
+    background: var(--aktion-hover);
+  }
 
-.knopf-sekundaer:hover {
-  background: var(--flaeche-2);
-}
+  .knopf-sekundaer {
+    @apply knopf border bg-flaeche text-ink;
+  }
 
-.knopf:disabled {
-  @apply cursor-not-allowed opacity-50;
-}
+  .knopf-sekundaer:hover {
+    background: var(--flaeche-2);
+  }
 
-.karte-flaeche {
-  @apply rounded-xl border bg-flaeche;
-}
+  /* Ein Handgriff, der etwas aufloest oder loescht, darf nicht aussehen wie
+     der daneben, der eine Einstellung oeffnet. Kein voller Farbknopf: das
+     zoege den Blick auf die gefaehrlichste Stelle der Zeile. */
+  .knopf-gefahr {
+    @apply knopf border bg-flaeche;
+    color: var(--gefahr);
+    border-color: color-mix(in oklab, var(--gefahr) 35%, transparent);
+  }
 
-.tabelle {
-  @apply w-full border-collapse text-sm;
-}
+  .knopf-gefahr:hover {
+    background: var(--gefahr-wash);
+  }
 
-.tabelle th {
-  @apply border-b px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-3;
-}
+  .knopf:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
 
-.tabelle td {
-  @apply border-b px-3 py-2 align-middle;
-}
+  .karte-flaeche {
+    @apply rounded-xl border bg-flaeche;
+  }
 
-.zahl {
-  font-variant-numeric: tabular-nums;
+  .tabelle {
+    @apply w-full border-collapse text-sm;
+  }
+
+  /* Kein uppercase + tracking-wide mehr: gesperrte Versalien lesen sich
+     schlechter, brechen bei deutschen Wortlaengen ("Sendeintervall") frueher um
+     und sind die haeufigste Vorlagen-Geste ueberhaupt. Der Kopf hebt sich durch
+     Gewicht und Farbe ab, das reicht. */
+  .tabelle th {
+    @apply border-b px-3 py-2 text-left text-xs font-semibold text-ink-3;
+  }
+
+  .tabelle td {
+    @apply border-b px-3 py-2 align-middle;
+  }
+
+  .zahl {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Maschinenkennung: Geraete-ID, Anlerncode, Containernummer. Feste Laufweite,
+     weil diese Zeichenfolgen vorgelesen und abgetippt werden - 0/O und 1/l
+     muessen auseinanderzuhalten sein. Etwas kleiner gesetzt, weil eine
+     Schreibmaschinenschrift bei gleicher Groesse groesser wirkt. */
+  .kennung {
+    font-family: var(--schrift-mono), ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.92em;
+    letter-spacing: 0.01em;
+  }
 }

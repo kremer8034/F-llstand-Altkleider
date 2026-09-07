@@ -22,7 +22,16 @@ export default async function Anmeldeseite({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
+        {/* Die Marke traegt jetzt sichtbar, statt als gesperrte Versalzeile
+            ueber der Ueberschrift zu stehen. Das Rot des Kreisverbands ist in
+            der ganzen Oberflaeche sonst nirgends Handlungsfarbe - hier darf
+            es fuehren. */}
+        <p className="flex items-center gap-2 text-sm font-medium text-ink-2">
+          <span
+            aria-hidden="true"
+            className="inline-block h-3.5 w-3.5 rounded-sm"
+            style={{ background: "var(--brk)" }}
+          />
           BRK Kreisverband Miltenberg
         </p>
         <h1 className="mt-1 text-2xl font-semibold">Interner Bereich</h1>
